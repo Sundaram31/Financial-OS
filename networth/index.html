@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Net Worth Dashboard — Financial OS</title>
+<style>
+  :root{
+    --bg:#0B0E11; --panel:#12161B; --panel-2:#171C22; --line:#242A31;
+    --text:#E8E6E0; --muted:#9BA0A8; --gold:#C9A227; --gold-dim:#8f7419;
+    --green:#4A9B6E; --rust:#B5533C;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+  body[data-theme="light"]{
+    --bg:#F7F5F0; --panel:#FFFFFF; --panel-2:#F1EEE7; --line:#DCD7CC;
+    --text:#242220; --muted:#6B6660; --gold:#96741A; --gold-dim:#7a5f15;
+    --green:#2F7A50; --rust:#9B3F2A;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:var(--bg); color:var(--text); font-family:var(--mono); font-size:15.5px; line-height:1.6; min-height:100vh; }
+  a{color:var(--gold);}
+  .app{ display:flex; min-height:100vh; flex-direction:column; }
+  header.topbar{ display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; gap:10px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand .seal{ width:28px; height:28px; border:1.5px solid var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:13px; color:var(--gold); font-weight:600; }
+  .brand h1{ font-family:var(--serif); font-size:17px; font-weight:600; }
+  .brand .sub{ font-size:11px; color:var(--muted); }
+  .topbar-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  main.content{ flex:1; overflow-y:auto; padding:26px 32px; max-width:900px; margin:0 auto; width:100%; }
+  .panel-header{ margin-bottom:22px; }
+  .panel-header .eyebrow{ font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
+  .panel-header h2{ font-family:var(--serif); font-size:24px; font-weight:600; }
+  .panel-header p.desc{ color:var(--muted); font-size:14px; margin-top:6px; max-width:640px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:18px 20px; margin-bottom:16px; }
+  .card h3{ font-family:var(--serif); font-size:16px; margin-bottom:12px; }
+  .field-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
+  .field{ flex:1; min-width:180px; }
+  .field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
+  .field input, .field select, textarea{ width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:14px; }
+  .field input:focus, textarea:focus{ outline:none; border-color:var(--gold-dim); }
+  .btn{ background:transparent; border:1px solid var(--gold-dim); color:var(--gold); padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  .btn:hover{ background:rgba(201,162,39,0.08); border-color:var(--gold); }
+  .btn.primary{ background:var(--gold); color:#141414; font-weight:600; border-color:var(--gold); }
+  .btn.primary:hover{ background:#dab63a; }
+  .btn.ghost{ border-color:var(--line); color:var(--muted); }
+  .btn.small{ padding:5px 10px; font-size:11px; }
+  table.day-table{ width:100%; border-collapse:collapse; margin-top:8px; font-size:13.5px; }
+  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:11.5px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.day-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
+  table.day-table tr:last-child td{ border-bottom:none; }
+  .result-box{ border:1px solid var(--gold-dim); border-radius:6px; padding:18px 20px; background:linear-gradient(180deg, rgba(201,162,39,0.05), transparent); margin-top:16px; }
+  .result-box .verdict{ font-family:var(--serif); font-size:22px; color:var(--gold); margin-bottom:4px; }
+  .result-box .verdict-detail{ font-size:13.5px; color:var(--muted); }
+  .helptext{ font-size:12.5px; color:var(--muted); margin-top:4px; }
+  .breakdown-bar{ display:flex; height:28px; border-radius:4px; overflow:hidden; margin:12px 0; border:1px solid var(--line); }
+  .breakdown-bar .seg{ display:flex; align-items:center; justify-content:center; font-size:10px; color:#141414; font-weight:600; overflow:hidden; white-space:nowrap; }
+  .legend{ display:flex; flex-wrap:wrap; gap:14px; margin-top:8px; }
+  .legend .item{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+  .legend .dot{ width:9px; height:9px; border-radius:2px; }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+  @media (max-width:760px){ main.content{ padding:18px; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="seal">₹</div>
+      <div>
+        <h1>Net Worth Dashboard</h1>
+        <div class="sub">Financial OS · aggregates, doesn't duplicate entry</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <a class="btn small ghost" href="../">← Financial OS</a>
+      <a class="btn small ghost" href="../itrgenie/">ITRGenie</a>
+      <button class="btn small ghost" id="themeToggleBtn">☀ Light mode</button>
+      <button class="btn small ghost" id="exportBtn">Export</button>
+      <button class="btn small ghost" id="importBtn">Import</button>
+      <input type="file" id="importFile" accept="application/json" style="display:none">
+    </div>
+  </header>
+  <main class="content" id="content"></main>
+</div>
+
+<script>
+const STORAGE_KEY = 'networth_data_v1';
+function loadData(){
+  try{ const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : defaultData(); }
+  catch(e){ return defaultData(); }
+}
+function defaultData(){
+  return {
+    categories: {
+      investments: { label: 'Investments (equity, MF, FD, PPF, EPF)', rows: [] },
+      foreignAssets: { label: 'Foreign assets', rows: [] },
+      property: { label: 'Real estate / property', rows: [] },
+      business: { label: 'Business / partnership value', rows: [] },
+      other: { label: 'Other movable assets (vehicles, gold, etc.)', rows: [] },
+    },
+    liabilities: { label: 'Loans & liabilities', rows: [] },
+    snapshots: []  // [{date, totalAssets, totalLiabilities, netWorth}]
+  };
+}
+let data = loadData();
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+function parsePastedRows(text){
+  return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
+    .map(line=>{ const sep = line.includes('\t') ? '\t' : ','; return line.split(sep).map(c=>c.trim()); });
+}
+
+function computeTotals(){
+  let totalAssets = 0;
+  const byCategory = {};
+  Object.entries(data.categories).forEach(([key,cat])=>{
+    const sum = cat.rows.reduce((s,r)=>s+(+r.value||0),0);
+    byCategory[key] = sum;
+    totalAssets += sum;
+  });
+  const totalLiabilities = data.liabilities.rows.reduce((s,r)=>s+(+r.value||0),0);
+  return { totalAssets, totalLiabilities, netWorth: totalAssets - totalLiabilities, byCategory };
+}
+
+function renderCategoryCard(container, key, cat, isLiability){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h3>${cat.label}</h3>
+    <p class="helptext" style="margin-bottom:8px;">One per line: <code>Label, Value${isLiability?', OutstandingAsOf(optional)':''}</code> — e.g. "${isLiability ? 'Home loan (SBI), 3200000' : 'Axis Direct equity+MF, 850000'}"</p>
+    <textarea id="ta_${key}" rows="2" placeholder="${isLiability ? 'Home loan, 3200000' : 'Label, 100000'}"></textarea>
+    <button class="btn small" id="btn_${key}" style="margin-top:8px;">Parse &amp; add</button>
+    <div id="fb_${key}" class="helptext" style="margin:6px 0;"></div>
+    <div id="rows_${key}"></div>
+  `;
+  container.appendChild(card);
+
+  function renderRows(){
+    const el = card.querySelector(`#rows_${key}`);
+    if(cat.rows.length===0){
+      el.innerHTML = `<div class="helptext" style="padding:6px 0;">Nothing added yet.</div>`;
+      return;
+    }
+    const table = document.createElement('table');
+    table.className = 'day-table';
+    table.innerHTML = `<tr><th>Label</th><th>Value</th><th></th></tr>`;
+    cat.rows.forEach((r,idx)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${r.label}</td><td>₹${(+r.value||0).toLocaleString('en-IN')}</td><td><button class="btn small ghost" data-rm="${idx}">✕</button></td>`;
+      table.appendChild(tr);
+    });
+    el.innerHTML = '';
+    el.appendChild(table);
+    el.querySelectorAll('[data-rm]').forEach(btn=>{
+      btn.onclick = (e)=>{ cat.rows.splice(+e.target.dataset.rm,1); saveData(); renderRows(); renderSummary(); };
+    });
+  }
+  renderRows();
+
+  card.querySelector(`#btn_${key}`).onclick = ()=>{
+    const raw = card.querySelector(`#ta_${key}`).value;
+    const rows = parsePastedRows(raw);
+    let added=0, skipped=0;
+    rows.forEach(cols=>{
+      if(cols.length<2){ skipped++; return; }
+      const [label, value] = cols;
+      if(!label || isNaN(+value) || +value<0){ skipped++; return; }
+      cat.rows.push({label: label.trim(), value:+value});
+      added++;
+    });
+    saveData(); renderRows(); renderSummary();
+    card.querySelector(`#fb_${key}`).textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+    if(added>0) card.querySelector(`#ta_${key}`).value='';
+  };
+}
+
+let summaryWrap;
+function renderSummary(){
+  const t = computeTotals();
+  const catColors = ['#C9A227','#4A9B6E','#7EA8C9','#B5533C','#9B7EC9'];
+  const segs = Object.entries(t.byCategory).filter(([k,v])=>v>0);
+  const barHtml = segs.length>0 ? segs.map(([k,v],i)=>{
+    const pct = (v/t.totalAssets*100).toFixed(1);
+    return `<div class="seg" style="width:${pct}%; background:${catColors[i%catColors.length]};" title="${data.categories[k].label}: ₹${v.toLocaleString('en-IN')}">${pct>8?pct+'%':''}</div>`;
+  }).join('') : '';
+  const legendHtml = segs.map(([k,v],i)=>`<div class="item"><span class="dot" style="background:${catColors[i%catColors.length]};"></span>${data.categories[k].label}: ₹${v.toLocaleString('en-IN')}</div>`).join('');
+
+  summaryWrap.innerHTML = `
+    <div class="result-box">
+      <div class="verdict">₹${Math.round(t.netWorth).toLocaleString('en-IN')}</div>
+      <div class="verdict-detail">Net worth — ₹${t.totalAssets.toLocaleString('en-IN')} in assets, ₹${t.totalLiabilities.toLocaleString('en-IN')} in liabilities</div>
+      ${segs.length>0 ? `<div class="breakdown-bar">${barHtml}</div><div class="legend">${legendHtml}</div>` : ''}
+    </div>
+  `;
+}
+
+function renderSnapshots(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h3>Snapshot history</h3>
+    <p class="helptext" style="margin-bottom:8px;">Save today's figures periodically (monthly/quarterly) to track net worth over time — this is the only way to see a trend, since the numbers above always reflect "right now."</p>
+    <button class="btn small primary" id="snap_btn">Save today's snapshot</button>
+    <div id="snap_rows" style="margin-top:10px;"></div>
+    <div id="snap_chart"></div>
+  `;
+  container.appendChild(card);
+
+  function renderSnapRows(){
+    const el = card.querySelector('#snap_rows');
+    if(data.snapshots.length===0){
+      el.innerHTML = `<div class="helptext" style="padding:6px 0;">No snapshots yet — save one to start tracking the trend.</div>`;
+      card.querySelector('#snap_chart').innerHTML = '';
+      return;
+    }
+    const sorted = [...data.snapshots].sort((a,b)=>a.date.localeCompare(b.date));
+    const table = document.createElement('table');
+    table.className = 'day-table';
+    table.innerHTML = `<tr><th>Date</th><th>Net Worth</th><th>Assets</th><th>Liabilities</th><th></th></tr>`;
+    sorted.slice().reverse().forEach((s)=>{
+      const realIdx = data.snapshots.indexOf(s);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${s.date}</td><td>₹${Math.round(s.netWorth).toLocaleString('en-IN')}</td><td>₹${Math.round(s.totalAssets).toLocaleString('en-IN')}</td><td>₹${Math.round(s.totalLiabilities).toLocaleString('en-IN')}</td><td><button class="btn small ghost" data-rmsnap="${realIdx}">✕</button></td>`;
+      table.appendChild(tr);
+    });
+    el.innerHTML = '';
+    el.appendChild(table);
+    el.querySelectorAll('[data-rmsnap]').forEach(btn=>{
+      btn.onclick = (e)=>{ data.snapshots.splice(+e.target.dataset.rmsnap,1); saveData(); renderSnapRows(); };
+    });
+
+    // Simple hand-drawn SVG sparkline -- no chart library, consistent with the zero-dependency rule.
+    if(sorted.length>=2){
+      const w=600,h=120,pad=10;
+      const vals = sorted.map(s=>s.netWorth);
+      const min=Math.min(...vals), max=Math.max(...vals);
+      const range = (max-min)||1;
+      const pts = sorted.map((s,i)=>{
+        const x = pad + (i/(sorted.length-1))*(w-2*pad);
+        const y = h-pad - ((s.netWorth-min)/range)*(h-2*pad);
+        return `${x},${y}`;
+      }).join(' ');
+      card.querySelector('#snap_chart').innerHTML = `
+        <svg viewBox="0 0 ${w} ${h}" style="width:100%; margin-top:10px;">
+          <polyline points="${pts}" fill="none" stroke="var(--gold)" stroke-width="2"/>
+        </svg>`;
+    } else {
+      card.querySelector('#snap_chart').innerHTML = '';
+    }
+  }
+  renderSnapRows();
+
+  card.querySelector('#snap_btn').onclick = ()=>{
+    const t = computeTotals();
+    const today = new Date().toISOString().slice(0,10);
+    const existing = data.snapshots.findIndex(s=>s.date===today);
+    const snap = {date:today, totalAssets:t.totalAssets, totalLiabilities:t.totalLiabilities, netWorth:t.netWorth};
+    if(existing>=0) data.snapshots[existing] = snap; else data.snapshots.push(snap);
+    saveData(); renderSnapRows();
+  };
+}
+
+function render(){
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'panel-header';
+  header.innerHTML = `
+    <div class="eyebrow">Financial OS · aggregates figures you've already worked out elsewhere</div>
+    <h2>Net Worth Dashboard</h2>
+    <p class="desc">Manual entry for now — paste from wherever you currently track each figure (ITRGenie's Schedule AL for property/liabilities, your broker statements for investments). A future Portfolio Tracker connection can feed the Investments category automatically without changing anything else here.</p>
+  `;
+  content.appendChild(header);
+
+  summaryWrap = document.createElement('div');
+  content.appendChild(summaryWrap);
+  renderSummary();
+
+  const assetsHeader = document.createElement('div');
+  assetsHeader.className = 'panel-header';
+  assetsHeader.style.marginTop = '28px';
+  assetsHeader.innerHTML = `<h2 style="font-size:18px;">Assets</h2>`;
+  content.appendChild(assetsHeader);
+  Object.entries(data.categories).forEach(([key,cat])=>renderCategoryCard(content,key,cat,false));
+
+  const liabHeader = document.createElement('div');
+  liabHeader.className = 'panel-header';
+  liabHeader.style.marginTop = '28px';
+  liabHeader.innerHTML = `<h2 style="font-size:18px;">Liabilities</h2>`;
+  content.appendChild(liabHeader);
+  renderCategoryCard(content, 'liabilities', data.liabilities, true);
+
+  const snapHeader = document.createElement('div');
+  snapHeader.className = 'panel-header';
+  snapHeader.style.marginTop = '28px';
+  snapHeader.innerHTML = `<h2 style="font-size:18px;">Trend</h2>`;
+  content.appendChild(snapHeader);
+  renderSnapshots(content);
+}
+
+const THEME_KEY = 'itrgenie_theme'; // deliberately shared with ITRGenie so the theme choice is consistent across the whole Financial OS, not per-tool
+function applyTheme(theme){
+  document.body.dataset.theme = theme;
+  document.getElementById('themeToggleBtn').textContent = theme==='light' ? '● Dark mode' : '☀ Light mode';
+  localStorage.setItem(THEME_KEY, theme);
+}
+document.getElementById('themeToggleBtn').onclick = ()=>{
+  const current = document.body.dataset.theme === 'light' ? 'light' : 'dark';
+  applyTheme(current==='light' ? 'dark' : 'light');
+};
+applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+
+document.getElementById('exportBtn').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `networth-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+document.getElementById('importBtn').onclick = ()=> document.getElementById('importFile').click();
+document.getElementById('importFile').onchange = (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{ data = JSON.parse(ev.target.result); saveData(); render(); }
+    catch(err){ alert('Could not read that file — not valid JSON.'); }
+  };
+  reader.readAsText(file);
+};
+
+render();
+</script>
+</body>
+</html>

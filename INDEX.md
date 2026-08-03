@@ -17,7 +17,7 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 |---|---|---|---|
 | ITRGenie | `/itrgenie/` | 26 modules, guided mode + light theme + larger fonts | 2026-08-03 |
 | Portfolio Tracker | not yet moved here | Built elsewhere | — |
-| Net Worth Dashboard | — | Not started | — |
+| Net Worth Dashboard | `/networth/` | Live, manual entry | 2026-08-03 |
 | Goal Tracker | — | Not started | — |
 | Debt & Loan Tracker | — | Not started | — |
 | Insurance Tracker | — | Not started | — |
