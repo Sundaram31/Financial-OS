@@ -14,6 +14,13 @@ across the whole Financial OS rather than per-tool).
   SVG sparkline trend (no chart library, keeps zero-dependency rule).
 - Export/Import JSON for backup, independent of ITRGenie's own export.
 
+## Updated 2026-08-03
+- Added CSV/TXT file-upload as a second input mode alongside paste, on every
+  category card — reuses the same parser, not a separate code path.
+- Reprioritized per user feedback: Goals module now exists and is meant to
+  be filled in *before* finalizing Net Worth's Investments category, since
+  goal-tagged investments are a more meaningful unit than a flat total.
+
 ## Known gap — the actual point of this module isn't finished
 This currently requires manual entry for Investments, same as everything
 else. The real value unlocks once **Portfolio Tracker** is migrated into

@@ -111,6 +111,15 @@ function parsePastedRows(text){
   return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
     .map(line=>{ const sep = line.includes('\t') ? '\t' : ','; return line.split(sep).map(c=>c.trim()); });
 }
+function wireFileUpload(fileInputEl, textareaEl, parseBtnEl){
+  fileInputEl.onchange = (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{ textareaEl.value = ev.target.result; parseBtnEl.click(); fileInputEl.value=''; };
+    reader.readAsText(file);
+  };
+}
 
 function computeTotals(){
   let totalAssets = 0;
@@ -131,11 +140,18 @@ function renderCategoryCard(container, key, cat, isLiability){
     <h3>${cat.label}</h3>
     <p class="helptext" style="margin-bottom:8px;">One per line: <code>Label, Value${isLiability?', OutstandingAsOf(optional)':''}</code> — e.g. "${isLiability ? 'Home loan (SBI), 3200000' : 'Axis Direct equity+MF, 850000'}"</p>
     <textarea id="ta_${key}" rows="2" placeholder="${isLiability ? 'Home loan, 3200000' : 'Label, 100000'}"></textarea>
-    <button class="btn small" id="btn_${key}" style="margin-top:8px;">Parse &amp; add</button>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+      <button class="btn small" id="btn_${key}">Parse &amp; add</button>
+      <span class="helptext" style="margin:0;">or</span>
+      <button class="btn small ghost" id="filebtn_${key}">Choose CSV/TXT file</button>
+      <input type="file" id="file_${key}" accept=".csv,.txt" style="display:none">
+    </div>
     <div id="fb_${key}" class="helptext" style="margin:6px 0;"></div>
     <div id="rows_${key}"></div>
   `;
   container.appendChild(card);
+  card.querySelector(`#filebtn_${key}`).onclick = ()=> card.querySelector(`#file_${key}`).click();
+  wireFileUpload(card.querySelector(`#file_${key}`), card.querySelector(`#ta_${key}`), card.querySelector(`#btn_${key}`));
 
   function renderRows(){
     const el = card.querySelector(`#rows_${key}`);

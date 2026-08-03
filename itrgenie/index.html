@@ -953,11 +953,18 @@ const PriorYearsModule = {
       <h3>Residency status by year</h3>
       <p class="helptext" style="margin-bottom:8px;">Paste from memory or old computations: <code>FY, Status(Resident/RNOR/NRI), DaysInIndia(optional), CarriedForwardLossST(optional), CarriedForwardLossLT(optional)</code></p>
       <textarea id="py_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="2024-25, NRI, 140&#10;2023-24, NRI, 95, 0, 15000"></textarea>
-      <button class="btn small" id="py_paste_btn" style="margin-top:8px;">Parse &amp; add</button>
+      <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+        <button class="btn small" id="py_paste_btn">Parse &amp; add</button>
+        <span class="helptext" style="margin:0;">or</span>
+        <button class="btn small ghost" id="py_file_btn">Choose CSV/TXT file</button>
+        <input type="file" id="py_file" accept=".csv,.txt" style="display:none">
+      </div>
       <div id="py_paste_feedback" class="helptext" style="margin:6px 0;"></div>
       <div id="py_rows"></div>
     `;
     container.appendChild(resCard);
+    resCard.querySelector('#py_file_btn').onclick = ()=> resCard.querySelector('#py_file').click();
+    wireFileUpload(resCard.querySelector('#py_file'), resCard.querySelector('#py_paste'), resCard.querySelector('#py_paste_btn'));
 
     function renderPYRows(){
       const el = resCard.querySelector('#py_rows');
@@ -1013,11 +1020,18 @@ const PriorYearsModule = {
       <h3>Opening holdings (bought before you started using this tool)</h3>
       <p class="helptext" style="margin-bottom:8px;">One per line: <code>Stock, Qty, BuyDate, BuyPrice, Notes(optional)</code></p>
       <textarea id="oh_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Infosys, 50, 15/06/2019, 720"></textarea>
-      <button class="btn small" id="oh_paste_btn" style="margin-top:8px;">Parse &amp; add</button>
+      <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+        <button class="btn small" id="oh_paste_btn">Parse &amp; add</button>
+        <span class="helptext" style="margin:0;">or</span>
+        <button class="btn small ghost" id="oh_file_btn">Choose CSV/TXT file</button>
+        <input type="file" id="oh_file" accept=".csv,.txt" style="display:none">
+      </div>
       <div id="oh_paste_feedback" class="helptext" style="margin:6px 0;"></div>
       <div id="oh_rows"></div>
     `;
     container.appendChild(holdCard);
+    holdCard.querySelector('#oh_file_btn').onclick = ()=> holdCard.querySelector('#oh_file').click();
+    wireFileUpload(holdCard.querySelector('#oh_file'), holdCard.querySelector('#oh_paste'), holdCard.querySelector('#oh_paste_btn'));
 
     function renderOHRows(){
       const el = holdCard.querySelector('#oh_rows');
@@ -1237,6 +1251,24 @@ function parsePastedRows(text){
       const sep = line.includes('\t') ? '\t' : ',';
       return line.split(sep).map(c=>c.trim());
     });
+}
+// Wires a file input (CSV/TXT) so its content flows through the exact same paste-parse
+// pipeline as manual entry -- one parser to trust, not two. Auto-triggers the existing
+// "Parse & add" button once the file loads, so file upload and paste behave identically
+// from the user's point of view. Native .xlsx binary isn't handled here (needs SheetJS,
+// a much larger bundle) -- CSV/TXT covers the common "exported from Excel/Sheets" case.
+function wireFileUpload(fileInputEl, textareaEl, parseBtnEl){
+  fileInputEl.onchange = (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      textareaEl.value = ev.target.result;
+      parseBtnEl.click();
+      fileInputEl.value = '';
+    };
+    reader.readAsText(file);
+  };
 }
 function parseFlexDate(s){
   if(!s) return '';

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Goals — Financial OS</title>
+<style>
+  :root{
+    --bg:#0B0E11; --panel:#12161B; --panel-2:#171C22; --line:#242A31;
+    --text:#E8E6E0; --muted:#9BA0A8; --gold:#C9A227; --gold-dim:#8f7419;
+    --green:#4A9B6E; --rust:#B5533C;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+  body[data-theme="light"]{
+    --bg:#F7F5F0; --panel:#FFFFFF; --panel-2:#F1EEE7; --line:#DCD7CC;
+    --text:#242220; --muted:#6B6660; --gold:#96741A; --gold-dim:#7a5f15;
+    --green:#2F7A50; --rust:#9B3F2A;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:var(--bg); color:var(--text); font-family:var(--mono); font-size:15.5px; line-height:1.6; min-height:100vh; }
+  a{color:var(--gold);}
+  .app{ display:flex; min-height:100vh; flex-direction:column; }
+  header.topbar{ display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; gap:10px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand .seal{ width:28px; height:28px; border:1.5px solid var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:13px; color:var(--gold); font-weight:600; }
+  .brand h1{ font-family:var(--serif); font-size:17px; font-weight:600; }
+  .brand .sub{ font-size:11px; color:var(--muted); }
+  .topbar-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  main.content{ flex:1; overflow-y:auto; padding:26px 32px; max-width:900px; margin:0 auto; width:100%; }
+  .panel-header{ margin-bottom:22px; }
+  .panel-header .eyebrow{ font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
+  .panel-header h2{ font-family:var(--serif); font-size:24px; font-weight:600; }
+  .panel-header p.desc{ color:var(--muted); font-size:14px; margin-top:6px; max-width:640px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:18px 20px; margin-bottom:16px; }
+  .card h3{ font-family:var(--serif); font-size:16px; margin-bottom:12px; }
+  .field-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
+  .field{ flex:1; min-width:160px; }
+  .field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
+  .field input, .field select, textarea{ width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:14px; }
+  .field input:focus, textarea:focus{ outline:none; border-color:var(--gold-dim); }
+  .btn{ background:transparent; border:1px solid var(--gold-dim); color:var(--gold); padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  .btn:hover{ background:rgba(201,162,39,0.08); border-color:var(--gold); }
+  .btn.primary{ background:var(--gold); color:#141414; font-weight:600; border-color:var(--gold); }
+  .btn.primary:hover{ background:#dab63a; }
+  .btn.ghost{ border-color:var(--line); color:var(--muted); }
+  .btn.small{ padding:5px 10px; font-size:11px; }
+  table.day-table{ width:100%; border-collapse:collapse; margin-top:8px; font-size:13.5px; }
+  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:11.5px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.day-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
+  table.day-table tr:last-child td{ border-bottom:none; }
+  .result-box{ border:1px solid var(--gold-dim); border-radius:6px; padding:18px 20px; background:linear-gradient(180deg, rgba(201,162,39,0.05), transparent); margin-top:12px; }
+  .result-box .verdict{ font-family:var(--serif); font-size:19px; color:var(--gold); margin-bottom:4px; }
+  .result-box .verdict-detail{ font-size:13px; color:var(--muted); }
+  .helptext{ font-size:12.5px; color:var(--muted); margin-top:4px; }
+  .progress-track{ height:14px; background:var(--bg); border:1px solid var(--line); border-radius:7px; overflow:hidden; margin:10px 0; }
+  .progress-fill{ height:100%; background:var(--gold); }
+  .progress-fill.behind{ background:var(--rust); }
+  .progress-fill.ontrack{ background:var(--green); }
+  .goal-card{ border:1px solid var(--line); }
+  .goal-card.expanded{ border-color:var(--gold-dim); }
+  .goal-title-row{ display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+  .tag{ display:inline-block; font-size:10px; padding:2px 8px; border-radius:10px; text-transform:uppercase; font-weight:600; margin-left:8px; }
+  .tag.green{ background:rgba(74,155,110,0.15); color:var(--green); }
+  .tag.rust{ background:rgba(181,83,60,0.15); color:var(--rust); }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+  @media (max-width:760px){ main.content{ padding:18px; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="seal">🎯</div>
+      <div>
+        <h1>Goals</h1>
+        <div class="sub">Financial OS · target, tag, track</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <a class="btn small ghost" href="../">← Financial OS</a>
+      <a class="btn small ghost" href="../networth/">Net Worth</a>
+      <button class="btn small ghost" id="themeToggleBtn">☀ Light mode</button>
+      <button class="btn small ghost" id="exportBtn">Export</button>
+      <button class="btn small ghost" id="importBtn">Import</button>
+      <input type="file" id="importFile" accept="application/json" style="display:none">
+    </div>
+  </header>
+  <main class="content" id="content"></main>
+</div>
+
+<script>
+const STORAGE_KEY = 'goals_data_v1';
+function loadData(){
+  try{ const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : {goals:[]}; }
+  catch(e){ return {goals:[]}; }
+}
+let data = loadData();
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+let expandedGoalId = null;
+
+function parsePastedRows(text){
+  return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
+    .map(line=>{ const sep = line.includes('\t') ? '\t' : ','; return line.split(sep).map(c=>c.trim()); });
+}
+function wireFileUpload(fileInputEl, textareaEl, parseBtnEl){
+  fileInputEl.onchange = (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{ textareaEl.value = ev.target.result; parseBtnEl.click(); fileInputEl.value=''; };
+    reader.readAsText(file);
+  };
+}
+function newId(){ return 'g_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
+
+// Projects a goal's outcome: current tagged corpus grows at the assumed rate, plus monthly
+// contributions compound alongside it (standard PV-growth + FV-of-annuity split, not a single
+// blended formula, so behind/ahead can be diagnosed from each component separately).
+function projectGoal(goal){
+  const currentValue = (goal.investments||[]).reduce((s,r)=>s+(+r.value||0),0);
+  const target = +goal.targetAmount || 0;
+  const targetDate = goal.targetDate ? new Date(goal.targetDate) : null;
+  const today = new Date();
+  const monthsLeft = targetDate ? Math.max(0, Math.round((targetDate-today)/(1000*60*60*24*30.44))) : null;
+  const annualReturn = +goal.assumedReturn || 0;
+  const monthlyRate = annualReturn/12/100;
+  const pmt = +goal.monthlyContribution || 0;
+
+  let projectedValue = currentValue;
+  let requiredMonthly = null;
+  if(monthsLeft!==null && monthsLeft>0){
+    const growthFactor = Math.pow(1+monthlyRate, monthsLeft);
+    const fvCurrent = currentValue * growthFactor;
+    const fvContrib = monthlyRate>0 ? pmt * ((growthFactor-1)/monthlyRate) : pmt*monthsLeft;
+    projectedValue = fvCurrent + fvContrib;
+    const shortfallFV = target - fvCurrent;
+    if(shortfallFV > 0){
+      requiredMonthly = monthlyRate>0 ? shortfallFV / ((growthFactor-1)/monthlyRate) : shortfallFV/monthsLeft;
+    } else {
+      requiredMonthly = 0;
+    }
+  }
+  const progressPct = target>0 ? Math.min(100, (currentValue/target)*100) : 0;
+  const onTrack = target>0 && projectedValue >= target;
+  return { currentValue, target, monthsLeft, projectedValue, requiredMonthly, progressPct, onTrack };
+}
+
+function renderGoalCard(container, goal){
+  const proj = projectGoal(goal);
+  const isExpanded = expandedGoalId === goal.id;
+  const card = document.createElement('div');
+  card.className = 'card goal-card' + (isExpanded?' expanded':'');
+
+  const statusTag = goal.targetDate
+    ? (proj.onTrack ? `<span class="tag green">On track</span>` : `<span class="tag rust">Behind</span>`)
+    : '';
+
+  card.innerHTML = `
+    <div class="goal-title-row" data-toggle>
+      <div>
+        <h3 style="margin-bottom:2px;">${goal.name || 'Untitled goal'} ${statusTag}</h3>
+        <div class="helptext">${goal.category||'General'} · Target ₹${(+goal.targetAmount||0).toLocaleString('en-IN')} by ${goal.targetDate||'—'}</div>
+      </div>
+      <button class="btn small ghost" data-del-goal>✕</button>
+    </div>
+    <div class="progress-track"><div class="progress-fill ${goal.targetDate ? (proj.onTrack?'ontrack':'behind') : ''}" style="width:${proj.progressPct.toFixed(1)}%;"></div></div>
+    <div class="helptext">₹${Math.round(proj.currentValue).toLocaleString('en-IN')} of ₹${(+goal.targetAmount||0).toLocaleString('en-IN')} tagged so far (${proj.progressPct.toFixed(1)}%)</div>
+    <div id="goal_body_${goal.id}" style="display:${isExpanded?'block':'none'}; margin-top:14px;"></div>
+  `;
+  container.appendChild(card);
+
+  card.querySelector('[data-toggle]').onclick = ()=>{
+    expandedGoalId = isExpanded ? null : goal.id;
+    render();
+  };
+  card.querySelector('[data-del-goal]').onclick = (e)=>{
+    e.stopPropagation();
+    if(!confirm(`Delete goal "${goal.name}"? This can't be undone.`)) return;
+    data.goals = data.goals.filter(g=>g.id!==goal.id);
+    saveData(); render();
+  };
+
+  if(isExpanded){
+    renderGoalBody(card.querySelector(`#goal_body_${goal.id}`), goal);
+  }
+}
+
+function renderGoalBody(container, goal){
+  // ---- Goal parameters ----
+  const paramsCard = document.createElement('div');
+  paramsCard.innerHTML = `
+    <div class="field-row">
+      <div class="field"><label>Goal name</label><input id="g_name" value="${goal.name||''}"></div>
+      <div class="field"><label>Category</label>
+        <select id="g_cat">
+          ${['Retirement','Child education','House/property','Emergency fund','Travel','Vehicle','Other'].map(c=>`<option value="${c}" ${goal.category===c?'selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Target amount (₹)</label><input id="g_target" type="number" value="${goal.targetAmount||''}"></div>
+      <div class="field"><label>Target date</label><input id="g_date" type="date" value="${goal.targetDate||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Planned monthly contribution (₹)</label><input id="g_pmt" type="number" value="${goal.monthlyContribution||''}"></div>
+      <div class="field"><label>Assumed annual return (%)</label><input id="g_ret" type="number" value="${goal.assumedReturn||''}" placeholder="e.g. 10"></div>
+    </div>
+  `;
+  container.appendChild(paramsCard);
+  ['g_name','g_cat','g_target','g_date','g_pmt','g_ret'].forEach(id=>{
+    paramsCard.querySelector('#'+id).onchange = (e)=>{
+      const map = {g_name:'name', g_cat:'category', g_target:'targetAmount', g_date:'targetDate', g_pmt:'monthlyContribution', g_ret:'assumedReturn'};
+      goal[map[id]] = e.target.value;
+      saveData(); render();
+    };
+  });
+
+  // ---- Tagged investments ----
+  const investCard = document.createElement('div');
+  investCard.className = 'card';
+  investCard.style.marginTop = '14px';
+  investCard.innerHTML = `
+    <h3>Existing investments tagged to this goal</h3>
+    <p class="helptext" style="margin-bottom:8px;">Only count holdings you've actually earmarked for this goal — the same fund can only be tagged to one goal at a time if you want the numbers to stay honest. One per line: <code>Label, Current Value</code></p>
+    <textarea id="inv_paste" rows="2" placeholder="PPF account, 450000"></textarea>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+      <button class="btn small" id="inv_btn">Parse &amp; add</button>
+      <span class="helptext" style="margin:0;">or</span>
+      <button class="btn small ghost" id="inv_file_btn">Choose CSV/TXT file</button>
+      <input type="file" id="inv_file" accept=".csv,.txt" style="display:none">
+    </div>
+    <div id="inv_fb" class="helptext" style="margin:6px 0;"></div>
+    <div id="inv_rows"></div>
+  `;
+  container.appendChild(investCard);
+  investCard.querySelector('#inv_file_btn').onclick = ()=> investCard.querySelector('#inv_file').click();
+  wireFileUpload(investCard.querySelector('#inv_file'), investCard.querySelector('#inv_paste'), investCard.querySelector('#inv_btn'));
+
+  goal.investments = goal.investments || [];
+  function renderInvRows(){
+    const el = investCard.querySelector('#inv_rows');
+    if(goal.investments.length===0){
+      el.innerHTML = `<div class="helptext" style="padding:6px 0;">Nothing tagged yet.</div>`;
+      return;
+    }
+    const table = document.createElement('table');
+    table.className = 'day-table';
+    table.innerHTML = `<tr><th>Label</th><th>Value</th><th></th></tr>`;
+    goal.investments.forEach((r,idx)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${r.label}</td><td>₹${(+r.value||0).toLocaleString('en-IN')}</td><td><button class="btn small ghost" data-rm="${idx}">✕</button></td>`;
+      table.appendChild(tr);
+    });
+    el.innerHTML = '';
+    el.appendChild(table);
+    el.querySelectorAll('[data-rm]').forEach(btn=>{
+      btn.onclick = (e)=>{ goal.investments.splice(+e.target.dataset.rm,1); saveData(); render(); };
+    });
+  }
+  renderInvRows();
+  investCard.querySelector('#inv_btn').onclick = ()=>{
+    const raw = investCard.querySelector('#inv_paste').value;
+    const rows = parsePastedRows(raw);
+    let added=0, skipped=0;
+    rows.forEach(cols=>{
+      if(cols.length<2){ skipped++; return; }
+      const [label, value] = cols;
+      if(!label || isNaN(+value) || +value<0){ skipped++; return; }
+      goal.investments.push({label: label.trim(), value:+value});
+      added++;
+    });
+    saveData(); render();
+  };
+
+  // ---- Projection ----
+  const proj = projectGoal(goal);
+  const projCard = document.createElement('div');
+  projCard.className = 'result-box';
+  if(!goal.targetDate || !goal.targetAmount){
+    projCard.innerHTML = `<div class="verdict">Set a target amount and date above</div><div class="verdict-detail">Needed to project whether you're on track.</div>`;
+  } else {
+    projCard.innerHTML = `
+      <div class="verdict">${proj.onTrack ? 'On track' : 'Behind — needs attention'}</div>
+      <div class="verdict-detail">
+        Projected value at target date: ₹${Math.round(proj.projectedValue).toLocaleString('en-IN')} vs target ₹${(+goal.targetAmount).toLocaleString('en-IN')}
+        (${proj.monthsLeft} months left, assuming ${goal.assumedReturn||0}% annual return and ₹${(+goal.monthlyContribution||0).toLocaleString('en-IN')}/month contribution)
+      </div>
+      ${!proj.onTrack ? `<div class="verdict-detail" style="color:var(--rust); margin-top:8px;">To hit this target on time, you'd need roughly ₹${Math.round(proj.requiredMonthly).toLocaleString('en-IN')}/month instead — ₹${Math.round(proj.requiredMonthly-(+goal.monthlyContribution||0)).toLocaleString('en-IN')} more than currently planned.</div>` : ''}
+    `;
+  }
+  container.appendChild(projCard);
+}
+
+function render(){
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'panel-header';
+  header.innerHTML = `
+    <div class="eyebrow">Financial OS · target, tag, track — before net worth, not after</div>
+    <h2>Goals</h2>
+    <p class="desc">Each goal: target amount and date, the investments you've actually earmarked for it, a planned monthly contribution, and whether that combination gets you there on time.</p>
+  `;
+  content.appendChild(header);
+
+  const addCard = document.createElement('div');
+  addCard.className = 'card';
+  addCard.innerHTML = `<button class="btn primary" id="add_goal_btn">+ Add a goal</button>`;
+  content.appendChild(addCard);
+  addCard.querySelector('#add_goal_btn').onclick = ()=>{
+    const g = {id:newId(), name:'New goal', category:'Other', targetAmount:'', targetDate:'', monthlyContribution:'', assumedReturn:'10', investments:[]};
+    data.goals.push(g);
+    expandedGoalId = g.id;
+    saveData(); render();
+  };
+
+  if(data.goals.length===0){
+    const empty = document.createElement('div');
+    empty.className = 'card';
+    empty.innerHTML = `<div class="helptext">No goals yet — add one above. Common starting points: retirement corpus, a child's education fund, or a house down payment.</div>`;
+    content.appendChild(empty);
+  } else {
+    data.goals.forEach(g=>renderGoalCard(content, g));
+  }
+}
+
+const THEME_KEY = 'itrgenie_theme';
+function applyTheme(theme){
+  document.body.dataset.theme = theme;
+  document.getElementById('themeToggleBtn').textContent = theme==='light' ? '● Dark mode' : '☀ Light mode';
+  localStorage.setItem(THEME_KEY, theme);
+}
+document.getElementById('themeToggleBtn').onclick = ()=>{
+  const current = document.body.dataset.theme === 'light' ? 'light' : 'dark';
+  applyTheme(current==='light' ? 'dark' : 'light');
+};
+applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+
+document.getElementById('exportBtn').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `goals-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+document.getElementById('importBtn').onclick = ()=> document.getElementById('importFile').click();
+document.getElementById('importFile').onchange = (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{ data = JSON.parse(ev.target.result); saveData(); render(); }
+    catch(err){ alert('Could not read that file — not valid JSON.'); }
+  };
+  reader.readAsText(file);
+};
+
+render();
+</script>
+</body>
+</html>
