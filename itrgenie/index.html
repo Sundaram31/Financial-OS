@@ -446,7 +446,8 @@ function renderHelp(container){
     <div class="checklist-item"><div class="check-icon" style="color:var(--gold);">3</div><div class="check-body"><div class="doc-name">Fill income modules as data becomes available</div><div class="doc-fallback">Don't force an order — if your capital gains statement arrives before your Form 16, do that module first. The Dashboard re-sorts itself as you go.</div></div></div>
     <div class="checklist-item"><div class="check-icon" style="color:var(--gold);">4</div><div class="check-body"><div class="doc-name">Paste, don't type, wherever you see a paste box</div><div class="doc-fallback">Copy rows straight from Excel, Sheets, or a broker PDF-to-text — one line per entry. Far faster than typing on mobile.</div></div></div>
     <div class="checklist-item"><div class="check-icon" style="color:var(--gold);">5</div><div class="check-body"><div class="doc-name">Check the Document checklist</div><div class="doc-fallback">Aggregates what every active module still needs, with a suggested alternative if the primary document isn't available.</div></div></div>
-    <div class="checklist-item"><div class="check-icon" style="color:var(--gold);">6</div><div class="check-body"><div class="doc-name">Review Tax Saving Advisor and Regime Comparison last</div><div class="doc-fallback">These only get more accurate as the other modules fill in — check them once most of your data is in, not first.</div></div></div>
+    <div class="checklist-item"><div class="check-icon" style="color:var(--gold);">6</div><div class="check-body"><div class="doc-name">Review Tax Saving Advisor, Regime Comparison, and What-If Planner last</div><div class="doc-fallback">These only get more accurate as the other modules fill in — check them once most of your data is in, not first. What-If Planner specifically answers "what should I actually do to pay less," not just "what do I owe."</div></div></div>
+    <div class="checklist-item"><div class="check-icon" style="color:var(--gold);">7</div><div class="check-body"><div class="doc-name">Check Compliance Calendar before you close the tool</div><div class="doc-fallback">Every statutory date computed from your FY — advance tax instalments, filing due date, belated/revised deadlines. Worth a glance even after filing, for next year's advance tax dates.</div></div></div>
   `;
   container.appendChild(walkCard);
 
@@ -468,6 +469,9 @@ function renderHelp(container){
     ['Form 67', 'The form used to claim credit for foreign tax you already paid abroad, so the same income isn\'t taxed twice.'],
     ['Presumptive taxation (44AD/44ADA/44AE)', 'A simplified way to declare business/professional income as a fixed percentage of turnover, without maintaining detailed books.'],
     ['FIFO', 'First-In-First-Out — the rule for matching which specific shares you sold against which purchase lot, used to work out cost basis when you bought the same stock multiple times.'],
+    ['AMT / AMTC (Sec 115JC/115JD)', 'Alternate Minimum Tax — a minimum-tax floor that only applies if you\'ve claimed specific profit-linked deductions (SEZ, certain specified businesses — not the common ones like 80C/80D) and only under old regime. If it applies, the excess over your normal tax becomes a credit (AMTC) usable for up to 15 years.'],
+    ['Belated vs revised return', 'Belated (Sec 139(4)) is filing after the due date for the first time — deadline 31-Dec. Revised (Sec 139(5)) is correcting a return you already filed — deadline extended to 31-Mar by Budget 2026. They used to share a deadline; they don\'t anymore.'],
+    ['ITR-U', 'Updated return — lets you file up to 48 months after the assessment year ends, even after missing the belated/revised deadlines, but only to declare additional income (not to claim a refund or reduce liability), and with an additional fee.'],
   ];
   const rowsEl = glossCard.querySelector('#gloss_rows');
   terms.forEach(([term,def])=>{
@@ -490,6 +494,9 @@ function renderHelp(container){
     ['Which ITR form do I need?', 'The Form Determination module works this out from your Residency and income module data — it also shows its reasoning, so you can sanity-check the "why," not just the answer.'],
     ['Old regime or new regime?', 'Fill in the Deductions module for both (the new-regime section only needs 80CCD(2); old-regime needs the rest), then check the Old vs New Regime Comparison module — it computes tax both ways from your actual figures.'],
     ['Is my data stored anywhere online?', 'No — everything stays in this browser\'s local storage on this device only. Nothing is uploaded. Use Export in the top bar to back up or move to another device.'],
+    ['How do I actually reduce my tax, not just report it correctly?', 'That\'s the What-If Tax Planner module — it takes your real numbers from everywhere else and lets you test additional 80C/NPS/80D/80G contributions or capital-loss harvesting, showing which lever saves the most before you commit any money.'],
+    ['Does AMT apply to me?', 'Almost certainly not, unless you\'ve claimed SEZ-unit exemptions or specific profit-linked business deductions (80-IA and similar) — the common deductions (80C/80D/80G/HRA) never trigger it. The AMT module tells you in ten seconds if it\'s not relevant.'],
+    ['What\'s actually due when?', 'The Compliance Calendar module computes every statutory date from your FY automatically — advance tax instalments, ITR due date (which now varies by audit/business-income status per Budget 2026), belated and revised return deadlines, and the ITR-U outer limit.'],
   ];
   const faqEl = faqCard.querySelector('#faq_rows');
   faqs.forEach(([q,a])=>{
@@ -3553,6 +3560,114 @@ const DeductionsModule = {
 registerModule(DeductionsModule);
 
 /* =========================================================================
+   MODULE: Exempt Income (Schedule EI) & Section 80GGA
+   Two small, easy-to-forget disclosures grouped together since they're both
+   "doesn't change your tax, but leaving it out looks wrong" items: Schedule
+   EI is income the department already expects to see disclosed even though
+   it isn't taxed (undisclosed exempt income next to large bank credits is
+   exactly the kind of gap that draws a query); 80GGA is a real deduction
+   (rural development / scientific research donations) distinct from the
+   80G field already in the Deductions module -- easy to miss since it's
+   not listed there.
+   ========================================================================= */
+const ScheduleEIModule = {
+  id: 'schedule_ei',
+  label: 'Exempt Income (Sch EI) & 80GGA',
+  order: 4.55,
+  ruleSet: {},
+  isActive: () => true,
+  hasStarted: (p) => !!(p.scheduleEI && ((p.scheduleEI.rows||[]).length>0 || (+p.scheduleEI.d80GGA||0)>0)),
+  isComplete: () => true,
+  requiredDocs: () => ([
+    {id:'ei_proof', name:'Proof of exempt income (interest certificates, partnership firm profit-share statement, etc.)', note:'Only needed if you have entries below — most people have nothing to add here.'},
+  ]),
+  fallbackDocs: () => ({}),
+  render(container, p, save){
+    p.scheduleEI = p.scheduleEI || {rows:[], d80GGA:''};
+    const ei = p.scheduleEI;
+
+    const header = document.createElement('div');
+    header.className = 'panel-header';
+    header.innerHTML = `
+      <div class="eyebrow">Module 04.55 · Two small items, easy to forget, ten seconds if neither applies</div>
+      <h2>Exempt Income (Schedule EI) &amp; Section 80GGA</h2>
+      <p class="desc">Schedule EI doesn't change your tax — it's disclosure of income the department already expects to see. Skipping it when large bank credits show up (e.g. a partnership firm profit share, or PPF maturity) is exactly the kind of gap that draws a query later.</p>
+    `;
+    container.appendChild(header);
+
+    const eiCard = document.createElement('div');
+    eiCard.className = 'card';
+    eiCard.innerHTML = `
+      <h3>Exempt income to disclose</h3>
+      <p class="helptext" style="margin-bottom:8px;">Common categories: PPF interest, tax-free bond interest, share of profit from a partnership firm (taxed in the firm's hands, exempt in yours), exempt portion of gratuity/leave encashment, agricultural income. Paste one per line: <code>Category, Amount, Note(optional)</code></p>
+      <textarea id="ei_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="PPF interest, 45000&#10;Partnership firm profit share, 320000, XYZ & Co."></textarea>
+      <button class="btn small" id="ei_paste_btn" style="margin-top:8px;">Parse &amp; add</button>
+      <div id="ei_feedback" class="helptext" style="margin:6px 0;"></div>
+      <div id="ei_rows"></div>
+    `;
+    container.appendChild(eiCard);
+
+    function renderEIRows(){
+      const el = eiCard.querySelector('#ei_rows');
+      if(ei.rows.length===0){
+        el.innerHTML = `<div class="helptext" style="padding:8px 0;">Nothing added — if you have no PPF/firm-profit-share/similar exempt income, that's normal, leave this empty.</div>`;
+        return;
+      }
+      const table = document.createElement('table');
+      table.className = 'day-table';
+      table.innerHTML = `<tr><th>Category</th><th>Amount</th><th>Note</th><th></th></tr>`;
+      let total = 0;
+      ei.rows.forEach((r,idx)=>{
+        total += +r.amount||0;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.category}</td><td>₹${(+r.amount||0).toLocaleString('en-IN')}</td><td>${r.note||''}</td><td><button class="btn small ghost" data-rm-ei="${idx}">✕</button></td>`;
+        table.appendChild(tr);
+      });
+      el.innerHTML = '';
+      el.appendChild(table);
+      const totalEl = document.createElement('div');
+      totalEl.className = 'helptext';
+      totalEl.style.marginTop = '8px';
+      totalEl.innerHTML = `<b>Total exempt income disclosed: ₹${total.toLocaleString('en-IN')}</b> — not taxed, but shown for disclosure only.`;
+      el.appendChild(totalEl);
+      el.querySelectorAll('[data-rm-ei]').forEach(btn=>{
+        btn.onclick = (e)=>{ ei.rows.splice(+e.target.dataset.rmEi,1); save(); renderEIRows(); };
+      });
+    }
+    renderEIRows();
+
+    eiCard.querySelector('#ei_paste_btn').onclick = ()=>{
+      const raw = eiCard.querySelector('#ei_paste').value;
+      const rows = parsePastedRows(raw);
+      let added=0, skipped=0;
+      rows.forEach(cols=>{
+        if(cols.length<2){ skipped++; return; }
+        const [category, amount, note] = cols;
+        if(!category || isNaN(+amount) || +amount<0){ skipped++; return; }
+        ei.rows.push({category: category.trim(), amount:+amount, note: note||''});
+        added++;
+      });
+      save(); renderEIRows();
+      eiCard.querySelector('#ei_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      if(added>0) eiCard.querySelector('#ei_paste').value='';
+    };
+
+    const ggaCard = document.createElement('div');
+    ggaCard.className = 'card';
+    ggaCard.innerHTML = `
+      <h3>Section 80GGA — rural development / scientific research donations</h3>
+      <p class="helptext" style="margin-bottom:8px;">Distinct from the 80G field in the Deductions module — this covers donations specifically to approved scientific research associations or rural development programs, and only if you have no business/professional income (if you do, claim it as a business expense instead, not here).</p>
+      <div class="field-row">
+        <div class="field"><label>80GGA donation amount (₹)</label><input id="gga_amt" type="number" value="${ei.d80GGA}"></div>
+      </div>
+    `;
+    container.appendChild(ggaCard);
+    ggaCard.querySelector('#gga_amt').onchange = (e)=>{ ei.d80GGA = e.target.value; save(); };
+  }
+};
+registerModule(ScheduleEIModule);
+
+/* =========================================================================
    MODULE: Alternate Minimum Tax (Sec 115JC) & AMT Credit (Sec 115JD)
    Verified before building: AMT only triggers for non-corporate taxpayers
    who've claimed Chapter VI-A "Part C" profit-linked deductions (80-IA,
@@ -4166,7 +4281,7 @@ const RegimeComparisonModule = {
     const oldD80ParentsRaw = (+d.d80_parents_premium||0) + Math.min(+d.d80_parents_checkup||0,5000) + (d.parentsAreSenior ? (+d.d80_parents_medexp||0) : 0);
     const oldD80Parents = Math.min(oldD80ParentsRaw, d.parentsAreSenior?50000:25000);
     const oldDedTotal = oldC80 + oldCcd1b + oldD80Self + oldD80Parents + Math.min(+d.tta_ttb||0, d.selfIsSenior?50000:10000)
-      + (+d.g80||0) + (+d.e80||0) + (+d.ccd2||0);
+      + (+d.g80||0) + (+d.e80||0) + (+d.ccd2||0) + (+(p.scheduleEI && p.scheduleEI.d80GGA)||0);
     const oldSlabIncome = Math.max(0, slabIncomeBase - oldDedTotal);
     const oldSlabs = d.selfIsSenior ? (d.parentsAreSenior ? rules.oldSlabsSuperSenior : rules.oldSlabsSenior) : rules.oldSlabsRegular;
     let oldSlabTax = taxFromSlabs(oldSlabIncome, oldSlabs);
@@ -4345,7 +4460,7 @@ const WhatIfPlannerModule = {
       const d80ParentsRaw = (+d.d80_parents_premium||0) + Math.min(+d.d80_parents_checkup||0,5000) + (d.parentsAreSenior ? (+d.d80_parents_medexp||0) : 0);
       const d80Parents = Math.min(d80ParentsRaw, d.parentsAreSenior?50000:25000);
       const g80 = (+d.g80||0) + (+deltas.extra80G||0);
-      const dedTotal = c80 + ccd1b + d80Self + d80Parents + Math.min(+d.tta_ttb||0, d.selfIsSenior?50000:10000) + g80 + (+d.e80||0) + (+d.ccd2||0);
+      const dedTotal = c80 + ccd1b + d80Self + d80Parents + Math.min(+d.tta_ttb||0, d.selfIsSenior?50000:10000) + g80 + (+d.e80||0) + (+d.ccd2||0) + (+(p.scheduleEI && p.scheduleEI.d80GGA)||0);
       const slabIncome = Math.max(0, slabIncomeBase - dedTotal);
       let slabTax = taxFromSlabs(slabIncome, oldSlabs);
       let rebate = 0;

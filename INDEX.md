@@ -15,7 +15,7 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 ## Module status at a glance
 | Module | Path | Status | Last touched |
 |---|---|---|---|
-| ITRGenie | `/itrgenie/` | 25 modules, What-If Planner added | 2026-08-03 |
+| ITRGenie | `/itrgenie/` | 26 modules, Sch EI+80GGA added, Help updated | 2026-08-03 |
 | Portfolio Tracker | not yet moved here | Built elsewhere | — |
 | Net Worth Dashboard | — | Not started | — |
 | Goal Tracker | — | Not started | — |
