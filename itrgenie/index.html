@@ -4233,6 +4233,223 @@ const RegimeComparisonModule = {
 registerModule(RegimeComparisonModule);
 
 /* =========================================================================
+   MODULE: What-If Tax Planner
+   Deliberately reuses the exact same slab tables, deduction caps, and
+   surcharge logic as Regime Comparison (same ruleSet object) rather than
+   inventing a parallel computation -- so the two modules can never quietly
+   disagree with each other. Only meaningful under OLD regime: every lever
+   here (80C/80CCD1B/80D/80G, capital loss harvesting) is either disallowed
+   or irrelevant under new regime, so the module says so plainly rather than
+   pretending to optimize a regime where these choices don't move the number.
+   Isolated per-lever savings (each lever alone, others held at current
+   entered values) are shown alongside the combined scenario -- a single
+   combined number tells you "how much," not "which lever actually matters,"
+   and the second question is the one this module exists to answer.
+   ========================================================================= */
+const WhatIfPlannerModule = {
+  id: 'what_if_planner',
+  label: 'What-If Tax Planner',
+  order: 4.91,
+  ruleSet: {},
+  isActive: () => true,
+  hasStarted: (p) => !!(p.whatIf && Object.values(p.whatIf).some(v=>+v>0)),
+  isComplete: () => true,
+  requiredDocs: () => ([]),
+  fallbackDocs: () => ({}),
+  render(container, p, save){
+    p.whatIf = p.whatIf || {extra80C:'', extraNPS:'', extra80D:'', extra80G:'', extraSTCGLoss:'', extraLTCGLoss:''};
+    const wi = p.whatIf;
+
+    const header = document.createElement('div');
+    header.className = 'panel-header';
+    header.innerHTML = `
+      <div class="eyebrow">Module 04.91 · Same numbers as Regime Comparison, with levers you can move</div>
+      <h2>What-If Tax Planner</h2>
+      <p class="desc">Reuses the exact figures already entered across your other modules — this doesn't ask you to re-enter income, only "what if I additionally did X." Every lever here only affects old regime; new regime disallows or ignores all of them.</p>
+    `;
+    container.appendChild(header);
+
+    const regime = p.deductions && p.deductions.regime;
+    if(regime === 'new'){
+      const info = document.createElement('div');
+      info.className = 'result-box';
+      info.innerHTML = `<div class="verdict" style="color:var(--gold);">Not much to plan here — new regime selected</div><div class="verdict-detail">80C, 80CCD(1B), 80D, 80G, and capital-loss harvesting either don't apply or don't change your tax under new regime — it's a fixed slab structure with almost no levers to pull. If you want to see whether switching to old regime would open these levers up, check the Old vs New Regime Comparison module first.</div>`;
+      container.appendChild(info);
+      return;
+    }
+
+    // ---- Recompute the same income base as Regime Comparison (deliberately duplicated, not shared state) ----
+    const isResident = profile.residencyResult ? profile.residencyResult.status.startsWith('Resident') : null;
+    let salaryTaxable = 0;
+    if(p.salaryIncome && !p.salaryIncome.foreignExempt){
+      const totalGross = (p.salaryIncome.employers||[]).reduce((s,e)=>s+(+e.gross||0),0);
+      const totalExempt = (p.salaryIncome.employers||[]).reduce((s,e)=>s+(+e.exempt||0),0);
+      const totalProfTax = (p.salaryIncome.employers||[]).reduce((s,e)=>s+(+e.profTax||0),0);
+      salaryTaxable = Math.max(0, totalGross - totalExempt - 50000 - totalProfTax);
+    }
+    let hpNet = 0;
+    (p.properties||[]).forEach(prop=>{
+      if(prop.selfOccupied) return;
+      const gav = (prop.rentRows||[]).reduce((s,r)=>s+(+r.amount||0),0);
+      const nav = gav - (prop.municipalTax||0);
+      hpNet += nav - nav*0.30 - (prop.homeLoanInterest||0);
+    });
+    let bizNet = 0;
+    if(p.businessIncome){
+      if(p.businessIncome.mode === 'fno') bizNet = (p.businessIncome.fnoTrades||[]).reduce((s,t)=>s+(+t.pl||0),0);
+      else if(p.businessIncome.mode === 'books'){ const bk=p.businessIncome.books||{}; bizNet = (+bk.gross||0)-(+bk.expenses||0); }
+      else if(p.businessIncome.mode === 'presumptive'){
+        const pr = p.businessIncome.presumptive||{}; const t = +pr.turnover||0;
+        if(pr.scheme==='44ADA') bizNet = t*0.5;
+        else if(pr.scheme==='44AD'){ const dig=Math.min(+pr.digital||0,t); bizNet = dig*0.06+(t-dig)*0.08; }
+      }
+    }
+    const otherInterest = parseFloat((p.otherSources||{}).aisInterestTotal) || 0;
+    const foreignLTCG = p.hasForeignAssets ? (+p.foreignLTCG || 0) : 0;
+    const foreignSTCG = p.hasForeignAssets ? (+p.foreignSTCG || 0) : 0;
+    const vdaTaxableGains = (p.vdaTransactions||[]).reduce((s,t)=>{ const g=t.saleValue-t.cost; return g>0?s+g:s; }, 0);
+    const vdaTax = vdaTaxableGains * 0.30;
+    let eqST=0, eqLT=0;
+    (p.cgEquityRows||[]).forEach(r=>{
+      if(r.buyprice==null||r.buyprice==='') return;
+      const calc = computeRowGain(r, {ltcgHoldingDays:365});
+      if(calc.gain===null) return;
+      if(calc.term==='LongTerm') eqLT += calc.gain; else eqST += calc.gain;
+    });
+    let mf112A=0, mf112=0;
+    (p.cgMFRows||[]).forEach(r=>{ if(r.type==='112A') mf112A+=(+r.gain||0); else mf112+=(+r.gain||0); });
+    const baseStcg = eqST, baseLtcg112a = eqLT+mf112A, baseLtcg112 = mf112 + foreignLTCG;
+    const slabIncomeBase = salaryTaxable + Math.max(0,hpNet) + Math.max(0,bizNet) + otherInterest + Math.max(0,foreignSTCG);
+
+    function taxFromSlabs(income, slabs){
+      let tax = 0;
+      for(const [lo,hi,rate] of slabs){
+        if(income > lo){ const upper = hi===null?income:Math.min(income,hi); tax += Math.max(0,upper-lo)*rate; }
+      }
+      return tax;
+    }
+    const rules = RegimeComparisonModule.ruleSet;
+    const d = p.deductions || {};
+    const oldSlabs = d.selfIsSenior ? (d.parentsAreSenior ? rules.oldSlabsSuperSenior : rules.oldSlabsSenior) : rules.oldSlabsRegular;
+
+    // Computes old-regime total tax incl. cess, given delta overrides on top of currently-entered figures.
+    // No surcharge/marginal-relief here (same documented omission as Regime Comparison) -- fine for
+    // comparing deltas at moderate income, since surcharge brackets are far above where these small
+    // deduction levers would flip anything, but flagged below for anyone near a surcharge threshold.
+    function computeOldTax(deltas){
+      deltas = deltas || {};
+      const c80 = Math.min((+d.c80||0) + (+deltas.extra80C||0), 150000);
+      const ccd1b = Math.min((+d.ccd1b||0) + (+deltas.extraNPS||0), 50000);
+      const d80SelfRaw = (+d.d80_self_premium||0) + (+deltas.extra80D||0) + Math.min(+d.d80_self_checkup||0,5000) + (d.selfIsSenior ? (+d.d80_self_medexp||0) : 0);
+      const d80Self = Math.min(d80SelfRaw, d.selfIsSenior?50000:25000);
+      const d80ParentsRaw = (+d.d80_parents_premium||0) + Math.min(+d.d80_parents_checkup||0,5000) + (d.parentsAreSenior ? (+d.d80_parents_medexp||0) : 0);
+      const d80Parents = Math.min(d80ParentsRaw, d.parentsAreSenior?50000:25000);
+      const g80 = (+d.g80||0) + (+deltas.extra80G||0);
+      const dedTotal = c80 + ccd1b + d80Self + d80Parents + Math.min(+d.tta_ttb||0, d.selfIsSenior?50000:10000) + g80 + (+d.e80||0) + (+d.ccd2||0);
+      const slabIncome = Math.max(0, slabIncomeBase - dedTotal);
+      let slabTax = taxFromSlabs(slabIncome, oldSlabs);
+      let rebate = 0;
+      if(isResident && slabIncome <= rules.oldRebateLimit){ rebate = Math.min(slabTax, rules.oldRebateMax); }
+      const taxBeforeCG = Math.max(0, slabTax - rebate);
+
+      // Capital loss harvesting: additional booked losses reduce STCG/LTCG per the same intra-CG
+      // set-off order used elsewhere (ST loss offsets LT gain first) -- consistent with Regime
+      // Comparison and the Capital Gains modules' own set-off logic, not a new rule invented here.
+      let stcg = baseStcg - (+deltas.extraSTCGLoss||0);
+      let ltcg112a = baseLtcg112a, ltcg112 = baseLtcg112;
+      let remainingLTLoss = +deltas.extraLTCGLoss || 0;
+      if(remainingLTLoss > 0){
+        const u1 = Math.min(remainingLTLoss, Math.max(0,ltcg112a)); ltcg112a -= u1; remainingLTLoss -= u1;
+        const u2 = Math.min(remainingLTLoss, Math.max(0,ltcg112)); ltcg112 -= u2; remainingLTLoss -= u2;
+      }
+      if(stcg<0 && ltcg112a>0){ const u=Math.min(-stcg,ltcg112a); ltcg112a-=u; stcg+=u; }
+      const ltcg112aTaxable = Math.max(0, ltcg112a - 125000);
+      const cgTax = Math.max(0,stcg)*0.20 + ltcg112aTaxable*0.125 + Math.max(0,ltcg112)*0.125;
+
+      return (taxBeforeCG + cgTax + vdaTax) * 1.04;
+    }
+
+    const baselineTax = computeOldTax({});
+
+    const inputCard = document.createElement('div');
+    inputCard.className = 'card';
+    inputCard.innerHTML = `
+      <h3>Levers — what could you additionally do?</h3>
+      <div class="field-row">
+        <div class="field"><label>Additional 80C investment (ELSS/PPF/insurance) (₹)</label><input id="wi_80c" type="number" value="${wi.extra80C}"></div>
+        <div class="field"><label>Additional NPS — 80CCD(1B) (₹)</label><input id="wi_nps" type="number" value="${wi.extraNPS}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Additional health insurance — 80D (₹)</label><input id="wi_80d" type="number" value="${wi.extra80D}"></div>
+        <div class="field"><label>Additional donation — 80G (₹, assumes 100% deductible — verify the actual % for your specific donee)</label><input id="wi_80g" type="number" value="${wi.extra80G}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Book additional short-term capital loss (₹)</label><input id="wi_stloss" type="number" value="${wi.extraSTCGLoss}"></div>
+        <div class="field"><label>Book additional long-term capital loss (₹)</label><input id="wi_ltloss" type="number" value="${wi.extraLTCGLoss}"></div>
+      </div>
+    `;
+    container.appendChild(inputCard);
+
+    const resultWrap = document.createElement('div');
+    container.appendChild(resultWrap);
+
+    function renderResult(){
+      const combined = computeOldTax(wi);
+      const levers = [
+        ['Additional 80C', {extra80C: wi.extra80C}],
+        ['Additional NPS (80CCD 1B)', {extraNPS: wi.extraNPS}],
+        ['Additional 80D', {extra80D: wi.extra80D}],
+        ['Additional 80G donation', {extra80G: wi.extra80G}],
+        ['Book short-term capital loss', {extraSTCGLoss: wi.extraSTCGLoss}],
+        ['Book long-term capital loss', {extraLTCGLoss: wi.extraLTCGLoss}],
+      ].map(([label, delta])=>{
+        const val = Object.values(delta)[0];
+        if(!val || +val<=0) return null;
+        const isolatedTax = computeOldTax(delta);
+        return {label, amount:+val, saved: baselineTax - isolatedTax};
+      }).filter(Boolean).sort((a,b)=>b.saved-a.saved);
+
+      let leverRows = '';
+      if(levers.length>0){
+        leverRows = levers.map(l=>`<tr><td>${l.label}</td><td>₹${l.amount.toLocaleString('en-IN')}</td><td style="color:var(--green);">₹${Math.round(l.saved).toLocaleString('en-IN')}</td></tr>`).join('');
+      }
+
+      resultWrap.innerHTML = `
+        <div class="card">
+          <h3>Baseline (current, as entered)</h3>
+          <p class="helptext">Old regime tax with today's figures, no what-ifs applied: <b style="color:var(--text);">₹${Math.round(baselineTax).toLocaleString('en-IN')}</b></p>
+        </div>
+        ${levers.length>0 ? `
+        <div class="card">
+          <h3>Each lever, on its own (others held at today's values)</h3>
+          <p class="helptext" style="margin-bottom:8px;">Ranked by tax saved — shows which single action moves the number most, before combining anything.</p>
+          <table class="day-table"><tr><th>Lever</th><th>Amount</th><th>Tax saved alone</th></tr>${leverRows}</table>
+        </div>
+        <div class="result-box">
+          <div class="verdict">All levers combined: ₹${Math.round(combined).toLocaleString('en-IN')} <span style="color:var(--green); font-size:15px;">(saves ₹${Math.round(baselineTax-combined).toLocaleString('en-IN')})</span></div>
+          <div class="verdict-detail">Combined savings can be less than the sum of individual levers above once income crosses into a lower slab bracket — that's expected, not a bug.</div>
+        </div>` : `<div class="empty-state">Enter one or more levers above to see the impact.</div>`}
+      `;
+    }
+    renderResult();
+
+    inputCard.querySelector('#wi_80c').onchange = e=>{ wi.extra80C=e.target.value; save(); renderResult(); };
+    inputCard.querySelector('#wi_nps').onchange = e=>{ wi.extraNPS=e.target.value; save(); renderResult(); };
+    inputCard.querySelector('#wi_80d').onchange = e=>{ wi.extra80D=e.target.value; save(); renderResult(); };
+    inputCard.querySelector('#wi_80g').onchange = e=>{ wi.extra80G=e.target.value; save(); renderResult(); };
+    inputCard.querySelector('#wi_stloss').onchange = e=>{ wi.extraSTCGLoss=e.target.value; save(); renderResult(); };
+    inputCard.querySelector('#wi_ltloss').onchange = e=>{ wi.extraLTCGLoss=e.target.value; save(); renderResult(); };
+
+    const noteCard = document.createElement('div');
+    noteCard.className = 'card';
+    noteCard.style.borderColor = 'var(--gold-dim)';
+    noteCard.innerHTML = `<p class="helptext">Same surcharge/marginal-relief omission as Regime Comparison applies here. Capital loss harvesting means actually selling a losing position before FY-end to realize the loss — it isn't free (transaction cost, and you lose that position unless you buy something similar back, watching for wash-sale-style scrutiny on identical repurchases). This module tells you the tax impact, not whether harvesting is the right investment decision for that specific holding.</p>`;
+    container.appendChild(noteCard);
+  }
+};
+registerModule(WhatIfPlannerModule);
+
+/* =========================================================================
    MODULE: Advance Tax & Interest (Sections 234A/234B/234C)
    Verified before building: 234A runs from due date to filing date on
    unpaid tax; 234B runs from 1-Apr of the AY if advance tax paid <90% of

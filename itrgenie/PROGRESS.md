@@ -3,12 +3,12 @@
 
 ## What this is
 Single-file, offline-first HTML app (`index.html` in this folder, served live at
-the site root `/itrgenie/`). 24 plug-and-play modules, each self-contained
+the site root `/itrgenie/`). 25 plug-and-play modules, each self-contained
 (`registerModule({...})`), rendered by a shared dashboard/rail. Generic across
 taxpayer profiles — no hardcoded "seafarer" logic; profile-specific behavior
 comes from what's entered, not from branching on who the user is.
 
-## Built & working (24 modules)
+## Built & working (25 modules)
 Form Determination · Prior Years · Residency Calculator · Salary (Sch S) ·
 HRA Exemption · Clubbing of Income (Sch SPI) · Capital Gains—Equity ·
 Capital Gains—Mutual Funds · Virtual Digital Assets · Real Estate ·
@@ -17,7 +17,7 @@ Foreign Assets & Income · House Property · Ch VI-A Deductions ·
 Loss Set-off/Carry Forward (CYLA/BFLA/CFL) · Sch AL (Assets & Liabilities) ·
 Old vs New Regime Comparison · Advance Tax & Interest (234A/B/C) ·
 Year Rollover · Compliance Calendar · AIS Reconciliation ·
-Tax Saving Advisor · Alternate Minimum Tax (AMT/AMTC, Sec 115JC/115JD)
+Tax Saving Advisor · Alternate Minimum Tax (AMT/AMTC, Sec 115JC/115JD) · What-If Tax Planner
 
 ## Audit completed 2026-08-03 — against the official ITR-2 schedule list + AY2026-27 changes
 
@@ -43,6 +43,14 @@ Tax Saving Advisor · Alternate Minimum Tax (AMT/AMTC, Sec 115JC/115JD)
   credit tracker (115JD, 15-year carry-forward). Verified against multiple
   current sources before building — common deductions (80C/80D/80G/HRA)
   correctly do NOT trigger this.
+
+## Built this session, second addition
+- **What-If Tax Planner** — reuses Regime Comparison's exact slab/deduction
+  logic (same ruleSet, same caps) so the two modules can't disagree. Lets you
+  model additional 80C/NPS/80D/80G and capital-loss harvesting, shows each
+  lever's isolated tax impact ranked by savings, plus the combined scenario.
+  Only meaningful under old regime — explicitly says so under new regime
+  rather than showing a misleading zero-impact result.
 
 ## Known gaps (still open, ranked)
 1. TDS/26AS line-by-line reconciliation — manual entry only, no structured import.

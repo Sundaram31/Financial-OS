@@ -9,7 +9,7 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
 
 | Pillar | Your module | Status |
 |---|---|---|
-| Tax compliance & optimization | ITRGenie | Built, 24 modules, audited |
+| Tax compliance & optimization | ITRGenie | Built, 25 modules, audited |
 | Investments | Portfolio Tracker | Built elsewhere, not yet moved here |
 | Goals | (planned extension to Portfolio Tracker) | Idea only |
 | Business compliance | GST/e-way bill tool | Built elsewhere |
@@ -53,3 +53,4 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
 3. Updates land as commits automatically — this file's status log gets
    updated as part of that commit.
 - 2026-08-03: Added Alternate Minimum Tax module (Sec 115JC/115JD) — 24th module.
+- 2026-08-03: Added What-If Tax Planner module — 25th module.
