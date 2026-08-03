@@ -3553,6 +3553,221 @@ const DeductionsModule = {
 registerModule(DeductionsModule);
 
 /* =========================================================================
+   MODULE: Alternate Minimum Tax (Sec 115JC) & AMT Credit (Sec 115JD)
+   Verified before building: AMT only triggers for non-corporate taxpayers
+   who've claimed Chapter VI-A "Part C" profit-linked deductions (80-IA,
+   80-IAB, 80-IB, 80-IC, 80-ID, 80-IE, 80JJA, 80JJAA, 80LA, 80P, 80PA,
+   80QQB, 80RRB) or Sec 10AA (SEZ) -- NOT common deductions like 80C/80D/
+   80G/HRA, which never trigger it. New regime (115BAC) is exempt entirely.
+   Rate 18.5% on Adjusted Total Income, only above Rs 20L ATI. Excess of
+   AMT over normal tax becomes a credit under 115JD, carried forward 15
+   years, usable only up to the amount by which normal tax exceeds that
+   future year's own AMT floor. Surcharge/cess on the AMT figure itself
+   follows the same "not computed, get it checked near a threshold" caveat
+   pattern as Regime Comparison, for the same reason (ambiguous blending
+   near surcharge slabs).
+   ========================================================================= */
+const AMTModule = {
+  id: 'amt',
+  label: 'Alternate Minimum Tax (AMT)',
+  order: 4.6,
+  ruleSet: { atiThreshold: 2000000, amtRate: 0.185, creditCarryForwardYears: 15 },
+  isActive: () => true,
+  hasStarted: (p) => !!(p.amt && ((+p.amt.partCDeductions||0) > 0 || (+p.amt.sec10AA||0) > 0)),
+  isComplete: (p) => !!(p.amt && p.amt._checked),
+  requiredDocs: (p) => {
+    if(p.amt && p.amt._amtApplies){
+      return [{id:'form29c', name:'Form 29C — Chartered Accountant certificate', note:'Mandatory whenever AMT actually applies (AMT > normal tax), must be filed along with or before the ITR.'}];
+    }
+    return [];
+  },
+  fallbackDocs: () => ({}),
+  render(container, p, save){
+    p.amt = p.amt || {partCDeductions:'', sec10AA:'', normalTotalIncome:'', normalTaxPayable:'', creditRows:[]};
+    const amt = p.amt;
+
+    const header = document.createElement('div');
+    header.className = 'panel-header';
+    header.innerHTML = `
+      <div class="eyebrow">Module 04.6 · Only relevant if you've claimed specific profit-linked deductions</div>
+      <h2>Alternate Minimum Tax (Sec 115JC)</h2>
+      <p class="desc">A minimum-tax floor that only kicks in if you've claimed certain profit-linked deductions (SEZ, specified businesses) — not the common ones. If none of that applies to you, this module should take ten seconds: answer "0" below and move on.</p>
+    `;
+    container.appendChild(header);
+
+    const regime = p.deductions && p.deductions.regime;
+    if(regime === 'new'){
+      const info = document.createElement('div');
+      info.className = 'result-box';
+      info.style.borderColor = 'var(--green)';
+      info.innerHTML = `<div class="verdict" style="color:var(--green);">Not applicable — new regime selected</div><div class="verdict-detail">AMT under Sec 115JC only applies to taxpayers under the old regime. With new regime (115BAC) selected in the Deductions module, AMT provisions don't apply to you at all this year — nothing further to do here.</div>`;
+      container.appendChild(info);
+      amt._checked = true; amt._amtApplies = false; save();
+      return;
+    }
+
+    const triggerCard = document.createElement('div');
+    triggerCard.className = 'card';
+    triggerCard.innerHTML = `
+      <h3>Have you claimed either of these?</h3>
+      <p class="helptext" style="margin-bottom:10px;">These are specific — 80C, 80D, 80G, 80TTA/TTB, HRA, and standard deductions do NOT count here, even though they reduce your normal tax. Only the sections below matter for AMT.</p>
+      <div class="field-row">
+        <div class="field"><label>Chapter VI-A "Part C" deductions — 80-IA/IAB/IB/IC/ID/IE, 80JJA, 80JJAA, 80LA, 80P, 80PA, 80QQB, 80RRB (₹)</label><input id="amt_partc" type="number" value="${amt.partCDeductions}"></div>
+        <div class="field"><label>Sec 10AA exemption (SEZ unit profits) (₹)</label><input id="amt_10aa" type="number" value="${amt.sec10AA}"></div>
+      </div>
+    `;
+    container.appendChild(triggerCard);
+
+    const inputCard = document.createElement('div');
+    container.appendChild(inputCard);
+
+    const resultWrap = document.createElement('div');
+    container.appendChild(resultWrap);
+
+    function renderInputCard(){
+      const hasTrigger = (+amt.partCDeductions||0) > 0 || (+amt.sec10AA||0) > 0;
+      if(!hasTrigger){
+        inputCard.innerHTML = '';
+        resultWrap.innerHTML = `<div class="result-box" style="border-color:var(--green);"><div class="verdict" style="color:var(--green);">AMT doesn't apply</div><div class="verdict-detail">No AMT-triggering deductions entered above — the common deductions (80C/80D/80G/HRA/standard deduction) never trigger AMT regardless of amount.</div></div>`;
+        amt._checked = true; amt._amtApplies = false; save();
+        return;
+      }
+      inputCard.className = 'card';
+      inputCard.innerHTML = `
+        <h3>Your normal-provisions figures (old regime)</h3>
+        <p class="helptext" style="margin-bottom:8px;">Copy these from the Old vs New Regime Comparison module's "old regime" column, after that module is filled in.</p>
+        <div class="field-row">
+          <div class="field"><label>Total income under normal provisions (₹)</label><input id="amt_ti" type="number" value="${amt.normalTotalIncome}"></div>
+          <div class="field"><label>Tax payable under normal provisions, incl. 4% cess (₹)</label><input id="amt_tax" type="number" value="${amt.normalTaxPayable}"></div>
+        </div>
+      `;
+      inputCard.querySelector('#amt_ti').onchange = (e)=>{ amt.normalTotalIncome = e.target.value; save(); renderResult(); };
+      inputCard.querySelector('#amt_tax').onchange = (e)=>{ amt.normalTaxPayable = e.target.value; save(); renderResult(); };
+      renderResult();
+    }
+
+    function renderResult(){
+      const hasTrigger = (+amt.partCDeductions||0) > 0 || (+amt.sec10AA||0) > 0;
+      if(!hasTrigger) return;
+      const rules = AMTModule.ruleSet;
+      const ti = +amt.normalTotalIncome || 0;
+      const normalTax = +amt.normalTaxPayable || 0;
+      const ati = ti + (+amt.partCDeductions||0) + (+amt.sec10AA||0);
+
+      if(ti === 0 && normalTax === 0){
+        resultWrap.innerHTML = `<div class="empty-state">Enter your normal-provisions total income and tax above to compute AMT.</div>`;
+        amt._checked = false;
+        save();
+        return;
+      }
+
+      if(ati <= rules.atiThreshold){
+        resultWrap.innerHTML = `<div class="result-box" style="border-color:var(--green);"><div class="verdict" style="color:var(--green);">Below the ₹20L threshold — AMT doesn't apply</div><div class="verdict-detail">Adjusted Total Income (₹${ati.toLocaleString('en-IN')}) is at or below ₹20,00,000 — Sec 115JC exempts you regardless of what triggered the deduction check above.</div></div>`;
+        amt._checked = true; amt._amtApplies = false; save();
+        return;
+      }
+
+      const amtTax = Math.round(ati * rules.amtRate * 1.04); // incl 4% cess, no surcharge modelled
+      const amtApplies = amtTax > normalTax;
+      amt._checked = true;
+      amt._amtApplies = amtApplies;
+      save();
+
+      if(amtApplies){
+        const creditGenerated = amtTax - normalTax;
+        resultWrap.innerHTML = `
+          <div class="result-box">
+            <div class="verdict">AMT applies — pay ₹${amtTax.toLocaleString('en-IN')} instead of ₹${normalTax.toLocaleString('en-IN')}</div>
+            <div class="basis">
+              <div>Adjusted Total Income: ₹${ati.toLocaleString('en-IN')} (normal income ₹${ti.toLocaleString('en-IN')} + Part-C deductions ₹${(+amt.partCDeductions||0).toLocaleString('en-IN')} + Sec 10AA ₹${(+amt.sec10AA||0).toLocaleString('en-IN')})</div>
+              <div>AMT @ 18.5% + 4% cess: ₹${amtTax.toLocaleString('en-IN')}</div>
+              <div style="margin-top:6px; color:var(--gold);">₹${creditGenerated.toLocaleString('en-IN')} becomes AMT credit under Sec 115JD — carried forward up to 15 years, usable in a future year only up to the amount by which that year's normal tax exceeds its own AMT floor. Add this to the tracker below so it isn't lost.</div>
+              <div style="margin-top:6px;">Surcharge on the AMT figure isn't computed here — same caveat as Regime Comparison: if total income is within ~10% of a surcharge threshold, get the exact figure checked professionally.</div>
+              <div style="margin-top:6px; color:var(--rust);">Form 29C (CA certificate) is mandatory this year — see the Document checklist.</div>
+            </div>
+          </div>
+        `;
+      } else {
+        resultWrap.innerHTML = `
+          <div class="result-box">
+            <div class="verdict">Normal tax already covers the AMT floor</div>
+            <div class="basis">
+              <div>Adjusted Total Income: ₹${ati.toLocaleString('en-IN')}</div>
+              <div>AMT @ 18.5% + 4% cess would be ₹${amtTax.toLocaleString('en-IN')} — your normal tax of ₹${normalTax.toLocaleString('en-IN')} already exceeds this, so AMT provisions don't increase what you owe this year.</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    triggerCard.querySelector('#amt_partc').onchange = (e)=>{ amt.partCDeductions = e.target.value; save(); renderInputCard(); };
+    triggerCard.querySelector('#amt_10aa').onchange = (e)=>{ amt.sec10AA = e.target.value; save(); renderInputCard(); };
+    renderInputCard();
+
+    // ---- AMT credit tracker (Sec 115JD) ----
+    const creditCard = document.createElement('div');
+    creditCard.className = 'card';
+    creditCard.innerHTML = `
+      <h3>AMT credit tracker</h3>
+      <p class="helptext" style="margin-bottom:8px;">Log each year's credit generated (from AMT years) and utilized (from years normal tax exceeded that year's AMT). One per line: <code>FY, Generated, Utilized</code></p>
+      <textarea id="amt_credit_paste" rows="2" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="2023-24, 45000, 0&#10;2024-25, 0, 20000"></textarea>
+      <button class="btn small" id="amt_credit_btn" style="margin-top:8px;">Parse &amp; add</button>
+      <div id="amt_credit_feedback" class="helptext" style="margin:6px 0;"></div>
+      <div id="amt_credit_rows"></div>
+    `;
+    container.appendChild(creditCard);
+
+    function renderCreditRows(){
+      const el = creditCard.querySelector('#amt_credit_rows');
+      if(amt.creditRows.length === 0){
+        el.innerHTML = `<div class="helptext" style="padding:8px 0;">No AMT credit history recorded yet.</div>`;
+        return;
+      }
+      const table = document.createElement('table');
+      table.className = 'day-table';
+      table.innerHTML = `<tr><th>FY</th><th>Generated</th><th>Utilized</th><th>Expires (15 yrs)</th><th></th></tr>`;
+      let runningBalance = 0;
+      amt.creditRows.sort((a,b)=>a.fy.localeCompare(b.fy)).forEach((r, idx)=>{
+        runningBalance += (+r.generated||0) - (+r.utilized||0);
+        const startYear = parseInt((r.fy.match(/^\d{4}/)||['0'])[0],10);
+        const expiryFY = startYear ? `${startYear+15}-${String((startYear+16)%100).padStart(2,'0')}` : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.fy}</td><td>₹${(+r.generated||0).toLocaleString('en-IN')}</td><td>₹${(+r.utilized||0).toLocaleString('en-IN')}</td><td>${expiryFY}</td><td><button class="btn small ghost" data-rm-amtcredit="${idx}">✕</button></td>`;
+        table.appendChild(tr);
+      });
+      el.innerHTML = '';
+      el.appendChild(table);
+      const balCard = document.createElement('div');
+      balCard.className = 'helptext';
+      balCard.style.marginTop = '8px';
+      balCard.innerHTML = `<b>Running balance available: ₹${runningBalance.toLocaleString('en-IN')}</b>`;
+      el.appendChild(balCard);
+      el.querySelectorAll('[data-rm-amtcredit]').forEach(btn=>{
+        btn.onclick = (e)=>{ amt.creditRows.splice(+e.target.dataset.rmAmtcredit,1); save(); renderCreditRows(); };
+      });
+    }
+    renderCreditRows();
+
+    creditCard.querySelector('#amt_credit_btn').onclick = ()=>{
+      const raw = creditCard.querySelector('#amt_credit_paste').value;
+      const rows = parsePastedRows(raw);
+      let added=0, skipped=0;
+      rows.forEach(cols=>{
+        if(cols.length<3){ skipped++; return; }
+        const [fy, generated, utilized] = cols;
+        if(!fy || isNaN(+generated) || isNaN(+utilized) || +generated<0 || +utilized<0){ skipped++; return; }
+        amt.creditRows.push({fy: fy.trim(), generated:+generated, utilized:+utilized});
+        added++;
+      });
+      save(); renderCreditRows();
+      creditCard.querySelector('#amt_credit_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      if(added>0) creditCard.querySelector('#amt_credit_paste').value='';
+    };
+  }
+};
+registerModule(AMTModule);
+
+/* =========================================================================
    MODULE: Loss Set-off & Carry Forward (Schedules CYLA / BFLA / CFL)
    Pulls this year's actual figures from the other modules rather than
    asking for them again, applies the core set-off rules, and produces the
