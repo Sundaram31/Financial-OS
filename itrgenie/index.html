@@ -11,7 +11,7 @@
     --panel-2:#171C22;
     --line:#242A31;
     --text:#E8E6E0;
-    --muted:#8A8F98;
+    --muted:#9BA0A8;
     --gold:#C9A227;
     --gold-dim:#8f7419;
     --green:#4A9B6E;
@@ -19,10 +19,22 @@
     --mono: 'IBM Plex Mono', 'Courier New', monospace;
     --serif: 'Source Serif 4', Georgia, serif;
   }
+  body[data-theme="light"]{
+    --bg:#F7F5F0;
+    --panel:#FFFFFF;
+    --panel-2:#F1EEE7;
+    --line:#DCD7CC;
+    --text:#242220;
+    --muted:#6B6660;
+    --gold:#96741A;
+    --gold-dim:#7a5f15;
+    --green:#2F7A50;
+    --rust:#9B3F2A;
+  }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{
     background:var(--bg); color:var(--text);
-    font-family:var(--mono); font-size:14px; line-height:1.5;
+    font-family:var(--mono); font-size:15.5px; line-height:1.6;
     min-height:100vh;
   }
   a{color:var(--gold);}
@@ -72,19 +84,19 @@
   .panel-header{ margin-bottom:22px; }
   .panel-header .eyebrow{ font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
   .panel-header h2{ font-family:var(--serif); font-size:24px; font-weight:600; }
-  .panel-header p.desc{ color:var(--muted); font-size:13px; margin-top:6px; max-width:640px; }
+  .panel-header p.desc{ color:var(--muted); font-size:14px; margin-top:6px; max-width:640px; }
 
   .card{
     background:var(--panel); border:1px solid var(--line); border-radius:6px;
     padding:18px 20px; margin-bottom:16px;
   }
-  .card h3{ font-family:var(--serif); font-size:15px; margin-bottom:12px; color:var(--text); }
+  .card h3{ font-family:var(--serif); font-size:16px; margin-bottom:12px; color:var(--text); }
   .field-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
   .field{ flex:1; min-width:180px; }
   .field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
   .field input, .field select{
     width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
-    padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:13px;
+    padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:14px;
   }
   .field input:focus, .field select:focus{ outline:none; border-color:var(--gold-dim); }
   .btn{
@@ -98,8 +110,8 @@
   .btn.ghost{ border-color:var(--line); color:var(--muted); }
   .btn.small{ padding:5px 10px; font-size:11px; }
 
-  table.day-table{ width:100%; border-collapse:collapse; margin-top:8px; font-size:12.5px; }
-  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:10.5px; text-transform:uppercase; letter-spacing:0.5px; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.day-table{ width:100%; border-collapse:collapse; margin-top:8px; font-size:13.5px; }
+  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:11.5px; text-transform:uppercase; letter-spacing:0.5px; padding:6px 8px; border-bottom:1px solid var(--line); }
   table.day-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
   table.day-table tr:last-child td{ border-bottom:none; }
 
@@ -108,9 +120,9 @@
     background:linear-gradient(180deg, rgba(201,162,39,0.05), transparent);
     margin-top:16px;
   }
-  .result-box .verdict{ font-family:var(--serif); font-size:19px; color:var(--gold); margin-bottom:4px; }
-  .result-box .verdict-detail{ font-size:12.5px; color:var(--muted); margin-bottom:10px; }
-  .result-box .basis{ font-size:12px; color:var(--text); border-top:1px solid var(--line); padding-top:10px; margin-top:10px;}
+  .result-box .verdict{ font-family:var(--serif); font-size:20px; color:var(--gold); margin-bottom:4px; }
+  .result-box .verdict-detail{ font-size:13.5px; color:var(--muted); margin-bottom:10px; }
+  .result-box .basis{ font-size:13px; color:var(--text); border-top:1px solid var(--line); padding-top:10px; margin-top:10px;}
   .basis code{ color:var(--gold); font-size:11.5px; }
 
   .tag{
@@ -130,13 +142,13 @@
   .checklist-item .check-icon.have{ color:var(--green); }
   .checklist-item .check-icon.missing{ color:var(--rust); }
   .checklist-item .check-body{ flex:1; }
-  .checklist-item .doc-name{ font-size:13px; }
-  .checklist-item .doc-fallback{ font-size:11.5px; color:var(--muted); margin-top:3px; }
+  .checklist-item .doc-name{ font-size:14px; }
+  .checklist-item .doc-fallback{ font-size:12.5px; color:var(--muted); margin-top:3px; }
   .checklist-item .doc-fallback b{ color:var(--gold); font-weight:500; }
   .checklist-item .doc-toggle{ font-size:11px; }
 
   .empty-state{ color:var(--muted); font-size:13px; padding:30px 0; text-align:center; }
-  .helptext{ font-size:11.5px; color:var(--muted); margin-top:4px; }
+  .helptext{ font-size:12.5px; color:var(--muted); margin-top:4px; }
   .divider{ height:1px; background:var(--line); margin:16px 0; }
 
   ::-webkit-scrollbar{ width:8px; height:8px; }
@@ -164,6 +176,7 @@
       </div>
     </div>
     <div class="topbar-actions">
+      <button class="btn small ghost" id="themeToggleBtn">☀ Light mode</button>
       <button class="btn small ghost" id="exportBtn">Export profile</button>
       <button class="btn small ghost" id="importBtn">Import profile</button>
       <input type="file" id="importFile" accept="application/json" style="display:none">
@@ -247,6 +260,7 @@ const ModuleRegistry = [];
 function registerModule(mod){ ModuleRegistry.push(mod); }
 
 let activeModuleId = null;
+let guidedMode = false;
 
 function renderRail(){
   const rail = document.getElementById('rail');
@@ -317,6 +331,37 @@ function renderContent(){
     return;
   }
   mod.render(content, profile, saveProfile);
+  if(guidedMode){
+    renderGuidedFooter(content, mod);
+  }
+}
+
+function renderGuidedFooter(container, currentMod){
+  const activeMods = ModuleRegistry.filter(m=>m.isActive(profile)).sort((a,b)=>a.order-b.order);
+  const idx = activeMods.findIndex(m=>m.id===currentMod.id);
+  if(idx === -1) return;
+  const footer = document.createElement('div');
+  footer.className = 'card';
+  footer.style.cssText = 'position:sticky; bottom:0; display:flex; align-items:center; justify-content:space-between; gap:10px; border-color:var(--gold-dim); margin-top:24px;';
+  footer.innerHTML = `
+    <div>
+      <button class="btn small ghost" id="guided_exit">Exit guide</button>
+    </div>
+    <div style="font-size:12px; color:var(--muted);">Step ${idx+1} of ${activeMods.length}</div>
+    <div style="display:flex; gap:8px;">
+      ${idx>0 ? `<button class="btn small ghost" id="guided_back">← Back</button>` : ''}
+      ${idx<activeMods.length-1 ? `<button class="btn small primary" id="guided_next">Next →</button>` : `<button class="btn small primary" id="guided_finish">Finish — go to Document checklist</button>`}
+    </div>
+  `;
+  container.appendChild(footer);
+  const exitBtn = footer.querySelector('#guided_exit');
+  if(exitBtn) exitBtn.onclick = ()=>{ guidedMode = false; renderContent(); };
+  const backBtn = footer.querySelector('#guided_back');
+  if(backBtn) backBtn.onclick = ()=>{ activeModuleId = activeMods[idx-1].id; renderRail(); renderContent(); window.scrollTo(0,0); };
+  const nextBtn = footer.querySelector('#guided_next');
+  if(nextBtn) nextBtn.onclick = ()=>{ activeModuleId = activeMods[idx+1].id; renderRail(); renderContent(); window.scrollTo(0,0); };
+  const finishBtn = footer.querySelector('#guided_finish');
+  if(finishBtn) finishBtn.onclick = ()=>{ guidedMode = false; activeModuleId = '__checklist__'; renderRail(); renderContent(); window.scrollTo(0,0); };
 }
 
 function renderDashboard(container){
@@ -330,6 +375,21 @@ function renderDashboard(container){
   container.appendChild(header);
 
   const activeMods = ModuleRegistry.filter(m=>m.isActive(profile)).sort((a,b)=>a.order-b.order);
+
+  const guideCard = document.createElement('div');
+  guideCard.className = 'result-box';
+  guideCard.innerHTML = `
+    <div class="verdict">New here? Start the guided walkthrough</div>
+    <div class="verdict-detail">Goes through all ${activeMods.length} modules one at a time, in the right order, with Back/Next at each step — instead of the full menu on the left. You can exit and jump around freely at any point.</div>
+    <div style="margin-top:10px;"><button class="btn primary" id="dash_start_guided">Start step-by-step guide</button></div>
+  `;
+  container.appendChild(guideCard);
+  guideCard.querySelector('#dash_start_guided').onclick = ()=>{
+    guidedMode = true;
+    const firstNotDone = activeMods.find(m => !m.isComplete(profile)) || activeMods[0];
+    activeModuleId = firstNotDone.id;
+    renderRail(); renderContent(); window.scrollTo(0,0);
+  };
 
   // Status overview card
   const overview = document.createElement('div');
@@ -5328,6 +5388,18 @@ registerModule(TaxSavingModule);
 /* =========================================================================
    INIT
    ========================================================================= */
+const THEME_KEY = 'itrgenie_theme';
+function applyTheme(theme){
+  document.body.dataset.theme = theme;
+  document.getElementById('themeToggleBtn').textContent = theme==='light' ? '● Dark mode' : '☀ Light mode';
+  localStorage.setItem(THEME_KEY, theme);
+}
+document.getElementById('themeToggleBtn').onclick = ()=>{
+  const current = document.body.dataset.theme === 'light' ? 'light' : 'dark';
+  applyTheme(current==='light' ? 'dark' : 'light');
+};
+applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+
 document.getElementById('exportBtn').onclick = ()=>{
   const blob = new Blob([JSON.stringify(profile, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);

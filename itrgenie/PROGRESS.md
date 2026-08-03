@@ -43,6 +43,19 @@ Exempt Income (Sch EI) & 80GGA
   current sources before building — common deductions (80C/80D/80G/HRA)
   correctly do NOT trigger this.
 
+## Built this session, UX overhaul (per direct user feedback)
+- **Guided step-by-step mode** — Dashboard now leads with "Start step-by-step
+  guide," which walks through all active modules one at a time (Back/Next/
+  Exit footer), instead of requiring the full rail menu to be understood
+  upfront. Rail still works for free navigation at any point.
+- **Light theme + toggle** — added a full light-theme CSS variable set and a
+  header toggle button, persisted separately from profile data in
+  localStorage (`itrgenie_theme`), defaults to dark.
+- **Font sizes increased** — base body font 14px→15.5px, card headers
+  15px→16px, helptext/table text ~11.5px→12.5-13.5px, across the board for
+  readability. Field labels intentionally kept small (they're uppercase
+  category tags, not body text).
+
 ## Built this session, third addition
 - **Exempt Income (Schedule EI) & Section 80GGA module** — disclosure-only
   exempt income tracker (PPF interest, firm profit-share, etc.) plus the

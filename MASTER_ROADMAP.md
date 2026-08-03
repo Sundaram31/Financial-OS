@@ -55,3 +55,4 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
 - 2026-08-03: Added Alternate Minimum Tax module (Sec 115JC/115JD) — 24th module.
 - 2026-08-03: Added What-If Tax Planner module — 25th module.
 - 2026-08-03: Added Schedule EI + 80GGA module — 26th module. Help/Glossary updated to match all new modules.
+- 2026-08-03: UX overhaul — guided step-by-step mode, light/dark theme toggle, larger fonts. Addressed direct feedback that the module-menu UI was confusing on first open.
