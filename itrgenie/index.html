@@ -5752,11 +5752,28 @@ document.getElementById('importFile').onchange = (e)=>{
   if(!file) return;
   const reader = new FileReader();
   reader.onload = (ev)=>{
-    try{
-      profile = JSON.parse(ev.target.result);
-      saveProfile();
-      renderContent();
-    }catch(err){ alert('Could not read that file — not valid JSON.'); }
+    let incoming;
+    try{ incoming = JSON.parse(ev.target.result); }
+    catch(err){ alert('Could not read that file — not valid JSON.'); return; }
+
+    const incomingKeys = Object.keys(incoming);
+    const isFullBackup = incomingKeys.length > 8; // a real full-profile export touches most top-level keys; a targeted extraction (e.g. "just salary") won't
+    const choice = isFullBackup
+      ? confirm(`This looks like a full profile backup (${incomingKeys.length} sections). Replace your entire current profile with it? Cancel to merge instead (only overwrite the sections present in the file, keep everything else).`)
+      : confirm(`This file updates: ${incomingKeys.join(', ')}. Merge it in (keep everything else you've already entered)? Cancel to import as a full replace instead.`);
+
+    if((isFullBackup && choice) || (!isFullBackup && !choice)){
+      // Full replace
+      profile = incoming;
+    } else {
+      // Shallow merge at the top level -- exactly what makes "extract just this one module's
+      // data and hand it back as JSON" safe: only the keys present in the file get overwritten,
+      // everything else in the current profile is untouched.
+      Object.assign(profile, incoming);
+    }
+    saveProfile();
+    renderContent();
+    alert('Import complete.');
   };
   reader.readAsText(file);
 };

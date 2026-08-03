@@ -43,6 +43,21 @@ Exempt Income (Sch EI) & 80GGA · AIS Auto-Import
   current sources before building — common deductions (80C/80D/80G/HRA)
   correctly do NOT trigger this.
 
+## Built this session, extraction workflow enabled
+- **Import now merges instead of always replacing** — detects whether an
+  imported file looks like a full backup (many top-level keys) or a targeted
+  update (few keys), and merges at the top level accordingly, with a confirm
+  dialog either way. This is what makes the actual intended workflow safe:
+  user uploads a document (Form 16, bank statement, AIS PDF) directly in
+  chat, Claude reads it natively and extracts figures, hands back a small
+  JSON (e.g. just `{salaryIncome: {...}}`), user imports it, and only that
+  section updates — everything else in the profile stays untouched.
+- **Clarified scope, for real this time**: OCR-in-the-browser stays out
+  (unchanged, correctly). But document extraction via Claude reading
+  uploads *in the chat itself* (not the HTML tool doing OCR) is exactly the
+  stopgap arrangement intended before the Python app exists — this was a
+  misunderstanding on Claude's part mid-session, corrected here.
+
 ## Built this session, genuine auto-fill (per direct user feedback)
 - **AIS Auto-Import module** — reads the AIS CSV export (income tax portal's
   native format, not a third-party conversion) using a proper quoted-field
