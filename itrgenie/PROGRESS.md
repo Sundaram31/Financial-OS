@@ -3,12 +3,12 @@
 
 ## What this is
 Single-file, offline-first HTML app (`index.html` in this folder, served live at
-the site root `/itrgenie/`). 26 plug-and-play modules, each self-contained
+the site root `/itrgenie/`). 27 plug-and-play modules, each self-contained
 (`registerModule({...})`), rendered by a shared dashboard/rail. Generic across
 taxpayer profiles — no hardcoded "seafarer" logic; profile-specific behavior
 comes from what's entered, not from branching on who the user is.
 
-## Built & working (26 modules)
+## Built & working (27 modules)
 Form Determination · Prior Years · Residency Calculator · Salary (Sch S) ·
 HRA Exemption · Clubbing of Income (Sch SPI) · Capital Gains—Equity ·
 Capital Gains—Mutual Funds · Virtual Digital Assets · Real Estate ·
@@ -18,7 +18,7 @@ Loss Set-off/Carry Forward (CYLA/BFLA/CFL) · Sch AL (Assets & Liabilities) ·
 Old vs New Regime Comparison · Advance Tax & Interest (234A/B/C) ·
 Year Rollover · Compliance Calendar · AIS Reconciliation ·
 Tax Saving Advisor · Alternate Minimum Tax (AMT/AMTC, Sec 115JC/115JD) · What-If Tax Planner ·
-Exempt Income (Sch EI) & 80GGA
+Exempt Income (Sch EI) & 80GGA · AIS Auto-Import
 
 ## Audit completed 2026-08-03 — against the official ITR-2 schedule list + AY2026-27 changes
 
@@ -42,6 +42,22 @@ Exempt Income (Sch EI) & 80GGA
   credit tracker (115JD, 15-year carry-forward). Verified against multiple
   current sources before building — common deductions (80C/80D/80G/HRA)
   correctly do NOT trigger this.
+
+## Built this session, genuine auto-fill (per direct user feedback)
+- **AIS Auto-Import module** — reads the AIS CSV export (income tax portal's
+  native format, not a third-party conversion) using a proper quoted-field
+  CSV parser, keyword-matches header columns (Category/Description/Value)
+  rather than fixed positions since exact AIS header wording couldn't be
+  verified with certainty, classifies rows into Salary/Interest/Dividend/
+  Capital-gains-flagged buckets, and shows everything for review with
+  checkboxes before writing anything into actual module data. Nothing
+  auto-commits blindly. This is genuinely different from bank-statement
+  auto-fill (OCR) — AIS is a structured file, which is why this is buildable
+  in-browser while bank statement OCR correctly stays out of scope.
+- **Prior Years reworked** — residency-history and opening-holdings sections
+  now lead with structured dropdowns/date-pickers instead of a paste box as
+  the primary path (paste demoted to a collapsed "bulk entry" fallback).
+  Direct user feedback: typing formatted text was hard on mobile.
 
 ## Built this session, UX overhaul (per direct user feedback)
 - **Guided step-by-step mode** — Dashboard now leads with "Start step-by-step

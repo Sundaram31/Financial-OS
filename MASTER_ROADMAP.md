@@ -9,7 +9,7 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
 
 | Pillar | Your module | Status |
 |---|---|---|
-| Tax compliance & optimization | ITRGenie | Built, 26 modules, audited |
+| Tax compliance & optimization | ITRGenie | Built, 27 modules, AIS auto-import |
 | Investments | Portfolio Tracker | Built elsewhere, not yet moved here |
 | Goals | Goals module | Live, manual entry + file upload
 | Business compliance | GST/e-way bill tool | Built elsewhere |
@@ -58,3 +58,4 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
 - 2026-08-03: UX overhaul — guided step-by-step mode, light/dark theme toggle, larger fonts. Addressed direct feedback that the module-menu UI was confusing on first open.
 - 2026-08-03: Built Net Worth Dashboard (/networth/) — 5 asset categories + liabilities, snapshot trend with SVG sparkline. Manual entry only; Portfolio Tracker auto-feed pending — couldn't confirm which past Portfolio Tracker file is current, flagged rather than guessed.
 - 2026-08-03: Built Goals module (/goals/) — per-goal target/date, tagged investments, monthly contribution, on-track projection. Added CSV/TXT file-upload as second input mode to ITRGenie's Prior Years module and Net Worth Dashboard's category cards (reuses existing paste-parser, no new dependency). Data source question (Yahoo/NSE/Google) researched: all CORS-blocked from browser, Twelve Data-style dedicated API remains the only viable client-side option.
+- 2026-08-03: Added AIS Auto-Import module (CSV parsing, keyword classification, review-before-commit) — 27th module. Reworked Prior Years to use structured dropdowns/date-pickers instead of paste-first, per direct user feedback that typing was difficult on mobile.

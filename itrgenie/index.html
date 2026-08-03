@@ -911,6 +911,217 @@ const FormDeterminationModule = {
 registerModule(FormDeterminationModule);
 
 /* =========================================================================
+   MODULE: AIS Auto-Import
+   Genuinely reads your AIS file rather than asking you to retype it --
+   this is NOT the same class of feature as bank-statement OCR (which stays
+   out of scope for this browser tool for the reasons already established).
+   AIS is a structured file, not a scan, so parsing it is legitimate.
+
+   Deliberately CSV, not .xlsx: the income tax portal's own AIS download
+   page offers PDF/JSON/CSV natively -- CSV is an official export format,
+   not a third-party conversion, so parsing it needs no bundled library and
+   no format guessing. If you only have an Excel copy, "Save As CSV" first.
+
+   Column headers are matched by keyword (category/description/value),
+   not fixed positions -- AIS's exact header wording isn't something I can
+   verify with certainty without a live sample file, so rigid column-index
+   parsing would be fragile and could silently mis-extract. Every row is
+   shown for review with a checkbox before anything is written into your
+   actual Salary/Other Sources figures -- nothing here auto-commits blindly.
+   Capital-gains-flagged rows go to the existing AIS Reconciliation module
+   instead of directly into Capital Gains, since AIS doesn't carry per-lot
+   buy-side detail needed for FIFO -- reconciliation, not replacement.
+   ========================================================================= */
+function parseCSVProper(text){
+  // Minimal RFC4180-ish CSV parser: handles quoted fields containing commas,
+  // since AIS descriptions often do (e.g. "Interest from savings account, XYZ Bank").
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i], next = text[i+1];
+    if(inQuotes){
+      if(c === '"' && next === '"'){ field+='"'; i++; }
+      else if(c === '"'){ inQuotes = false; }
+      else { field += c; }
+    } else {
+      if(c === '"'){ inQuotes = true; }
+      else if(c === ','){ row.push(field); field=''; }
+      else if(c === '\n' || c === '\r'){
+        if(c === '\r' && next === '\n') i++;
+        row.push(field); field='';
+        if(row.some(f=>f.trim()!=='')) rows.push(row);
+        row = [];
+      } else { field += c; }
+    }
+  }
+  if(field!=='' || row.length>0){ row.push(field); if(row.some(f=>f.trim()!=='')) rows.push(row); }
+  return rows;
+}
+
+const AISImportModule = {
+  id: 'ais_import',
+  label: 'AIS Auto-Import',
+  order: 0.3,
+  ruleSet: {},
+  isActive: () => true,
+  hasStarted: (p) => !!(p._aisImportDone),
+  isComplete: (p) => !!(p._aisImportDone),
+  requiredDocs: () => ([
+    {id:'ais_csv', name:'AIS downloaded as CSV', note:'From the income tax portal: AIS section → Download → CSV. PDF/JSON are also offered but CSV is what this module reads.'},
+  ]),
+  fallbackDocs: () => ({}),
+  render(container, p, save){
+    const header = document.createElement('div');
+    header.className = 'panel-header';
+    header.innerHTML = `
+      <div class="eyebrow">Module 00.3 · Reads your actual AIS file — genuinely automatic, not another paste box</div>
+      <h2>AIS Auto-Import</h2>
+      <p class="desc">Upload your AIS CSV once, review what it found, and confirm what goes where — Salary, Interest, Dividends, or flagged for cross-check against Capital Gains. This is optional; skip it and fill modules manually if you'd rather, or come back to it later.</p>
+    `;
+    container.appendChild(header);
+
+    const uploadCard = document.createElement('div');
+    uploadCard.className = 'card';
+    uploadCard.innerHTML = `
+      <h3>Upload AIS CSV</h3>
+      <button class="btn primary" id="ais_file_btn">Choose AIS CSV file</button>
+      <input type="file" id="ais_file" accept=".csv" style="display:none">
+      <div id="ais_upload_feedback" class="helptext" style="margin-top:8px;"></div>
+    `;
+    container.appendChild(uploadCard);
+
+    const resultsWrap = document.createElement('div');
+    container.appendChild(resultsWrap);
+
+    uploadCard.querySelector('#ais_file_btn').onclick = ()=> uploadCard.querySelector('#ais_file').click();
+    uploadCard.querySelector('#ais_file').onchange = (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev)=>{
+        try{
+          const rows = parseCSVProper(ev.target.result);
+          const parsed = classifyAISRows(rows);
+          renderReview(resultsWrap, parsed);
+          uploadCard.querySelector('#ais_upload_feedback').textContent = `Parsed ${rows.length} rows from the file.`;
+        }catch(err){
+          uploadCard.querySelector('#ais_upload_feedback').textContent = `Couldn't parse that file — make sure it's the CSV export, not PDF or JSON.`;
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    function classifyAISRows(rows){
+      // Find the header row: first row with a cell matching "category" and another matching
+      // "description" (case-insensitive substring) -- keyword-based, not a fixed row index.
+      let headerIdx = -1, catCol=-1, descCol=-1, valCol=-1, nameCol=-1;
+      for(let i=0;i<Math.min(rows.length,30);i++){
+        const cells = rows[i].map(c=>c.toLowerCase());
+        const cIdx = cells.findIndex(c=>c.includes('category'));
+        const dIdx = cells.findIndex(c=>c.includes('description'));
+        if(cIdx>=0 && dIdx>=0){
+          headerIdx=i; catCol=cIdx; descCol=dIdx;
+          valCol = cells.findIndex(c=>c.includes('value')||c.includes('amount'));
+          nameCol = cells.findIndex(c=>c.includes('name')||c.includes('deductor')||c.includes('reporting entity'));
+          break;
+        }
+      }
+      if(headerIdx===-1) return {error:true, buckets:{}};
+
+      const buckets = {salary:[], interest:[], dividend:[], capgains:[], other:[]};
+      for(let i=headerIdx+1;i<rows.length;i++){
+        const r = rows[i];
+        const desc = (r[descCol]||'').trim();
+        const cat = catCol>=0 ? (r[catCol]||'').trim() : '';
+        const valRaw = valCol>=0 ? (r[valCol]||'').replace(/[₹,]/g,'').trim() : '';
+        const val = parseFloat(valRaw);
+        const name = nameCol>=0 ? (r[nameCol]||'').trim() : '';
+        if(!desc || isNaN(val)) continue;
+        const d = desc.toLowerCase();
+        const row = {description: desc, category: cat, amount: val, name};
+        if(d.includes('salary')) buckets.salary.push(row);
+        else if(d.includes('interest')) buckets.interest.push(row);
+        else if(d.includes('dividend')) buckets.dividend.push(row);
+        else if(d.includes('securit')||d.includes('mutual fund')||d.includes('sale of')||d.includes('purchase of')||d.includes('property')) buckets.capgains.push(row);
+        else buckets.other.push(row);
+      }
+      return {error:false, buckets};
+    }
+
+    function renderReview(wrap, parsed){
+      wrap.innerHTML = '';
+      if(parsed.error){
+        wrap.innerHTML = `<div class="card"><h3 style="color:var(--rust);">Couldn't find the expected columns</h3><p class="helptext">Looking for columns with "Category" and "Description" in the header — this file's headers don't match. Fall back to manually filling Salary/Other Sources, or check that this is the unmodified AIS CSV export.</p></div>`;
+        return;
+      }
+      const { buckets } = parsed;
+      const sections = [
+        ['salary', 'Salary (TDS Section 192)', 'Add to Salary module'],
+        ['interest', 'Interest income', 'Add to Other Sources — Interest'],
+        ['dividend', 'Dividend income', 'Add to Other Sources — Dividends'],
+        ['capgains', 'Securities/property transactions', 'Flag for AIS Reconciliation (capital gains cross-check)'],
+      ];
+      sections.forEach(([key,label,btnLabel])=>{
+        const rows = buckets[key];
+        if(rows.length===0) return;
+        const card = document.createElement('div');
+        card.className = 'card';
+        const total = rows.reduce((s,r)=>s+r.amount,0);
+        card.innerHTML = `
+          <h3>${label} <span class="helptext" style="font-weight:normal;">— ${rows.length} row(s), ₹${total.toLocaleString('en-IN')} total</span></h3>
+          <div id="ais_rows_${key}"></div>
+          <button class="btn small primary" id="ais_import_${key}" style="margin-top:10px;">${btnLabel}</button>
+        `;
+        wrap.appendChild(card);
+        const rowsEl = card.querySelector(`#ais_rows_${key}`);
+        const table = document.createElement('table');
+        table.className = 'day-table';
+        table.innerHTML = `<tr><th></th><th>Description</th>${key==='salary'?'<th>Deductor</th>':''}<th>Amount</th></tr>`;
+        rows.forEach((r,idx)=>{
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td><input type="checkbox" data-check-${key}="${idx}" checked></td><td>${r.description}</td>${key==='salary'?`<td>${r.name||'—'}</td>`:''}<td>₹${r.amount.toLocaleString('en-IN')}</td>`;
+          table.appendChild(tr);
+        });
+        rowsEl.appendChild(table);
+
+        card.querySelector(`#ais_import_${key}`).onclick = ()=>{
+          const checked = rows.filter((r,idx)=> card.querySelector(`[data-check-${key}="${idx}"]`).checked);
+          if(checked.length===0){ alert('Nothing checked to import.'); return; }
+          if(key==='salary'){
+            p.salaryIncome = p.salaryIncome || {employers:[], foreignExempt:false, exemptAmount:''};
+            checked.forEach(r=>{
+              p.salaryIncome.employers.push({name: r.name || r.description, gross: r.amount, exempt:0, profTax:0});
+            });
+          } else if(key==='interest'){
+            p.otherSources = p.otherSources || {aisInterestTotal:'', interestRows:[], aisDividendTotal:'', dividendRows:[]};
+            checked.forEach(r=>{
+              p.otherSources.interestRows.push({source: r.description, type:'Other', amount: r.amount});
+            });
+          } else if(key==='dividend'){
+            p.otherSources = p.otherSources || {aisInterestTotal:'', interestRows:[], aisDividendTotal:'', dividendRows:[]};
+            checked.forEach(r=>{
+              p.otherSources.dividendRows.push({company: r.description, amount: r.amount});
+            });
+          } else if(key==='capgains'){
+            p.aisEntries = p.aisEntries || [];
+            checked.forEach(r=>{
+              p.aisEntries.push({category:'Capital gains (from AIS import)', description:r.description, aisValue:r.amount, sourceRows:[]});
+            });
+          }
+          p._aisImportDone = true;
+          save();
+          card.innerHTML = `<h3>${label}</h3><div class="helptext" style="color:var(--green);">✓ Imported ${checked.length} row(s). Go to ${key==='salary'?'the Salary':key==='capgains'?'the AIS Reconciliation':'the Other Sources'} module to review and adjust — nothing here is final until you check it there (e.g. Salary needs your standard deduction and exemptions applied, which AIS doesn't itemize).</div>`;
+        };
+      });
+      if(Object.values(buckets).every(b=>b.length===0)){
+        wrap.innerHTML = `<div class="card"><div class="helptext">File parsed but no recognizable Salary/Interest/Dividend/Securities rows found — might be a year with no such entries, or wording this module doesn't recognize yet.</div></div>`;
+      }
+    }
+  }
+};
+registerModule(AISImportModule);
+
+/* =========================================================================
    MODULE: Prior Years (memory across filings)
    The single place multi-year continuity lives: past residency status
    (needed for the RNOR 10-year/4-year lookback -- previously just a text
