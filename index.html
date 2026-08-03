@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Financial OS</title>
+<style>
+  :root{
+    --bg:#0B0E11; --panel:#12161B; --line:#242A31; --text:#E8E6E0;
+    --muted:#8A8F98; --gold:#C9A227; --gold-dim:#8f7419; --green:#4A9B6E;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:var(--mono); min-height:100vh; padding:32px 20px;}
+  .wrap{max-width:640px; margin:0 auto;}
+  h1{font-family:var(--serif); font-size:28px; margin-bottom:8px;}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:32px;}
+  .card{
+    display:block; background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:18px 20px; margin-bottom:14px; text-decoration:none; color:var(--text);
+  }
+  .card.active{border-color:var(--gold-dim);}
+  .card h2{font-family:var(--serif); font-size:18px; color:var(--gold); margin-bottom:6px;}
+  .card p{font-size:12.5px; color:var(--muted); line-height:1.5;}
+  .status{display:inline-block; font-size:10px; padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; margin-top:8px;}
+  .status.live{background:rgba(74,155,110,0.15); color:var(--green);}
+  .status.planned{background:rgba(138,143,152,0.15); color:var(--muted);}
+  footer{margin-top:32px; font-size:11px; color:var(--muted); text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Financial OS</h1>
+  <p class="sub">Modular personal finance tools. Each one is self-contained and works offline once loaded — nothing you enter is ever sent anywhere.</p>
+
+  <a class="card active" href="./itrgenie/">
+    <h2>ITRGenie</h2>
+    <p>Indian income tax filing advisor — form determination, all income heads, deductions, regime comparison, compliance calendar, tax-saving advice. 23 modules.</p>
+    <span class="status live">Live</span>
+  </a>
+
+  <div class="card">
+    <h2>Portfolio Tracker</h2>
+    <p>Live NSE/BSE prices, technical indicators, goal tracking. Not yet moved here.</p>
+    <span class="status planned">Planned</span>
+  </div>
+
+  <div class="card">
+    <h2>Net Worth Dashboard</h2>
+    <p>Aggregates figures from other modules into one net worth view.</p>
+    <span class="status planned">Planned</span>
+  </div>
+
+  <footer>Data stays in your browser's local storage on your device. Nothing is uploaded to this site or anywhere else.</footer>
+</div>
+</body>
+</html>
