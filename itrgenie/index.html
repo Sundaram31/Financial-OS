@@ -951,20 +951,56 @@ const PriorYearsModule = {
     resCard.className = 'card';
     resCard.innerHTML = `
       <h3>Residency status by year</h3>
-      <p class="helptext" style="margin-bottom:8px;">Paste from memory or old computations: <code>FY, Status(Resident/RNOR/NRI), DaysInIndia(optional), CarriedForwardLossST(optional), CarriedForwardLossLT(optional)</code></p>
-      <textarea id="py_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="2024-25, NRI, 140&#10;2023-24, NRI, 95, 0, 15000"></textarea>
-      <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
-        <button class="btn small" id="py_paste_btn">Parse &amp; add</button>
-        <span class="helptext" style="margin:0;">or</span>
-        <button class="btn small ghost" id="py_file_btn">Choose CSV/TXT file</button>
-        <input type="file" id="py_file" accept=".csv,.txt" style="display:none">
+      <p class="helptext" style="margin-bottom:10px;">Pick a year and status, one at a time — no typing needed. If you genuinely don't know a past year's status or the loss figures, skip that year; leave it blank rather than guessing.</p>
+      <div class="field-row">
+        <div class="field"><label>Financial year</label><select id="py_fy"></select></div>
+        <div class="field"><label>Status</label>
+          <select id="py_status">
+            <option value="">— Not sure / skip —</option>
+            <option value="Resident">Resident</option>
+            <option value="RNOR">RNOR</option>
+            <option value="NRI">NRI</option>
+          </select>
+        </div>
       </div>
-      <div id="py_paste_feedback" class="helptext" style="margin:6px 0;"></div>
-      <div id="py_rows"></div>
+      <div class="field-row">
+        <div class="field"><label>Days in India that year (optional)</label><input id="py_days" type="number" min="0" max="366"></div>
+        <div class="field"><label>Carried-forward loss — short-term (optional, ₹)</label><input id="py_cfst" type="number" min="0"></div>
+        <div class="field"><label>Carried-forward loss — long-term (optional, ₹)</label><input id="py_cflt" type="number" min="0"></div>
+      </div>
+      <button class="btn small primary" id="py_add_btn">Add this year</button>
+      <div id="py_rows" style="margin-top:14px;"></div>
+      <details style="margin-top:14px;">
+        <summary class="helptext" style="cursor:pointer;">Have several years in a spreadsheet already? Bulk paste or upload instead</summary>
+        <div style="margin-top:10px;">
+          <p class="helptext" style="margin-bottom:8px;">One per line: <code>FY, Status(Resident/RNOR/NRI), DaysInIndia(optional), CarriedForwardLossST(optional), CarriedForwardLossLT(optional)</code></p>
+          <textarea id="py_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="2024-25, NRI, 140&#10;2023-24, NRI, 95, 0, 15000"></textarea>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+            <button class="btn small" id="py_paste_btn">Parse &amp; add</button>
+            <span class="helptext" style="margin:0;">or</span>
+            <button class="btn small ghost" id="py_file_btn">Choose CSV/TXT file</button>
+            <input type="file" id="py_file" accept=".csv,.txt" style="display:none">
+          </div>
+          <div id="py_paste_feedback" class="helptext" style="margin:6px 0;"></div>
+        </div>
+      </details>
     `;
     container.appendChild(resCard);
     resCard.querySelector('#py_file_btn').onclick = ()=> resCard.querySelector('#py_file').click();
     wireFileUpload(resCard.querySelector('#py_file'), resCard.querySelector('#py_paste'), resCard.querySelector('#py_paste_btn'));
+
+    // Auto-generate the last 10 FY options counting back from the current FY, so there's
+    // nothing to type here either -- just pick from the dropdown.
+    (function populateFYDropdown(){
+      const sel = resCard.querySelector('#py_fy');
+      const bounds = parseFYBounds(p.fy) || {start: new Date().getFullYear()-1};
+      sel.innerHTML = '';
+      for(let i=1; i<=10; i++){
+        const yr = bounds.start - i;
+        const label = `${yr}-${String((yr+1)%100).padStart(2,'0')}`;
+        sel.innerHTML += `<option value="${label}">${label}</option>`;
+      }
+    })();
 
     function renderPYRows(){
       const el = resCard.querySelector('#py_rows');
@@ -989,6 +1025,27 @@ const PriorYearsModule = {
       });
     }
     renderPYRows();
+
+    resCard.querySelector('#py_add_btn').onclick = ()=>{
+      const fy = resCard.querySelector('#py_fy').value;
+      const status = resCard.querySelector('#py_status').value;
+      if(!status){ alert('Pick a status, or leave this year out entirely if you\'re not sure.'); return; }
+      const days = resCard.querySelector('#py_days').value;
+      const cfST = resCard.querySelector('#py_cfst').value;
+      const cfLT = resCard.querySelector('#py_cflt').value;
+      p.priorYears[fy] = {
+        residencyStatus: status,
+        daysInIndia: days ? +days : null,
+        carriedForwardLossST: cfST ? +cfST : 0,
+        carriedForwardLossLT: cfLT ? +cfLT : 0,
+      };
+      save();
+      renderPYRows();
+      resCard.querySelector('#py_status').value = '';
+      resCard.querySelector('#py_days').value = '';
+      resCard.querySelector('#py_cfst').value = '';
+      resCard.querySelector('#py_cflt').value = '';
+    };
 
     resCard.querySelector('#py_paste_btn').onclick = ()=>{
       const raw = resCard.querySelector('#py_paste').value;
@@ -1018,16 +1075,34 @@ const PriorYearsModule = {
     holdCard.className = 'card';
     holdCard.innerHTML = `
       <h3>Opening holdings (bought before you started using this tool)</h3>
-      <p class="helptext" style="margin-bottom:8px;">One per line: <code>Stock, Qty, BuyDate, BuyPrice, Notes(optional)</code></p>
-      <textarea id="oh_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Infosys, 50, 15/06/2019, 720"></textarea>
-      <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
-        <button class="btn small" id="oh_paste_btn">Parse &amp; add</button>
-        <span class="helptext" style="margin:0;">or</span>
-        <button class="btn small ghost" id="oh_file_btn">Choose CSV/TXT file</button>
-        <input type="file" id="oh_file" accept=".csv,.txt" style="display:none">
+      <p class="helptext" style="margin-bottom:10px;">One holding at a time — pick the actual purchase date instead of typing it in a particular format.</p>
+      <div class="field-row">
+        <div class="field"><label>Stock / fund name</label><input id="oh_stock" type="text" placeholder="Infosys"></div>
+        <div class="field"><label>Quantity</label><input id="oh_qty" type="number" min="0"></div>
       </div>
-      <div id="oh_paste_feedback" class="helptext" style="margin:6px 0;"></div>
-      <div id="oh_rows"></div>
+      <div class="field-row">
+        <div class="field"><label>Buy date</label><input id="oh_date" type="date"></div>
+        <div class="field"><label>Buy price (₹ per unit)</label><input id="oh_price" type="number" min="0" step="0.01"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Notes (optional)</label><input id="oh_notes" type="text"></div>
+      </div>
+      <button class="btn small primary" id="oh_add_btn">Add this holding</button>
+      <div id="oh_rows" style="margin-top:14px;"></div>
+      <details style="margin-top:14px;">
+        <summary class="helptext" style="cursor:pointer;">Have a whole demat statement already? Bulk paste or upload instead</summary>
+        <div style="margin-top:10px;">
+          <p class="helptext" style="margin-bottom:8px;">One per line: <code>Stock, Qty, BuyDate, BuyPrice, Notes(optional)</code></p>
+          <textarea id="oh_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Infosys, 50, 15/06/2019, 720"></textarea>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+            <button class="btn small" id="oh_paste_btn">Parse &amp; add</button>
+            <span class="helptext" style="margin:0;">or</span>
+            <button class="btn small ghost" id="oh_file_btn">Choose CSV/TXT file</button>
+            <input type="file" id="oh_file" accept=".csv,.txt" style="display:none">
+          </div>
+          <div id="oh_paste_feedback" class="helptext" style="margin:6px 0;"></div>
+        </div>
+      </details>
     `;
     container.appendChild(holdCard);
     holdCard.querySelector('#oh_file_btn').onclick = ()=> holdCard.querySelector('#oh_file').click();
@@ -1054,6 +1129,26 @@ const PriorYearsModule = {
       });
     }
     renderOHRows();
+
+    holdCard.querySelector('#oh_add_btn').onclick = ()=>{
+      const stock = holdCard.querySelector('#oh_stock').value.trim();
+      const qty = holdCard.querySelector('#oh_qty').value;
+      const buydate = holdCard.querySelector('#oh_date').value;
+      const buyprice = holdCard.querySelector('#oh_price').value;
+      const notes = holdCard.querySelector('#oh_notes').value.trim();
+      if(!stock || !qty || +qty<=0 || !buydate || buyprice===''||+buyprice<0){
+        alert('Need at least stock name, quantity, buy date, and buy price to add this.');
+        return;
+      }
+      p.openingHoldings.push({stock, qty:+qty, buydate, buyprice:+buyprice, notes});
+      save();
+      renderOHRows();
+      holdCard.querySelector('#oh_stock').value = '';
+      holdCard.querySelector('#oh_qty').value = '';
+      holdCard.querySelector('#oh_date').value = '';
+      holdCard.querySelector('#oh_price').value = '';
+      holdCard.querySelector('#oh_notes').value = '';
+    };
 
     holdCard.querySelector('#oh_paste_btn').onclick = ()=>{
       const raw = holdCard.querySelector('#oh_paste').value;
