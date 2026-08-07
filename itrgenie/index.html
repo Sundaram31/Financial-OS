@@ -1193,6 +1193,8 @@ const PriorYearsModule = {
             <span class="helptext" style="margin:0;">or</span>
             <button class="btn small ghost" id="py_file_btn">Choose file (CSV, Excel, or PDF)</button>
             <input type="file" id="py_file" accept=".csv,.txt,.xlsx,.xls,.pdf" style="display:none">
+            <button class="btn small ghost" id="py_folder_btn">Choose folder</button>
+            <input type="file" id="py_folder" style="display:none">
           </div>
           <div id="py_paste_feedback" class="helptext" style="margin:6px 0;"></div>
         </div>
@@ -1201,6 +1203,8 @@ const PriorYearsModule = {
     container.appendChild(resCard);
     resCard.querySelector('#py_file_btn').onclick = ()=> resCard.querySelector('#py_file').click();
     wireFileUpload(resCard.querySelector('#py_file'), resCard.querySelector('#py_paste'), resCard.querySelector('#py_paste_btn'));
+    resCard.querySelector('#py_folder_btn').onclick = ()=> resCard.querySelector('#py_folder').click();
+    wireFolderUpload(resCard.querySelector('#py_folder'), resCard.querySelector('#py_paste'), resCard.querySelector('#py_paste_btn'));
 
     // Auto-generate the last 10 FY options counting back from the current FY, so there's
     // nothing to type here either -- just pick from the dropdown.
@@ -1312,6 +1316,8 @@ const PriorYearsModule = {
             <span class="helptext" style="margin:0;">or</span>
             <button class="btn small ghost" id="oh_file_btn">Choose file (CSV, Excel, or PDF)</button>
             <input type="file" id="oh_file" accept=".csv,.txt,.xlsx,.xls,.pdf" style="display:none">
+            <button class="btn small ghost" id="oh_folder_btn">Choose folder</button>
+            <input type="file" id="oh_folder" style="display:none">
           </div>
           <div id="oh_paste_feedback" class="helptext" style="margin:6px 0;"></div>
         </div>
@@ -1320,6 +1326,8 @@ const PriorYearsModule = {
     container.appendChild(holdCard);
     holdCard.querySelector('#oh_file_btn').onclick = ()=> holdCard.querySelector('#oh_file').click();
     wireFileUpload(holdCard.querySelector('#oh_file'), holdCard.querySelector('#oh_paste'), holdCard.querySelector('#oh_paste_btn'));
+    holdCard.querySelector('#oh_folder_btn').onclick = ()=> holdCard.querySelector('#oh_folder').click();
+    wireFolderUpload(holdCard.querySelector('#oh_folder'), holdCard.querySelector('#oh_paste'), holdCard.querySelector('#oh_paste_btn'));
 
     function renderOHRows(){
       const el = holdCard.querySelector('#oh_rows');
@@ -1610,6 +1618,55 @@ function wireFileUpload(fileInputEl, textareaEl, parseBtnEl){
       alert('Could not read that file: ' + err.message);
     }
     fileInputEl.value = '';
+  };
+}
+// Folder upload: same per-file extraction logic as wireFileUpload, but processes every
+// CSV/TXT/XLSX file found in the selected folder and concatenates the results -- useful
+// for "upload everything for this FY at once" instead of one file at a time. PDFs are
+// listed but not auto-extracted here (each needs individual review per the single-file
+// flow's reasoning), so the user isn't handed one huge unreviewed text blob from mixed
+// document types.
+function wireFolderUpload(folderInputEl, textareaEl, parseBtnEl){
+  folderInputEl.webkitdirectory = true;
+  folderInputEl.multiple = true;
+  folderInputEl.onchange = async (e)=>{
+    const files = Array.from(e.target.files || []);
+    if(files.length === 0) return;
+    let combined = '';
+    let pdfNames = [];
+    let skipped = [];
+    for(const file of files){
+      const name = file.name.toLowerCase();
+      try{
+        if(name.endsWith('.csv') || name.endsWith('.txt')){
+          const txt = await new Promise((res,rej)=>{
+            const r = new FileReader();
+            r.onload=(ev)=>res(ev.target.result); r.onerror=rej; r.readAsText(file);
+          });
+          combined += txt.trim() + '\n';
+        } else if(name.endsWith('.xlsx') || name.endsWith('.xls')){
+          const buf = await file.arrayBuffer();
+          const wb = XLSX.read(buf, {type:'array'});
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          combined += XLSX.utils.sheet_to_csv(sheet).trim() + '\n';
+        } else if(name.endsWith('.pdf')){
+          pdfNames.push(file.name);
+        } else {
+          skipped.push(file.name);
+        }
+      } catch(err){
+        skipped.push(file.name + ' (error: ' + err.message + ')');
+      }
+    }
+    if(combined.trim().length > 0){
+      textareaEl.value = combined.trim();
+      parseBtnEl.click();
+    }
+    let msg = `Processed ${files.length} file(s) from the folder.`;
+    if(pdfNames.length>0) msg += ` PDFs not auto-combined (upload individually to review each): ${pdfNames.join(', ')}.`;
+    if(skipped.length>0) msg += ` Skipped (unsupported type): ${skipped.join(', ')}.`;
+    alert(msg);
+    folderInputEl.value = '';
   };
 }
 function parseFlexDate(s){

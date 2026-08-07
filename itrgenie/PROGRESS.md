@@ -43,6 +43,23 @@ Exempt Income (Sch EI) & 80GGA · AIS Auto-Import
   current sources before building — common deductions (80C/80D/80G/HRA)
   correctly do NOT trigger this.
 
+## Import sources clarified + folder upload (2026-08-03)
+- **Folder upload** added alongside single-file upload (Prior Years, both
+  sections) -- select a whole folder, every CSV/TXT/XLSX inside gets
+  processed and combined automatically; PDFs are listed but not
+  auto-combined (each needs individual review, same reasoning as single-file
+  PDF handling).
+- **Cloud Drive / Email import explicitly scoped OUT of the browser tool** --
+  same category as OCR: needs real OAuth + backend infrastructure a static
+  site can't provide. Stopgap: Claude already has Drive/Gmail access in
+  chat, so cloud import works today via that route, not a button in the app.
+- **Password-protected file handling clarified**: pulling an encrypted file
+  from Drive requires the binary to pass through Claude's own text output
+  to reach the sandbox, which is fragile for large files (caused a real
+  corruption incident on the FY2025-26 capital gains file). Direct upload
+  to chat avoids this entirely -- files land on disk directly, decryption
+  is reliable. Documented as the recommended path for any protected file.
+
 ## Document hierarchy guide (2026-08-03, from a real case)
 AIS Reconciliation module now leads with a "which document actually resolves
 this" table -- ranked alternatives per category (capital gains, salary,
