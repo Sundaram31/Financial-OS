@@ -163,6 +163,8 @@
     main.content{ padding:18px; }
   }
 </style>
+<script src="./lib/xlsx.core.min.js"></script>
+<script src="./lib/pdf.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -1189,8 +1191,8 @@ const PriorYearsModule = {
           <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
             <button class="btn small" id="py_paste_btn">Parse &amp; add</button>
             <span class="helptext" style="margin:0;">or</span>
-            <button class="btn small ghost" id="py_file_btn">Choose CSV/TXT file</button>
-            <input type="file" id="py_file" accept=".csv,.txt" style="display:none">
+            <button class="btn small ghost" id="py_file_btn">Choose file (CSV, Excel, or PDF)</button>
+            <input type="file" id="py_file" accept=".csv,.txt,.xlsx,.xls,.pdf" style="display:none">
           </div>
           <div id="py_paste_feedback" class="helptext" style="margin:6px 0;"></div>
         </div>
@@ -1308,8 +1310,8 @@ const PriorYearsModule = {
           <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
             <button class="btn small" id="oh_paste_btn">Parse &amp; add</button>
             <span class="helptext" style="margin:0;">or</span>
-            <button class="btn small ghost" id="oh_file_btn">Choose CSV/TXT file</button>
-            <input type="file" id="oh_file" accept=".csv,.txt" style="display:none">
+            <button class="btn small ghost" id="oh_file_btn">Choose file (CSV, Excel, or PDF)</button>
+            <input type="file" id="oh_file" accept=".csv,.txt,.xlsx,.xls,.pdf" style="display:none">
           </div>
           <div id="oh_paste_feedback" class="helptext" style="margin:6px 0;"></div>
         </div>
@@ -1558,22 +1560,56 @@ function parsePastedRows(text){
       return line.split(sep).map(c=>c.trim());
     });
 }
-// Wires a file input (CSV/TXT) so its content flows through the exact same paste-parse
-// pipeline as manual entry -- one parser to trust, not two. Auto-triggers the existing
-// "Parse & add" button once the file loads, so file upload and paste behave identically
-// from the user's point of view. Native .xlsx binary isn't handled here (needs SheetJS,
-// a much larger bundle) -- CSV/TXT covers the common "exported from Excel/Sheets" case.
+// Wires a file input so CSV/TXT/XLSX/PDF all flow into the same textarea + Parse&Add
+// pipeline as manual paste -- one parser to trust for structured data, not several.
+// CSV/TXT/XLSX auto-trigger Parse&Add since they produce genuinely row-structured data.
+// PDF text extraction does NOT auto-parse: extracted text is flowing prose/tables, not
+// clean comma-separated rows, so auto-parsing it would silently produce garbage rows --
+// shown for the user to review and manually clean up instead. This reads real embedded
+// text (Form 16, e-statements, broker PDFs) -- it does NOT do OCR on scanned/photographed
+// documents, which have no text layer to extract and would need a different, heavier tool.
+if(typeof pdfjsLib !== 'undefined'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.js';
+}
 function wireFileUpload(fileInputEl, textareaEl, parseBtnEl){
-  fileInputEl.onchange = (e)=>{
+  fileInputEl.accept = '.csv,.txt,.xlsx,.xls,.pdf';
+  fileInputEl.onchange = async (e)=>{
     const file = e.target.files[0];
     if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev)=>{
-      textareaEl.value = ev.target.result;
-      parseBtnEl.click();
-      fileInputEl.value = '';
-    };
-    reader.readAsText(file);
+    const name = file.name.toLowerCase();
+    try{
+      if(name.endsWith('.xlsx') || name.endsWith('.xls')){
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, {type:'array'});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        textareaEl.value = XLSX.utils.sheet_to_csv(sheet);
+        parseBtnEl.click();
+      } else if(name.endsWith('.pdf')){
+        if(typeof pdfjsLib === 'undefined'){ alert('PDF reader failed to load -- try refreshing the page.'); return; }
+        const buf = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+        let text = '';
+        for(let i=1; i<=pdf.numPages; i++){
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(it=>it.str).join(' ') + '\n';
+        }
+        if(text.trim().length === 0){
+          alert('No text found in this PDF -- it may be a scanned image rather than a real document, which this tool can\'t read. Try uploading it in chat instead, where it can be read directly.');
+          return;
+        }
+        textareaEl.value = text;
+        alert('Text extracted from the PDF below -- review it and reformat into rows before clicking Parse & add, since PDF text usually isn\'t already comma-separated.');
+      } else {
+        const reader = new FileReader();
+        const txt = await new Promise((res,rej)=>{ reader.onload=(ev)=>res(ev.target.result); reader.onerror=rej; reader.readAsText(file); });
+        textareaEl.value = txt;
+        parseBtnEl.click();
+      }
+    } catch(err){
+      alert('Could not read that file: ' + err.message);
+    }
+    fileInputEl.value = '';
   };
 }
 function parseFlexDate(s){

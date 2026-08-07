@@ -43,6 +43,27 @@ Exempt Income (Sch EI) & 80GGA · AIS Auto-Import
   current sources before building — common deductions (80C/80D/80G/HRA)
   correctly do NOT trigger this.
 
+## Import capability upgrade (2026-08-03)
+Bundled SheetJS (xlsx.core.min.js) and PDF.js (pdf.min.js + pdf.worker.min.js) as
+self-hosted library files in itrgenie/lib/ -- NOT inline in the HTML (too large
+to embed reliably via available tooling), so ITRGenie is now a small folder
+(~2.3MB total, mostly the libraries) rather than a single .html file. Still
+fully offline/self-contained, no external CDN calls, just multiple files
+instead of one.
+
+Every file-upload input (Prior Years x2, and the shared `wireFileUpload`
+helper used elsewhere) now handles:
+- CSV/TXT: unchanged, auto-parses
+- XLSX/XLS: real parsing via SheetJS, converts first sheet to CSV, auto-parses
+- PDF: real text extraction via PDF.js (reads actual embedded text -- Form 16,
+  e-statements, broker PDFs) -- does NOT auto-parse, since extracted text isn't
+  row-structured; shown for manual review/cleanup instead
+- Explicitly does NOT do OCR on scanned/photographed documents (no text layer
+  to extract) -- if a PDF has no extractable text, the user is told plainly
+  and pointed to uploading it in chat instead, where Claude can read it
+  directly. Photo/image OCR (Tesseract.js) remains a deliberate non-build
+  pending explicit user sign-off on its size/accuracy tradeoffs.
+
 ## Real-document reconciliation session notes (2026-08-03)
 Working through actual Drive documents surfaced a broader lesson worth
 keeping visible: verify every figure against a re-read of the source file
