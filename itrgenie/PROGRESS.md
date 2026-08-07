@@ -43,6 +43,17 @@ Exempt Income (Sch EI) & 80GGA · AIS Auto-Import
   current sources before building — common deductions (80C/80D/80G/HRA)
   correctly do NOT trigger this.
 
+## Real-document reconciliation session notes (2026-08-03)
+Working through actual Drive documents surfaced a broader lesson worth
+keeping visible: verify every figure against a re-read of the source file
+in the SAME session before repeating it, rather than trusting an earlier
+turn's summary. Two things went wrong and were caught/corrected only
+because of this: (1) foreign income was initially merged into the profile
+before residency status was confirmed -- retracted once NRI status was
+confirmed. (2) A capital gains figure ("Muthoot Finance Rs 2,94,250 LTCG")
+was stated as fact but could not be re-verified against actual files --
+retracted as unconfirmed. Neither was caught until a deliberate re-check.
+
 ## Built this session, second root-cause fix (from a real CA misconception)
 - **Foreign Assets residency gate** — module never checked residency status
   before asking for foreign income/asset detail. Real case: user's CA stated
