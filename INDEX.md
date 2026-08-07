@@ -20,7 +20,7 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 | Net Worth Dashboard | `/networth/` | Live, manual entry | 2026-08-03 |
 | Goals | `/goals/` | Live, manual entry + file upload | 2026-08-03 |
 | Debt & Loan Tracker | — | Not started | — |
-| Insurance Tracker | — | Not started | — |
+| Insurance Tracker | `/insurance/` | Live, mis-selling checks | 2026-08-03 |
 | Retirement/Pension Planner | — | Not started | — |
 | Estate Planning / Document Vault | — | Not started | — |
 | GST/e-way bill tool | not yet moved here | Built elsewhere | — |
