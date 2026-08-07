@@ -43,6 +43,21 @@ Exempt Income (Sch EI) & 80GGA · AIS Auto-Import
   current sources before building — common deductions (80C/80D/80G/HRA)
   correctly do NOT trigger this.
 
+## Document hierarchy guide (2026-08-03, from a real case)
+AIS Reconciliation module now leads with a "which document actually resolves
+this" table -- ranked alternatives per category (capital gains, salary,
+interest/dividend, rent), not just a single required document. Root cause:
+a real case where a single broker's capital-gains statement looked complete
+but wasn't, because the user trades through 4 separate broker/demat accounts
+(Axis Direct, Tradejini, Angel One, Axis Vested-US) -- no single-broker
+statement can ever be complete on its own. The guide explicitly recommends
+cross-checking the SUM of every broker against AIS's own total for that
+category, since AIS aggregates broker-agnostically across all accounts --
+a mismatch there means an account is missing, not that one document is wrong.
+For NRI capital gains specifically, the PIS account statement from the
+bank is now ranked as the BEST source (broker-agnostic, covers all PIS
+transactions) rather than the individual broker statement.
+
 ## Import capability upgrade (2026-08-03)
 Bundled SheetJS (xlsx.core.min.js) and PDF.js (pdf.min.js + pdf.worker.min.js) as
 self-hosted library files in itrgenie/lib/ -- NOT inline in the HTML (too large

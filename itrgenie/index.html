@@ -5561,6 +5561,29 @@ const AISReconciliationModule = {
     `;
     container.appendChild(header);
 
+    // Document hierarchy guide -- built from a real case: a single broker's capital-gains
+    // summary looked complete but wasn't, because trading happened across multiple brokers/
+    // accounts the summary never covered. The fix isn't "ask for a better document" -- it's
+    // telling the user explicitly which ONE of several alternatives satisfies the requirement,
+    // ranked by completeness, so they're not left guessing which document actually resolves it.
+    const guideCard = document.createElement('div');
+    guideCard.className = 'card';
+    guideCard.style.borderColor = 'var(--gold-dim)';
+    guideCard.innerHTML = `
+      <h3>Which document actually resolves a mismatch?</h3>
+      <p class="helptext" style="margin-bottom:10px;">If a single source looks incomplete, don't keep re-requesting the same document — move down this list. You need ONE from each row's list, ranked by how complete it typically is.</p>
+      <table class="day-table">
+        <tr><th>Category</th><th>Best → acceptable alternatives (need one)</th></tr>
+        <tr><td>Capital gains (NRI, PIS route)</td><td>PIS account statement from your bank (covers ALL your PIS transactions, broker-agnostic) → individual broker capital-gains statement → broker Transaction Summary/Contract Notes → bank credits for sale proceeds (least reliable — no cost basis)</td></tr>
+        <tr><td>Capital gains (resident, non-PIS)</td><td>Broker capital-gains statement → broker Transaction Summary/Contract Notes → Demat CAS (NSDL/CDSL, shows all transfers) → bank credits (least reliable)</td></tr>
+        <tr><td>Salary/TDS</td><td>Form 16 → payslips totalled manually, cross-checked against AIS TDS-192 entries</td></tr>
+        <tr><td>Interest/Dividend</td><td>Bank/broker interest-tax certificate → AIS itself (already aggregated) → bank statement credits tagged by description</td></tr>
+        <tr><td>Rent (House Property)</td><td>Rent agreement + 12 months of bank credits → bank credits alone if no agreement exists</td></tr>
+      </table>
+      <p class="helptext" style="margin-top:10px;"><b>If you have multiple broker/demat accounts</b>, no single broker's statement is ever complete on its own — cross-check the SUM of every broker against AIS's own total for that category (AIS aggregates across all your accounts, since exchanges report to the tax department directly). A gap there means an account is missing from what you've gathered, not that any one document is wrong.</p>
+    `;
+    container.appendChild(guideCard);
+
     const addCard = document.createElement('div');
     addCard.className = 'card';
     addCard.innerHTML = `
