@@ -117,3 +117,46 @@ data before designing the Portfolio module's data model.
 5. The Synthesis Layer itself -- a cross-module insights view, only
    buildable once Portfolio exists and the data contracts are proven with
    real data across at least 3-4 modules.
+
+## Life Confidence — a 9th pillar (added 2026-08-07)
+Everything so far tracks and computes. This pillar exists for a different
+purpose: answering "will I actually be okay," which is what turns a pile of
+correct numbers into peace of mind. Ranked by leverage, same convention as
+the original 8-pillar list.
+
+1. **Emergency fund adequacy check** — 6-12 months of true liquid expenses,
+   not "some savings somewhere." Simple, high-confidence-per-effort.
+2. **Financial independence date** — one combined projection across debts,
+   investments, and goals: the date work becomes optional. The single number
+   most likely to change how someone feels about their plan, not just informs it.
+3. **Income-shock stress test** — for contract-based income (seafarer
+   specifically): "next contract delayed 3 months" modeled against fixed
+   obligations (EMI, SIPs, premiums). Turns a vague worry into a concrete,
+   answerable question.
+4. **Retirement/pension corpus projection** — "at current savings rate,
+   retiring at age X, will I have enough." Seafarer PF/pension rules are
+   specific, not generic EPF -- needs real research before building (same
+   flag as in the original 8-pillar Retirement item).
+5. **Family resilience / estate planning** — nominee correctness across every
+   account (easy to miss during months at sea), will status, and a single
+   "what would my family need to know" reference. The existing Jagoinvestor
+   Master Document in Drive is a real starting point to digitize, not a
+   from-scratch build.
+6. **Children's education cost projection** — inflation-adjusted specifically
+   (education costs outpace general CPI); a goal that doesn't account for
+   this quietly falls short without anyone noticing until too late.
+7. **NRI/FEMA compliance tracking** — repatriation limits, PIS account
+   rules; easy to unknowingly breach, expensive to fix after the fact.
+8. **Annual financial health report card** — a once-a-year small set of
+   indicators (net worth trend, goal progress %, insurance adequacy,
+   debt-free date) so progress is *felt*, not just theoretically trackable
+   in modules that otherwise go unopened.
+9. **Household view (optional)** — combined view with spouse's separate
+   investments/PAN, with her own consent, for a truer picture than an
+   artificially narrower single-person one.
+
+Sequencing note: none of these block Portfolio (the current next phase) --
+they're the layer that comes after Portfolio + Synthesis Layer exist, since
+several (financial independence date, health report card) need real
+cross-module data flowing before they can compute anything meaningful rather
+than show a placeholder.
