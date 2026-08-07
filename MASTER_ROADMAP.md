@@ -71,3 +71,49 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
 - 2026-08-07: Major session — real FY2025-26 reconciliation against actual uploaded documents (AIS, CA computation, capital gains statements, full bank statements across 4 accounts). Key corrections made and retracted where wrong: GAV finding retracted (CA/AIS figure confirmed correct, bank-transaction-label search was the unreliable source); foreign income merge retracted after confirming NRI status (foreign income not taxable in India for NRI, Schedule FA not required). Verified capital gains built from real Axis Direct statements (Muthoot LTCG, Amara Raja/Syngene, Aptus loss, MF gains). Two root-cause fixes shipped to ITRGenie: House Property occupancy intake wizard (catches "relative living rent-free" misclassification), Foreign Assets residency gate (checks NRI/ROR status before asking for foreign income detail). Import upgraded to merge instead of replace, enabling safe "Claude reads document in chat, hands back JSON" workflow. File import upgraded: real Excel (SheetJS) and PDF-text (PDF.js) parsing bundled self-hosted, plus folder-upload. AIS Auto-Import module built (CSV parsing, review-before-commit). Document-hierarchy guide added to AIS Reconciliation (ranked alternative sources, e.g. PIS statement > broker statement for NRI capital gains) after real case of an incomplete single-broker statement (user trades via 4 accounts: Axis Direct, Tradejini, Angel One, Axis Vested-US).
 - 2026-08-07: Built + validated a bank-statement transaction classifier using PARTICULARS/description text only (NOT relying on any pre-existing category column, since most real statements don't have one) -- 98.7% accuracy validated against ground truth on a real 394-transaction account. Real failure modes found and documented: fund-house name variants (KotakMutua vs Mutual) needed broadening the match pattern; self-transfers via own name at another bank needed name-matching; family/friend transfers need a one-time user-provided name registry (can't be inferred); false positives occur when a name appears in unrelated transaction memo text (a travel booking that happened to mention a spouse's name).
 - 2026-08-07: Scoped the "Financial Events" vision precisely: FD/RD lifecycle, Loan EMI/prepayment, Investment cash-flow, and Insurance premium payments are ALL fully computable from bank statement data alone. Capital gains is NOT -- bank data shows money moved to a broker/AMC but never which security/quantity/price, so FIFO gain computation still needs the broker/CAMS source at least once; bank data's real value there is flagging that a sale event happened (so nothing gets missed), not replacing the source document. Next build: Debt & Loan Tracker (roadmap item, and the most bank-derivable piece of this vision) using the validated classifier. FD/RD tracker and Investment cash-flow ledger queued after.
+
+## The Synthesis Layer — what Financial OS is actually for
+Every module so far has been built to work standalone. The real value, stated
+explicitly by the user 2026-08-07, is what emerges once they're joined:
+
+**Not just tracking — answering, over a 2-3 year horizon:**
+- Am I progressing toward each goal, and by how much (Goals + Net Worth + Portfolio)
+- What's my net worth, right now and trending over time (Net Worth + all sources)
+- Is my insurance actually sufficient for my family, not just "do I have a policy" (Insurance + income + dependents)
+- How is my portfolio performing, and what's my real asset allocation (Portfolio + Net Worth)
+- What-if: switching Fund A to Fund B — what's the tax cost of that switch specifically (Portfolio + ITRGenie's capital gains logic)
+- How much capital gains tax is coming this year, and what's legally reducible within the rules (Portfolio + ITRGenie + What-If Planner)
+- Overall: how can total tax be reduced, synthesized across everything, not just what ITRGenie sees in isolation
+
+This is why every module writes to a shared, predictable data shape
+(see Cross-module data contracts above) — the payoff isn't any one module,
+it's this synthesis layer becoming buildable once enough modules exist with
+real, consistent data flowing between them.
+
+## Reprioritization, 2026-08-07
+User's own framing: "the IT part... looks smaller in the whole picture."
+ITRGenie is mature (27 modules) and correctly scoped to tax filing --
+**Portfolio is the next major phase**, not incremental Financial Events
+modules. Debt & Loan Tracker (just shipped) is the last "smaller" module
+before this shift.
+
+**Resource available for the Portfolio build**: user has 5+ years of
+historical IT/financial data already in Google Drive -- to be used both
+for building the Portfolio module's logic AND as real test data, same
+approach that made ITRGenie's real-document reconciliation valuable rather
+than theoretical. Next session should locate and inventory this historical
+data before designing the Portfolio module's data model.
+
+## Updated module sequence
+1. ~~ITRGenie~~ -- done, mature, 27 modules
+2. ~~Goals, Net Worth, Insurance, Debt & Loan~~ -- done, smaller modules
+3. **Portfolio (next, major phase)** -- live prices, holdings across all
+   4 broker/demat accounts (Axis Direct, Tradejini, Angel One, Vested-US),
+   performance tracking, asset allocation view. Feeds Net Worth's Investments
+   category and Goals' tagged-investments for the first time with real data
+   instead of manual entry.
+4. What-if fund-switch tax modeling -- needs Portfolio's holding-level data
+   (cost basis, holding period) joined with ITRGenie's capital gains logic.
+5. The Synthesis Layer itself -- a cross-module insights view, only
+   buildable once Portfolio exists and the data contracts are proven with
+   real data across at least 3-4 modules.

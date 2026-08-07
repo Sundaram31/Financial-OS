@@ -25,6 +25,15 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 | Estate Planning / Document Vault | — | Not started | — |
 | GST/e-way bill tool | not yet moved here | Built elsewhere | — |
 
+## Current phase: Portfolio (major, next)
+ITRGenie/tax and the smaller Financial OS modules (Goals, Net Worth, Insurance,
+Debt & Loan) are done. Next real phase: Portfolio module -- holdings across
+all 4 broker/demat accounts, performance, asset allocation. User has 5+ years
+of historical data in Drive to build/test against. See MASTER_ROADMAP.md's
+"Synthesis Layer" section for why this matters more than it might look --
+it's the piece that unlocks cross-module insights (goal progress, true net
+worth trend, what-if tax modeling), not just another standalone tracker.
+
 ## Rule going forward
 Every session that touches a module updates:
 1. That module's `PROGRESS.md`
