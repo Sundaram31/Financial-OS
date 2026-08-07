@@ -43,6 +43,19 @@ Exempt Income (Sch EI) & 80GGA · AIS Auto-Import
   current sources before building — common deductions (80C/80D/80G/HRA)
   correctly do NOT trigger this.
 
+## Built this session, root-cause fix (from a real filing miss)
+- **House Property occupancy intake wizard** — added before the property-add
+  form. Root cause of the gap it fixes: the module used to let the user
+  self-classify a property as self-occupied/let-out, trusting they already
+  knew the rule. A real case surfaced the gap — a property occupied rent-free
+  by in-laws was wrongly treated as self-occupied (by the user's own CA,
+  not just a hypothetical), capping home loan interest at ₹2L instead of
+  claiming it in full as deemed-let-out. The wizard now asks occupancy in
+  plain language (self/relative/vacant/tenant/under construction) and does
+  the classification itself, with the relative-occupancy trap called out
+  explicitly. Also added a Sec 64 clubbing check for spouse-funded properties
+  registered in someone else's name — same session surfaced a case of this too.
+
 ## Built this session, extraction workflow enabled
 - **Import now merges instead of always replacing** — detects whether an
   imported file looks like a full backup (many top-level keys) or a targeted

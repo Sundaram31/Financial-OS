@@ -3497,6 +3497,81 @@ const HousePropertyModule = {
     `;
     container.appendChild(header);
 
+    // ---- Occupancy intake wizard ----
+    // Root-cause fix: the old design let the user pick "self-occupied" directly, trusting
+    // they already knew the rule. Most people (and evidently some CAs) don't know that a
+    // property lived in by parents/in-laws/siblings does NOT qualify as self-occupied --
+    // only the owner, spouse, or dependent children count. This wizard asks who actually
+    // lives there in plain language and does the classification itself, instead of asking
+    // the user to already know the answer before they can enter the data correctly.
+    const wizardCard = document.createElement('div');
+    wizardCard.className = 'card';
+    wizardCard.style.borderColor = 'var(--gold-dim)';
+    wizardCard.innerHTML = `
+      <h3>Before adding a property — who actually lives there?</h3>
+      <p class="helptext" style="margin-bottom:10px;">This decides everything downstream (whether home loan interest is capped at ₹2L or fully deductible) — get this right first, not after.</p>
+      <div class="field-row">
+        <div class="field" style="flex:2;">
+          <label>Occupancy status</label>
+          <select id="wiz_occupancy">
+            <option value="">— Select —</option>
+            <option value="self">Me / my spouse / my dependent children live there</option>
+            <option value="relative">Parents, in-laws, siblings, or other relatives live there (rent-free)</option>
+            <option value="vacant">Vacant / not currently used by anyone</option>
+            <option value="tenant">Rented to an unrelated tenant</option>
+            <option value="construction">Still under construction</option>
+          </select>
+        </div>
+      </div>
+      <div id="wiz_result"></div>
+    `;
+    container.appendChild(wizardCard);
+
+    function renderWizardResult(){
+      const val = wizardCard.querySelector('#wiz_occupancy').value;
+      const el = wizardCard.querySelector('#wiz_result');
+      if(!val){ el.innerHTML=''; return; }
+      const explanations = {
+        self: {verdict:'Self-Occupied', color:'var(--green)', note:'GAV is nil. Home loan interest is capped at ₹2,00,000/year (Sec 24(b)) — even if actual interest paid is higher, the excess is simply lost unless a second self-occupied property exists to absorb it (up to 2 self-occupied properties allowed).'},
+        relative: {verdict:'Deemed Let Out — NOT self-occupied', color:'var(--rust)', note:'This is the mistake that\'s easy to make: a relative living there rent-free does not qualify as self-occupied under the Act — only owner/spouse/dependent children do. Treat this as deemed let-out: GAV = fair rental value (check the municipal tax receipt for an "annual value" figure, or comparable local rent), municipal tax is deductible, and home loan interest is FULLY deductible with no cap. This is usually a large missed deduction when misclassified as self-occupied.'},
+        vacant: {verdict:'Likely Deemed Let Out', color:'var(--gold)', note:'Vacant property is generally treated as deemed let-out (notional rent), UNLESS it\'s vacant specifically because your job keeps you elsewhere and you couldn\'t occupy it — that narrow exception needs documentation to support it.'},
+        tenant: {verdict:'Let Out', color:'var(--green)', note:'Standard let-out treatment — GAV from actual rent received, home loan interest fully deductible.'},
+        construction: {verdict:'Pre-construction — no Sec 24(b) claim yet', color:'var(--gold)', note:'Interest paid during construction is NOT deductible in the year paid. It accumulates and becomes claimable in 5 equal instalments starting the year construction completes. Don\'t let this get claimed early. Also: if this property is registered in a spouse\'s or family member\'s name but you\'re funding the loan, check Sec 64 clubbing provisions before assuming the eventual income/gain is taxed in their hands, not yours.'}
+      };
+      const e = explanations[val];
+      el.innerHTML = `<div class="result-box" style="border-color:${e.color};"><div class="verdict" style="color:${e.color};">${e.verdict}</div><div class="verdict-detail">${e.note}</div></div>`;
+    }
+    wizardCard.querySelector('#wiz_occupancy').onchange = renderWizardResult;
+
+    const fundingCard = document.createElement('div');
+    fundingCard.className = 'card';
+    fundingCard.innerHTML = `
+      <h3>Is this property funded by you but registered in someone else's name?</h3>
+      <p class="helptext" style="margin-bottom:8px;">Common with spouses — putting an asset in a lower-income spouse's name doesn't shift the tax liability the way people often assume.</p>
+      <div class="field-row">
+        <div class="field"><label>Ownership vs funding</label>
+          <select id="wiz_clubbing">
+            <option value="no">No — owner and funder are the same person</option>
+            <option value="yes">Yes — registered in spouse's/family member's name, but I'm funding it</option>
+          </select>
+        </div>
+      </div>
+      <div id="wiz_clubbing_result"></div>
+    `;
+    container.appendChild(fundingCard);
+    fundingCard.querySelector('#wiz_clubbing').onchange = (e)=>{
+      const el = fundingCard.querySelector('#wiz_clubbing_result');
+      if(e.target.value==='yes'){
+        el.innerHTML = `<div class="result-box" style="border-color:var(--rust);"><div class="verdict" style="color:var(--rust);">Sec 64(1)(iv) clubbing likely applies</div><div class="verdict-detail">Income (rent, or a future capital gain on sale) from an asset funded by you but held in a spouse's name without adequate consideration generally gets clubbed back into YOUR income, not taxed in theirs — even though the asset is legally in their name. This surprises people who assumed the opposite. Worth confirming with a CA how this specific property should be reported, ideally before it starts generating income or before sale, not after.</div></div>`;
+      } else {
+        el.innerHTML = '';
+      }
+    };
+
+    const divider = document.createElement('div');
+    divider.className = 'divider';
+    container.appendChild(divider);
+
     const listWrap = document.createElement('div');
     container.appendChild(listWrap);
 
