@@ -43,6 +43,22 @@ Exempt Income (Sch EI) & 80GGA · AIS Auto-Import
   current sources before building — common deductions (80C/80D/80G/HRA)
   correctly do NOT trigger this.
 
+## Built this session, second root-cause fix (from a real CA misconception)
+- **Foreign Assets residency gate** — module never checked residency status
+  before asking for foreign income/asset detail. Real case: user's CA stated
+  foreign assets only need reporting "when cash is brought back" -- factually
+  wrong (Schedule FA is a holding-based disclosure, not repatriation-based).
+  Correct rule: Schedule FA applies only to Resident & Ordinarily Resident;
+  NRI/RNOR are exempt, and foreign-sourced income generally isn't taxable
+  for them either (Sec 5(2)). Module now checks residency FIRST and tells
+  the user plainly whether the rest of the module even applies to them,
+  instead of collecting data that may not belong in the Indian return at all.
+- Also corrected mid-session: a foreign-income merge JSON was handed to the
+  user before residency was confirmed — wrongly treated foreign dividends/
+  SLIP income/a capital loss as relevant to the Indian return. Once NRI
+  status was confirmed, retracted that guidance explicitly rather than
+  leaving it uncorrected.
+
 ## Built this session, root-cause fix (from a real filing miss)
 - **House Property occupancy intake wizard** — added before the property-add
   form. Root cause of the gap it fixes: the module used to let the user

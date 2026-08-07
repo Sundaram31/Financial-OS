@@ -3335,6 +3335,28 @@ const ForeignAssetsModule = {
     `;
     container.appendChild(header);
 
+    // Root-cause fix: this module used to ask for foreign income/asset detail without ever
+    // checking residency status first -- for an NRI, foreign-sourced income generally isn't
+    // taxable in India at all (Sec 5(2)), and Schedule FA disclosure only applies to Resident
+    // & Ordinarily Resident individuals. Asking for this detail before establishing residency
+    // risks pulling non-taxable foreign income into the return, or missing a genuine Schedule
+    // FA obligation once residency status changes in a future year. Check first, ask second.
+    const residencyGate = document.createElement('div');
+    residencyGate.className = 'card';
+    residencyGate.style.borderColor = 'var(--gold-dim)';
+    const rStatus = profile.residencyResult ? profile.residencyResult.status : null;
+    const isNRI = rStatus && rStatus.startsWith('Non-Resident');
+    if(!rStatus){
+      residencyGate.innerHTML = `<h3 style="color:var(--rust);">Residency status not computed yet</h3><p class="helptext">Go to the Residency module first — whether foreign income is even taxable in India, and whether Schedule FA applies at all, depends entirely on Resident/RNOR/NRI status. Filling this module before that risks including income that was never actually part of your Indian tax base.</p>`;
+    } else if(isNRI){
+      residencyGate.innerHTML = `<h3 style="color:var(--green);">NRI status — foreign income generally NOT taxable in India</h3><p class="helptext">As a Non-Resident, only India-sourced income is taxable here — foreign dividends/interest/capital gains from a foreign broker generally stay outside your Indian return entirely, unless specifically received into an Indian account (rare, worth a quick check if unsure). <b>Schedule FA does not apply to NRIs</b> — you can likely skip most of this module. Still worth listing foreign bank/broker accounts below for your own record-keeping, but don't expect this to change your tax computation.</p>`;
+    } else if(profile.residencyResult.rnorResult === 'RNOR'){
+      residencyGate.innerHTML = `<h3 style="color:var(--gold);">RNOR status — treated like NRI for most foreign income</h3><p class="helptext">Foreign income generally stays exempt under RNOR, with the usual exception for foreign income derived from an Indian business/profession. Schedule FA does not apply. Same caveat as NRI — worth double-checking nothing was received directly into an Indian account.</p>`;
+    } else {
+      residencyGate.innerHTML = `<h3 style="color:var(--rust);">Resident & Ordinarily Resident — full disclosure required</h3><p class="helptext">Worldwide income is taxable, and Schedule FA is mandatory this year regardless of whether any income was earned or repatriated — holding the asset alone triggers the disclosure requirement. Fill this module in fully.</p>`;
+    }
+    container.appendChild(residencyGate);
+
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
