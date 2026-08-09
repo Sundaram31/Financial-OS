@@ -21,11 +21,25 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 | Goals | `/goals/` | Live, manual entry + file upload | 2026-08-03 |
 | Debt & Loan Tracker | `/loans/` | Live, auto-detects from bank statement | 2026-08-07 |
 | Insurance Tracker | `/insurance/` | Live, mis-selling checks | 2026-08-03 |
+| Synthesis | `/synthesis/` | Live, read-only cross-module view (net worth, goals, portfolio, debt, insurance adequacy) — first pass | 2026-08-09 |
 | Retirement/Pension Planner | — | Not started | — |
 | Estate Planning / Document Vault | — | Not started | — |
 | GST/e-way bill tool | not yet moved here | Built elsewhere | — |
 
-## Current phase: Portfolio (built 2026-08-09, UX pass same day, gaps remain)
+## Current phase: Synthesis Layer, first pass (built 2026-08-09)
+`/synthesis/` is live — a read-only page joining Net Worth, Goals, Portfolio,
+Debt & Loan, and Insurance data into one view: net worth + trend, per-goal
+progress, portfolio value/gain/allocation, debt outstanding + projected
+debt-free date, and insurance cover-vs-income adequacy. It never writes to
+another module's storage key. Scoped deliberately to the "annual financial
+health report card" item from the roadmap's Life Confidence pillar, not the
+full Synthesis Layer wishlist — capital-gains/what-if tax modeling is still
+out, since it needs Portfolio's not-yet-built sold-position tracking. See
+`synthesis/PROGRESS.md` for full scope and the income-figure design
+decision (own manual field, one-time prefill from Insurance's own entry,
+never parsed out of ITRGenie's profile).
+
+## Previous phase: Portfolio (built 2026-08-09, UX pass same day, gaps remain)
 ITRGenie/tax and the smaller Financial OS modules (Goals, Net Worth, Insurance,
 Debt & Loan) are done. Portfolio Tracker (`/portfolio/`) is live: holdings
 across all 4 broker/demat accounts, performance vs cost basis, asset
