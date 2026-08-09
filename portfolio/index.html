@@ -70,6 +70,17 @@
   .gap-card li{ margin-bottom:10px; }
   .acct-chip{ display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:20px; padding:6px 12px; margin:0 8px 8px 0; font-size:12.5px; }
   .acct-chip .cur{ font-size:10px; color:var(--muted); }
+  .btn.tiny{ padding:2px 7px; font-size:10px; }
+  .tag.gold{ background:rgba(201,162,39,0.15); color:var(--gold); }
+  .notice{ border:1px solid var(--gold-dim); background:rgba(201,162,39,0.08); border-radius:6px; padding:10px 14px; font-size:12.5px; color:var(--text); margin-bottom:12px; line-height:1.55; }
+  .notice strong{ color:var(--gold); }
+  .live-status{ display:block; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:3px; }
+  details.live-settings{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px 20px; margin-bottom:16px; }
+  details.live-settings summary{ cursor:pointer; font-family:var(--serif); font-size:16px; list-style:none; }
+  details.live-settings summary::-webkit-details-marker{ display:none; }
+  details.live-settings summary::before{ content:'▸ '; color:var(--gold); font-family:var(--mono); }
+  details.live-settings[open] summary::before{ content:'▾ '; }
+  details.live-settings .live-body{ margin-top:14px; }
   ::-webkit-scrollbar{ width:8px; height:8px; }
   ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
   @media (max-width:760px){ main.content{ padding:18px; } }
@@ -124,6 +135,7 @@ function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 function newId(prefix){ return prefix + '_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
 
 let brokerFilter = 'all';
+let liveSettingsOpen = false; // persists the collapsible "Live prices" panel's open/closed state across render() rebuilds
 
 // ---------- shared paste/file helpers, same pattern as every other module ----------
 function parsePastedRows(text){
@@ -183,9 +195,163 @@ function toINR(amount, currency){
   return amount*rate;
 }
 
+// ---------- live prices (Tier 1: Yahoo, no key · Tier 2: Twelve Data, optional key) ----------
+// Twelve Data key is stored in its OWN localStorage key, deliberately separate from
+// portfolio_data_v1 -- so it never gets bundled into the Export JSON backup file and
+// accidentally shared. Never hardcoded, never committed.
+const LIVE_KEY_STORAGE = 'portfolio_livekey_v1';
+function getTwelveDataKey(){ try{ return (localStorage.getItem(LIVE_KEY_STORAGE) || '').trim(); }catch(e){ return ''; } }
+function setTwelveDataKey(k){ try{ if(k) localStorage.setItem(LIVE_KEY_STORAGE, k); else localStorage.removeItem(LIVE_KEY_STORAGE); }catch(e){} }
+
+// Transient, in-memory only (not saved to storage or exported) -- per-holding result of the
+// last live-fetch attempt, so the table can show "live ✓" / a clear failure message without
+// polluting the persisted data model.
+let liveStatusById = {};
+
+function delay(ms){ return new Promise(res=>setTimeout(res, ms)); }
+
+// Live refresh is scoped to holdings whose AssetType is a tradeable ticker -- individual
+// stocks/equities and ETFs. "Equity" is treated as a synonym for "Stock" because that's this
+// module's own default/example AssetType for individual stock holdings (see the paste format
+// in the Holdings entry card) -- restricting the match to the literal word "Stock" would leave
+// the module's own example data unrefreshable. Mutual Fund and anything else is deliberately
+// excluded: fund NAVs need AMFI scheme codes, not ticker quotes, and this repo's convention is
+// to flag that kind of gap rather than guess at a scheme-code mapping.
+function isRefreshable(h){
+  const t = (h.assetType || '').trim().toLowerCase();
+  return t === 'stock' || t === 'equity' || t === 'etf';
+}
+
+// Yahoo needs an exchange suffix for NSE-listed symbols (RELIANCE -> RELIANCE.NS); Vested-US
+// (or any USD account) uses the plain ticker. If the symbol already looks like it has a suffix
+// (e.g. user already typed RELIANCE.NS or TCS.BO), leave it alone rather than double-suffixing.
+function yahooSymbolFor(h){
+  const acc = accountOf(h.broker);
+  let sym = (h.symbol || '').trim().toUpperCase();
+  if(acc.currency === 'INR' && !/\.[A-Z]{1,4}$/.test(sym)) sym = sym + '.NS';
+  return sym;
+}
+// Twelve Data takes the exchange as a separate query param instead of a symbol suffix -- do
+// NOT reuse the Yahoo-suffixed symbol here, that's a different provider's convention.
+function twelveDataParamsFor(h){
+  const acc = accountOf(h.broker);
+  const symbol = (h.symbol || '').trim().toUpperCase();
+  const exchange = acc.currency === 'INR' ? 'NSE' : '';
+  return { symbol, exchange };
+}
+
+// ---- Tier 1: Yahoo Finance public chart endpoint, no API key ----
+// UNVERIFIED from this build environment (outbound network to arbitrary hosts is blocked by
+// this sandbox's own proxy policy, not by Yahoo) -- see portfolio/PROGRESS.md. Built
+// defensively: tries query1 then query2 (Yahoo runs both as redundant hosts), validates the
+// response shape before trusting it, and always throws a descriptive error rather than
+// returning a bad/NaN price on any failure (CORS block, HTTP error, endpoint change, garbage
+// JSON, missing field).
+async function fetchQuoteYahoo(symbol){
+  const hosts = ['query1.finance.yahoo.com', 'query2.finance.yahoo.com'];
+  let lastErr = new Error('Yahoo fetch failed');
+  for(const host of hosts){
+    try{
+      const url = `https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error(`HTTP ${res.status} from ${host}`);
+      const json = await res.json();
+      if(json && json.chart && json.chart.error) throw new Error(json.chart.error.description || 'Yahoo returned an error');
+      const result = json && json.chart && json.chart.result && json.chart.result[0];
+      const price = result && result.meta && result.meta.regularMarketPrice;
+      if(price === undefined || price === null || typeof price !== 'number' || isNaN(price) || price <= 0){
+        throw new Error('No usable price field in Yahoo response');
+      }
+      return { price, source: `Yahoo Finance (${host})` };
+    }catch(e){ lastErr = e; }
+  }
+  throw new Error(`Live fetch failed — CORS-blocked or endpoint changed (${lastErr.message}). Enter price manually or add a Twelve Data key below.`);
+}
+
+// ---- Tier 2: Twelve Data, optional bring-your-own-key ----
+// Same safe pattern as the earlier prototype: fetch, parse, treat any error/status field or
+// unusable price as a failure rather than trusting the payload blindly.
+async function fetchQuoteTwelveData(symbol, exchange, apiKey){
+  if(!apiKey) throw new Error('No Twelve Data API key set');
+  const params = new URLSearchParams({ symbol, apikey: apiKey });
+  if(exchange) params.set('exchange', exchange);
+  const url = `https://api.twelvedata.com/quote?${params.toString()}`;
+  const res = await fetch(url);
+  const json = await res.json();
+  if(json.status === 'error' || json.code) throw new Error(json.message || 'Twelve Data quote failed');
+  const price = parseFloat(json.close);
+  if(isNaN(price) || price <= 0) throw new Error('No usable price in Twelve Data response');
+  return { price, source: 'Twelve Data' };
+}
+
+// One small isolated function per provider above (fetchQuoteYahoo, fetchQuoteTwelveData) so a
+// future third provider is a contained addition here, not a rewrite of this orchestrator.
+// If a Twelve Data key is set, it's tried first (the user opted into the "more reliable" tier
+// on purpose); Yahoo's no-setup endpoint is the fallback either way. Never let a bad response
+// from either provider reach the caller -- always throw, never return a garbage price.
+async function fetchLivePrice(h){
+  const key = getTwelveDataKey();
+  const attempts = [];
+  if(key) attempts.push(async ()=>{
+    const { symbol, exchange } = twelveDataParamsFor(h);
+    return fetchQuoteTwelveData(symbol, exchange, key);
+  });
+  attempts.push(async ()=> fetchQuoteYahoo(yahooSymbolFor(h)));
+
+  const errors = [];
+  for(const attempt of attempts){
+    try{ return await attempt(); }
+    catch(e){ errors.push(e.message); }
+  }
+  throw new Error(errors.join(' | '));
+}
+
+// Refresh a single holding. Never writes a bad value into currentPrice -- on any failure the
+// existing manually-entered price is left completely untouched, only liveStatusById records
+// the failure so it's visible, not silent.
+async function refreshOneLive(h){
+  try{
+    const r = await fetchLivePrice(h);
+    h.currentPrice = r.price;
+    h.asOf = new Date().toISOString().slice(0,10);
+    liveStatusById[h.id] = { state:'ok', message:`live via ${r.source}`, at: new Date() };
+  }catch(e){
+    liveStatusById[h.id] = { state:'error', message: e.message || 'fetch failed', at: new Date() };
+  }
+}
+
+// Persisted (in-memory, not storage) across the full DOM rebuild render() does at the end --
+// without this, the final "Done — X updated, Y failed" message would be overwritten by the
+// rebuild in the same synchronous tick and the user would never actually see it.
+let refreshAllStatusMsg = '';
+
+// Refresh every eligible holding, staggered ~350ms apart (same pacing as the earlier prototype)
+// so a "refresh all" doesn't hammer either provider or trip a rate limit instantly.
+async function refreshAllLive(feedbackEl){
+  const refreshable = data.holdings.filter(isRefreshable);
+  if(refreshable.length === 0){
+    refreshAllStatusMsg = 'No Stock/Equity or ETF holdings to refresh — Mutual Fund and other types stay manual-entry only.';
+    feedbackEl.textContent = refreshAllStatusMsg;
+    return;
+  }
+  let ok = 0, failed = 0;
+  for(let i=0; i<refreshable.length; i++){
+    const h = refreshable[i];
+    feedbackEl.textContent = `Refreshing ${i+1} of ${refreshable.length}: ${h.symbol}…`;
+    await refreshOneLive(h);
+    if(liveStatusById[h.id] && liveStatusById[h.id].state === 'ok') ok++; else failed++;
+    if(i < refreshable.length - 1) await delay(350);
+  }
+  saveData();
+  refreshAllStatusMsg = `Done — ${ok} updated, ${failed} failed${failed>0 ? ' (existing manually-entered prices kept for the failed ones — see per-row status below)' : ''}.`;
+  render();
+}
+
 // ---------- per-holding and portfolio-level math ----------
-// Current value/gain is always computed from currentPrice as entered by the user (manual
-// entry or re-import) -- there is no live price feed. See Known gaps card.
+// Current value/gain is always computed from currentPrice as it sits in the data model --
+// whether that got there by manual entry/re-import or by a successful live refresh (see the
+// "live prices" section above) makes no difference to this math; a failed live refresh simply
+// never touches currentPrice, so this function never needs to know the difference.
 function computeHoldingMetrics(h){
   const acc = accountOf(h.broker);
   const currency = acc.currency;
@@ -314,24 +480,42 @@ function renderHoldingsEntryCard(container){
 }
 
 // ---------- holdings table ----------
+function liveStatusHtml(h){
+  const s = liveStatusById[h.id];
+  if(!s) return '';
+  const time = s.at instanceof Date ? s.at.toTimeString().slice(0,5) : '';
+  if(s.state === 'pending') return `<span class="live-status helptext" style="color:var(--gold);">fetching…</span>`;
+  if(s.state === 'ok') return `<span class="live-status helptext" style="color:var(--green);" title="${s.message}">✓ ${time} · ${s.message}</span>`;
+  return `<span class="live-status helptext" style="color:var(--rust);" title="${s.message}">✕ ${s.message}</span>`;
+}
+
 function renderHoldingsTable(container){
   const card = document.createElement('div');
   card.className = 'card';
+  const refreshableCount = data.holdings.filter(isRefreshable).length;
   card.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
       <h3 style="margin-bottom:0;">Holdings (${data.holdings.length})</h3>
-      <div class="field" style="max-width:220px; margin-bottom:0;">
-        <select id="broker_filter">
-          <option value="all">All accounts</option>
-          ${data.accounts.map(a=>`<option value="${a.id}" ${brokerFilter===a.id?'selected':''}>${a.name}</option>`).join('')}
-        </select>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <div class="field" style="max-width:220px; margin-bottom:0;">
+          <select id="broker_filter">
+            <option value="all">All accounts</option>
+            ${data.accounts.map(a=>`<option value="${a.id}" ${brokerFilter===a.id?'selected':''}>${a.name}</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn small" id="refresh_all_btn">↻ Refresh live prices${refreshableCount>0?` (${refreshableCount})`:''}</button>
       </div>
     </div>
-    <p class="helptext" style="margin:8px 0;">Current Price and As Of are editable directly here — this is the "manually updated" refresh workflow (no live feed). Everything else: delete and re-add via the box above to correct.</p>
+    <p class="helptext" style="margin:8px 0;">Current Price and As Of are editable directly here — that always works, live fetch or not. "Refresh live prices" only attempts Stock/Equity and ETF holdings (marked "manual only" otherwise) — Mutual Fund and other types need AMFI scheme codes, not ticker quotes, so they stay manual-entry only. Tries Yahoo Finance directly from your browser first with no setup; if you've saved a Twelve Data key in the Live Prices settings below, that's tried as the more reliable option. A failed fetch never overwrites your existing price — you'll see a clear status per row instead.</p>
+    <div id="refresh_all_fb" class="helptext" style="margin:6px 0; min-height:1em;">${refreshAllStatusMsg}</div>
     <div class="table-scroll" id="h_table_wrap"></div>
   `;
   container.appendChild(card);
   card.querySelector('#broker_filter').onchange = (e)=>{ brokerFilter = e.target.value; render(); };
+  card.querySelector('#refresh_all_btn').onclick = ()=>{
+    card.querySelector('#refresh_all_btn').disabled = true;
+    refreshAllLive(card.querySelector('#refresh_all_fb'));
+  };
 
   const wrap = card.querySelector('#h_table_wrap');
   const rows = data.holdings.filter(h=> brokerFilter==='all' || h.broker===brokerFilter);
@@ -350,6 +534,15 @@ function renderHoldingsTable(container){
     const m = computeHoldingMetrics(h);
     const tr = document.createElement('tr');
     const gainColor = m.gainAbs >= 0 ? 'var(--green)' : 'var(--rust)';
+    const refreshable = isRefreshable(h);
+    const cpCell = refreshable
+      ? `<input type="number" step="0.01" data-cp="${h.id}" value="${h.currentPrice}" placeholder="${m.buyPrice}">
+         <div style="margin-top:4px; display:flex; align-items:center; gap:6px;">
+           <button class="btn tiny ghost" data-live="${h.id}" title="Fetch a live price for this holding">↻ live</button>
+           ${liveStatusHtml(h)}
+         </div>`
+      : `<input type="number" step="0.01" data-cp="${h.id}" value="${h.currentPrice}" placeholder="${m.buyPrice}">
+         <div class="helptext" style="margin-top:4px; font-size:10.5px;">manual only (${h.assetType||'—'})</div>`;
     tr.innerHTML = `
       <td>${h.symbol}</td>
       <td>${m.accountName}</td>
@@ -357,7 +550,7 @@ function renderHoldingsTable(container){
       <td>${m.qty}</td>
       <td>${formatMoney(m.buyPrice, m.currency)}</td>
       <td>${h.buyDate}</td>
-      <td><input type="number" step="0.01" data-cp="${h.id}" value="${h.currentPrice}" placeholder="${m.buyPrice}"></td>
+      <td>${cpCell}</td>
       <td><input type="date" data-asof="${h.id}" value="${h.asOf||''}"></td>
       <td>${formatMoney(m.currentValue, m.currency)}${m.isStale?' <span class="tag muted">stale</span>':''}</td>
       <td style="color:${gainColor};">${formatMoney(m.gainAbs, m.currency)} (${m.gainPct.toFixed(1)}%)</td>
@@ -389,6 +582,19 @@ function renderHoldingsTable(container){
     btn.onclick = (e)=>{
       data.holdings = data.holdings.filter(x=>x.id!==e.target.dataset.rm);
       saveData(); render();
+    };
+  });
+  wrap.querySelectorAll('[data-live]').forEach(btn=>{
+    btn.onclick = async (e)=>{
+      const id = e.currentTarget.dataset.live;
+      const h = data.holdings.find(x=>x.id===id);
+      if(!h) return;
+      e.currentTarget.disabled = true;
+      e.currentTarget.textContent = '…';
+      liveStatusById[h.id] = { state:'pending' };
+      await refreshOneLive(h);
+      saveData();
+      render();
     };
   });
 }
@@ -456,6 +662,71 @@ function renderBrokerBreakdown(container){
   card.appendChild(wrap);
 }
 
+// ---------- Live prices settings (collapsible, dismissible by default) ----------
+function renderLiveSettingsCard(container){
+  const el = document.createElement('details');
+  el.className = 'live-settings';
+  if(liveSettingsOpen) el.open = true;
+  el.ontoggle = ()=>{ liveSettingsOpen = el.open; };
+  const key = getTwelveDataKey();
+  el.innerHTML = `
+    <summary>Live prices — Yahoo (no setup) + optional Twelve Data key</summary>
+    <div class="live-body">
+      <div class="notice">
+        <strong>Outbound network call, by design, narrowly scoped.</strong> Refreshing a live
+        price sends only the ticker symbol to Yahoo Finance's public quote endpoint, and — if
+        you add a key below — to Twelve Data's API. This is a deliberate, narrow exception to
+        this app's "nothing you enter ever leaves the browser" rule: it applies only to public
+        price lookups (symbol in, price out), never to your holdings, quantities, cost basis or
+        any other personal data, which stay in this browser exactly as everywhere else in
+        Financial OS.
+      </div>
+      <p class="helptext" style="margin-bottom:10px;">
+        <strong style="color:var(--text);">Tier 1 — Yahoo Finance, no setup.</strong> Tried
+        automatically for every Stock/Equity and ETF holding when you hit "Refresh live prices" —
+        no key, no signup. This calls Yahoo's public chart endpoint directly from your browser,
+        which has historically allowed this without a key, but that behavior is <strong>not
+        guaranteed</strong> and could break at any time (CORS policy change, endpoint change,
+        rate limiting). If it fails you'll see a clear "Live fetch failed" status on the row
+        instead of a silent failure or a broken price — enter the price by hand, or add a Twelve
+        Data key below for a more reliable path.
+      </p>
+      <p class="helptext" style="margin-bottom:10px;">
+        <strong style="color:var(--text);">Tier 2 — Twelve Data, optional, more reliable.</strong>
+        Bring your own free API key from <a href="https://twelvedata.com" target="_blank" rel="noopener">twelvedata.com</a>
+        — free tier allows 800 requests/day, 8/minute. If a key is saved here, it's tried first
+        (you opted into the more reliable tier on purpose); Yahoo is still the fallback. Stored
+        only in this browser's own storage (a separate key from your portfolio data, so it's
+        never included in the Export JSON backup) — never sent anywhere except Twelve Data's own
+        API, never hardcoded or committed to this app's code.
+      </p>
+      <div class="field-row">
+        <div class="field"><label>Twelve Data API key</label>
+          <input id="live_key_input" type="text" value="${key}" placeholder="Paste your key here">
+        </div>
+        <div class="field" style="max-width:110px; display:flex; align-items:flex-end;">
+          <button class="btn small" id="live_key_save" style="width:100%;">Save</button>
+        </div>
+        <div class="field" style="max-width:110px; display:flex; align-items:flex-end;">
+          <button class="btn small ghost" id="live_key_clear" style="width:100%;">Clear</button>
+        </div>
+      </div>
+      <div id="live_key_fb" class="helptext" style="margin-top:4px;">${key ? 'A Twelve Data key is currently saved in this browser.' : 'No Twelve Data key saved — Yahoo (Tier 1) is the only source tried.'}</div>
+    </div>
+  `;
+  container.appendChild(el);
+  el.querySelector('#live_key_save').onclick = ()=>{
+    const val = el.querySelector('#live_key_input').value.trim();
+    setTwelveDataKey(val);
+    el.querySelector('#live_key_fb').textContent = val ? 'Saved — stored only in this browser, tried first on your next refresh.' : 'No key entered.';
+  };
+  el.querySelector('#live_key_clear').onclick = ()=>{
+    setTwelveDataKey('');
+    el.querySelector('#live_key_input').value = '';
+    el.querySelector('#live_key_fb').textContent = 'Cleared — Yahoo (Tier 1) is the only source tried.';
+  };
+}
+
 // ---------- FX card ----------
 function renderFxCard(container){
   const card = document.createElement('div');
@@ -497,7 +768,7 @@ function renderNetWorthFeedCard(container){
   card.className = 'card';
   card.innerHTML = `
     <h3>Feed Net Worth's Investments category</h3>
-    <p class="helptext" style="margin-bottom:8px;">Exports one row per account in the shared <code>{category, label, value, asOf}[]</code> contract. Net Worth Dashboard doesn't auto-import this shape yet (its own Import expects its full internal data object) — download the JSON for reference, or copy the paste-ready lines below directly into Net Worth's Investments card (same "Label, Value" format it already accepts).</p>
+    <p class="helptext" style="margin-bottom:8px;">Exports one row per account in the shared <code>{category, label, value, asOf}[]</code> contract. Download the JSON below and feed it straight into Net Worth Dashboard's own Import button — it detects this feed shape and merges it into the Investments category (upserting by account label, so re-importing after these numbers change updates rather than duplicates). USD accounts without an FX rate set above are skipped on that end rather than imported as rupees. Prefer copy-pasting instead? The paste-ready lines button below matches Net Worth's "Label, Value" format for manual entry into its Investments card.</p>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <button class="btn small" id="nw_export_json">Download Net Worth feed (JSON)</button>
       <button class="btn small ghost" id="nw_copy_lines">Copy paste-ready lines for Net Worth</button>
@@ -535,7 +806,7 @@ function renderKnownGapsCard(container){
   card.innerHTML = `
     <h3>Known gaps — flagged, not papered over</h3>
     <ol>
-      <li><strong>No live price feed.</strong> Yahoo/NSE/Google Finance are CORS-blocked from a browser with zero backend; Goals module's research concluded a dedicated API (Twelve Data-style, needs a paid key) is the only viable client-side option. Current Price above is always user-entered — manually typed or re-imported via paste/CSV — never fetched. Picking and paying for a data provider is a real, unfinished decision left to you.</li>
+      <li><strong>Live price feed — built this session (2026-08-09), Tier 1's real-browser behavior still unverified.</strong> Two layered options now exist: Yahoo Finance's public chart endpoint with zero setup (Tier 1), and an optional bring-your-own-key Twelve Data integration for more reliable refreshes (Tier 2) — see the "Live prices" settings above the holdings table. Both are defensively built (malformed/negative/missing prices are rejected rather than written into your data, failures show a clear per-row message, existing manually-entered prices are never silently overwritten). What's <strong>not</strong> confirmed: this build environment's outbound network access is itself blocked by its own sandbox policy, so Tier 1's actual CORS behavior against the real Yahoo endpoint has not been tested in a real browser by anyone yet — try it once this is deployed and see. Manual entry keeps working exactly as before either way. See <code>portfolio/PROGRESS.md</code> for the full verified/unverified breakdown.</li>
       <li><strong>The earlier "dark-terminal, Twelve Data, technical indicators" Portfolio Tracker referenced in past notes was never located in this repo</strong> and its actual design couldn't be re-confirmed. This module was built fresh, using this repo's real design system (the shared light/dark toggle below, not a fixed dark-terminal look) rather than guessing at that unseen file.</li>
       <li><strong>5+ years of historical portfolio data in Google Drive has not been reconciled against this module.</strong> This session had no Drive access, so the data model above is a reasonable first design, not one validated against your real trade history. A future session with Drive access should pull that data and check it actually fits (assetType categories, per-broker fields, USD handling) before treating this as final.</li>
     </ol>
@@ -553,13 +824,14 @@ function render(){
   header.innerHTML = `
     <div class="eyebrow">Financial OS · the next major phase per MASTER_ROADMAP.md</div>
     <h2>Portfolio Tracker</h2>
-    <p class="desc">Holdings across your 4 broker/demat accounts, asset allocation, and gain/loss vs cost basis — feeds Net Worth's Investments category once you're ready. Manual entry and re-import, same as every other module here; no live prices (see Known gaps below).</p>
+    <p class="desc">Holdings across your 4 broker/demat accounts, asset allocation, and gain/loss vs cost basis — feeds Net Worth's Investments category once you're ready. Manual entry and re-import always work; Stock/Equity and ETF holdings can also pull a live price (Yahoo, no setup, or an optional Twelve Data key — see "Live prices" below).</p>
   `;
   content.appendChild(header);
 
   renderPerformanceSummary(content);
   renderAccountsCard(content);
   renderHoldingsEntryCard(content);
+  renderLiveSettingsCard(content);
   renderHoldingsTable(content);
 
   const breakHeader = document.createElement('div');

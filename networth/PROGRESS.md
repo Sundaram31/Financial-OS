@@ -21,6 +21,41 @@ across the whole Financial OS rather than per-tool).
   be filled in *before* finalizing Net Worth's Investments category, since
   goal-tagged investments are a more meaningful unit than a flat total.
 
+## Updated 2026-08-09 — Import now auto-consumes Portfolio Tracker's feed
+The Import button's file handler used to unconditionally replace the entire
+internal `data` object with whatever JSON was picked — fine for restoring
+Net Worth's own backup, but it meant Portfolio Tracker's `{category, label,
+value, asOf}[]` feed export (see `portfolio/PROGRESS.md`) could only be
+hand-copied via the paste-ready-lines button, never auto-imported. Import
+now branches on the parsed JSON's shape:
+- **Array** (a feed, e.g. Portfolio's `portfolio-networth-feed-*.json`
+  download): merged into `data.categories[row.category].rows`, not a full
+  replace. Upserts by `label` (Portfolio's account labels are stable, e.g.
+  "Axis Direct (Portfolio Tracker)"), so re-importing after Portfolio's
+  numbers refresh updates the existing row instead of duplicating it. Rows
+  are skipped (and counted separately in the result message) if: `_currency`
+  is present and isn't `'INR'` (an unconverted foreign-currency number —
+  `_currency` isn't part of the formal contract, Portfolio adds it
+  specifically to flag this case, so a raw USD figure is never silently
+  imported as rupees); `category` doesn't match one of this module's own
+  category keys; or the row is otherwise malformed. A result alert reports
+  added/updated/skipped counts, matching the add/skipped feedback pattern
+  already used by the category-card paste handlers.
+- **Object with a `categories` key** (Net Worth's own full export shape):
+  unchanged — still a full replace, since that's a legitimate full-backup
+  restore, not a feed merge.
+- Anything else (unparseable, or valid JSON in an unrecognized shape):
+  unchanged `alert()`-based error handling, now covering both cases.
+
+Tested end-to-end in a real browser (Playwright/Chromium) against the
+actual code in both `portfolio/index.html` and `networth/index.html`: a
+real `buildNetWorthFeed()` export with an unconverted USD account correctly
+imports only the INR row and reports the USD one as skipped; setting an FX
+rate in Portfolio and re-exporting/re-importing then adds the
+now-convertible row and leaves the first row's value updated in place
+(no duplicate); a plain full-object Net Worth backup still restores exactly
+as before.
+
 ## Known gap — the actual point of this module isn't finished
 This currently requires manual entry for Investments, same as everything
 else. The real value unlocks once **Portfolio Tracker** is migrated into
