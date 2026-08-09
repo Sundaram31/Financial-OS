@@ -10,7 +10,7 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
 | Pillar | Your module | Status |
 |---|---|---|
 | Tax compliance & optimization | ITRGenie | Built, 27 modules, AIS auto-import |
-| Investments | Portfolio Tracker | Live (`/portfolio/`), manual entry + live prices (Yahoo no-setup Tier 1, optional Twelve Data key Tier 2, 2026-08-09) — holdings/allocation/performance across all 4 accounts; Tier 1's real-browser CORS behavior unverified, Drive-data reconciliation still open |
+| Investments | Portfolio Tracker | Live (`/portfolio/`), guided form + paste/CSV entry + live prices (Yahoo + Stooq no-setup, optional Twelve Data key, 2026-08-09) — holdings/allocation/performance across all 4 accounts; mobile UX pass done same day (2026-08-09) after real phone-use feedback; Yahoo confirmed broken in a real browser, Stooq unverified, Drive-data reconciliation still open |
 | Goals | Goals module | Live, manual entry + file upload
 | Business compliance | GST/e-way bill tool | Built elsewhere |
 | Net worth | Net Worth Dashboard | Live, manual entry — Portfolio Tracker now exports a feed for it (JSON + paste-ready lines), not yet auto-imported |
@@ -212,3 +212,27 @@ later means wrapping the same functions in an API, not rewriting them.
 
 **Next**: continue porting remaining 26 modules in JS order sequence, then
 SQLite storage layer, then the pywebview wrapper itself.
+
+## Portfolio Tracker UX overhaul in response to real usage (2026-08-09)
+Real phone-use feedback came in the same day Portfolio Tracker was built, and
+it was blunt: the "no-setup" live feed (Yahoo, Tier 1) actually failed for
+the user, mobile fonts were uncomfortably small, adding a holding via a
+single comma-separated paste line was genuinely hard on a phone keyboard,
+and the page led with paragraphs instead of the holdings/P&L a portfolio
+tracker exists to show. All four fixed in one pass (see
+`portfolio/PROGRESS.md`'s matching dated entry for the full breakdown):
+Stooq added as a second free/no-key live-price attempt with failure messages
+that now link directly to the confirmed-working fix (Twelve Data) instead of
+leaving an opaque error; a real mobile font/layout baseline added (tables
+become stacked cards under 760px, verified via Playwright at a 375×812
+viewport — no horizontal scroll, no sub-13px text); a guided "Add a holding"
+form built as the primary entry path (producing the identical holding object
+shape the existing paste-parser produces, so nothing downstream changed),
+with the original paste/CSV flow kept but collapsed as "bulk add/advanced";
+and the page reordered to lead with a bold value/gain-loss summary and the
+holdings table, pushing Accounts/FX/Live-settings/Known-gaps down or into
+collapsed `<details>`. No data model or cross-module contract changed — this
+is flagged here (rather than left to the module's own PROGRESS.md alone)
+because it's a concrete example of the "build against real usage, not just
+spec" loop this roadmap depends on, and because the live-price tier list
+(now three tiers) is referenced from this file's pillar table above.
