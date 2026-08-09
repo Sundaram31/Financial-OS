@@ -16,7 +16,7 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 | Module | Path | Status | Last touched |
 |---|---|---|---|
 | ITRGenie | `/itrgenie/` | 27 modules, AIS auto-import + Prior Years fix | 2026-08-03 |
-| Portfolio Tracker | `/portfolio/` | Live, manual entry — holdings, allocation, performance across 4 accounts; no live prices yet | 2026-08-09 |
+| Portfolio Tracker | `/portfolio/` | Live, manual entry + live prices (Yahoo no-setup + optional Twelve Data key) — holdings, allocation, performance across 4 accounts | 2026-08-09 |
 | Net Worth Dashboard | `/networth/` | Live, manual entry | 2026-08-03 |
 | Goals | `/goals/` | Live, manual entry + file upload | 2026-08-03 |
 | Debt & Loan Tracker | `/loans/` | Live, auto-detects from bank statement | 2026-08-07 |
@@ -29,11 +29,16 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 ITRGenie/tax and the smaller Financial OS modules (Goals, Net Worth, Insurance,
 Debt & Loan) are done. Portfolio Tracker (`/portfolio/`) is now live: holdings
 across all 4 broker/demat accounts, performance vs cost basis, asset
-allocation, and a Net Worth feed export. Two things are still open, flagged
-rather than guessed at: no live price feed (needs a paid data API, user must
-choose one) and no reconciliation yet against the user's 5+ years of
-historical data in Drive (this repo had no Drive access when Portfolio was
-built — see `portfolio/PROGRESS.md`'s Known gaps). See MASTER_ROADMAP.md's
+allocation, a Net Worth feed export, and (as of 2026-08-09) a two-tier live
+price feed — Yahoo Finance with zero setup, plus an optional bring-your-own-key
+Twelve Data integration for Stock/Equity/ETF holdings. One thing about that
+feed is still open: Tier 1 (Yahoo) was built defensively but its real-browser
+CORS behavior is unverified — this dev environment's own sandbox blocks
+outbound network to arbitrary hosts, so nobody has confirmed it actually works
+against Yahoo's live endpoint yet (see `portfolio/PROGRESS.md`). Also still
+open: no reconciliation yet against the user's 5+ years of historical data in
+Drive (this repo had no Drive access when Portfolio was built — see
+`portfolio/PROGRESS.md`'s Known gaps). See MASTER_ROADMAP.md's
 "Synthesis Layer" section for why this matters more than it might look --
 it's the piece that unlocks cross-module insights (goal progress, true net
 worth trend, what-if tax modeling), not just another standalone tracker.
