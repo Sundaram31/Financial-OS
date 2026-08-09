@@ -10,10 +10,10 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
 | Pillar | Your module | Status |
 |---|---|---|
 | Tax compliance & optimization | ITRGenie | Built, 27 modules, AIS auto-import |
-| Investments | Portfolio Tracker | Built elsewhere, not yet moved here |
+| Investments | Portfolio Tracker | Live (`/portfolio/`), manual entry — holdings/allocation/performance across all 4 accounts; live prices and Drive-data reconciliation still open |
 | Goals | Goals module | Live, manual entry + file upload
 | Business compliance | GST/e-way bill tool | Built elsewhere |
-| Net worth | Net Worth Dashboard | Live, manual entry — awaiting Portfolio Tracker migration for auto-feed |
+| Net worth | Net Worth Dashboard | Live, manual entry — Portfolio Tracker now exports a feed for it (JSON + paste-ready lines), not yet auto-imported |
 | Cash flow / budgeting | — | Gap |
 | Debt & loans | — | Gap |
 | Insurance | — | Gap |
@@ -71,6 +71,7 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
 - 2026-08-07: Major session — real FY2025-26 reconciliation against actual uploaded documents (AIS, CA computation, capital gains statements, full bank statements across 4 accounts). Key corrections made and retracted where wrong: GAV finding retracted (CA/AIS figure confirmed correct, bank-transaction-label search was the unreliable source); foreign income merge retracted after confirming NRI status (foreign income not taxable in India for NRI, Schedule FA not required). Verified capital gains built from real Axis Direct statements (Muthoot LTCG, Amara Raja/Syngene, Aptus loss, MF gains). Two root-cause fixes shipped to ITRGenie: House Property occupancy intake wizard (catches "relative living rent-free" misclassification), Foreign Assets residency gate (checks NRI/ROR status before asking for foreign income detail). Import upgraded to merge instead of replace, enabling safe "Claude reads document in chat, hands back JSON" workflow. File import upgraded: real Excel (SheetJS) and PDF-text (PDF.js) parsing bundled self-hosted, plus folder-upload. AIS Auto-Import module built (CSV parsing, review-before-commit). Document-hierarchy guide added to AIS Reconciliation (ranked alternative sources, e.g. PIS statement > broker statement for NRI capital gains) after real case of an incomplete single-broker statement (user trades via 4 accounts: Axis Direct, Tradejini, Angel One, Axis Vested-US).
 - 2026-08-07: Built + validated a bank-statement transaction classifier using PARTICULARS/description text only (NOT relying on any pre-existing category column, since most real statements don't have one) -- 98.7% accuracy validated against ground truth on a real 394-transaction account. Real failure modes found and documented: fund-house name variants (KotakMutua vs Mutual) needed broadening the match pattern; self-transfers via own name at another bank needed name-matching; family/friend transfers need a one-time user-provided name registry (can't be inferred); false positives occur when a name appears in unrelated transaction memo text (a travel booking that happened to mention a spouse's name).
 - 2026-08-07: Scoped the "Financial Events" vision precisely: FD/RD lifecycle, Loan EMI/prepayment, Investment cash-flow, and Insurance premium payments are ALL fully computable from bank statement data alone. Capital gains is NOT -- bank data shows money moved to a broker/AMC but never which security/quantity/price, so FIFO gain computation still needs the broker/CAMS source at least once; bank data's real value there is flagging that a sale event happened (so nothing gets missed), not replacing the source document. Next build: Debt & Loan Tracker (roadmap item, and the most bank-derivable piece of this vision) using the validated classifier. FD/RD tracker and Investment cash-flow ledger queued after.
+- 2026-08-09: Built Portfolio Tracker (`/portfolio/`) -- the "next major phase" item and the last unbuilt piece of the original 8-pillar list. Holdings across all 4 broker/demat accounts (Axis Direct, Tradejini, Angel One, Vested-US), performance tracking (cost basis vs current value, per holding and aggregate), asset allocation view (by asset type and by account), manual USD->INR rate for folding Vested-US into INR aggregates, and a Net Worth Investments-feed export (`{category,label,value,asOf}[]` contract, plus a paste-ready-lines button since Net Worth's own Import doesn't yet consume this generic shape). Three things deliberately NOT resolved by guessing, per explicit instruction: (1) live price data -- Yahoo/NSE/Google Finance still CORS-blocked from a zero-backend browser, a paid Twelve Data-style API is still the only viable option and the user hasn't picked/paid for one, so Current Price stays user-entered only; (2) the earlier "dark-terminal, Twelve Data, technical indicators" Portfolio Tracker referenced in past notes remains unlocated (same ambiguity `networth/PROGRESS.md` already flagged) -- built fresh against this repo's real light/dark toggle design instead of imitating an unseen file; (3) the user's 5+ years of historical portfolio data in Google Drive has not been reconciled against this data model -- this session had no Drive access, so the accounts/holdings/fx shape is a first design based on the roadmap's stated scope, not yet validated against real trade history. See `portfolio/PROGRESS.md` for full detail on all three gaps and what's deliberately deferred (capital-gains export, holding-period tax classification, corporate actions).
 
 ## The Synthesis Layer — what Financial OS is actually for
 Every module so far has been built to work standalone. The real value, stated
@@ -107,13 +108,26 @@ data before designing the Portfolio module's data model.
 ## Updated module sequence
 1. ~~ITRGenie~~ -- done, mature, 27 modules
 2. ~~Goals, Net Worth, Insurance, Debt & Loan~~ -- done, smaller modules
-3. **Portfolio (next, major phase)** -- live prices, holdings across all
-   4 broker/demat accounts (Axis Direct, Tradejini, Angel One, Vested-US),
-   performance tracking, asset allocation view. Feeds Net Worth's Investments
-   category and Goals' tagged-investments for the first time with real data
-   instead of manual entry.
+3. **Portfolio -- built 2026-08-09 (`/portfolio/`), gaps still open.**
+   Holdings across all 4 broker/demat accounts (Axis Direct, Tradejini,
+   Angel One, Vested-US), performance tracking (gain/loss vs cost basis, per
+   holding and aggregate), asset allocation view (by asset type and by
+   account), and a Net Worth Investments-category feed export
+   (`{category,label,value,asOf}[]` + a paste-ready-lines convenience
+   button). **Not done, deliberately**: live prices (still needs a paid
+   Twelve Data-style API the user hasn't chosen yet -- current price is
+   manual entry / re-import only, same as every other module); reconciliation
+   against the user's 5+ years of historical Drive data (this build had no
+   Drive access -- see `portfolio/PROGRESS.md`); Goals' tagged-investments
+   still isn't pulling from here. The old "dark-terminal, Twelve Data,
+   technical indicators" Portfolio Tracker referenced in past notes remains
+   unlocated -- this module was built fresh against this repo's real design
+   system instead of guessing at that file.
 4. What-if fund-switch tax modeling -- needs Portfolio's holding-level data
    (cost basis, holding period) joined with ITRGenie's capital gains logic.
+   Portfolio currently has no sell/capital-gains workflow (only open
+   holdings) -- that would need to be built as part of this item, not
+   assumed to already exist.
 5. The Synthesis Layer itself -- a cross-module insights view, only
    buildable once Portfolio exists and the data contracts are proven with
    real data across at least 3-4 modules.

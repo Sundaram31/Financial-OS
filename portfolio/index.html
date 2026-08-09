@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Tracker — Financial OS</title>
+<style>
+  :root{
+    --bg:#0B0E11; --panel:#12161B; --panel-2:#171C22; --line:#242A31;
+    --text:#E8E6E0; --muted:#9BA0A8; --gold:#C9A227; --gold-dim:#8f7419;
+    --green:#4A9B6E; --rust:#B5533C;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+  body[data-theme="light"]{
+    --bg:#F7F5F0; --panel:#FFFFFF; --panel-2:#F1EEE7; --line:#DCD7CC;
+    --text:#242220; --muted:#6B6660; --gold:#96741A; --gold-dim:#7a5f15;
+    --green:#2F7A50; --rust:#9B3F2A;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:var(--bg); color:var(--text); font-family:var(--mono); font-size:15.5px; line-height:1.6; min-height:100vh; }
+  a{color:var(--gold);}
+  .app{ display:flex; min-height:100vh; flex-direction:column; }
+  header.topbar{ display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; gap:10px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand .seal{ width:28px; height:28px; border:1.5px solid var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:13px; color:var(--gold); font-weight:600; }
+  .brand h1{ font-family:var(--serif); font-size:17px; font-weight:600; }
+  .brand .sub{ font-size:11px; color:var(--muted); }
+  .topbar-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  main.content{ flex:1; overflow-y:auto; padding:26px 32px; max-width:1000px; margin:0 auto; width:100%; }
+  .panel-header{ margin-bottom:22px; }
+  .panel-header .eyebrow{ font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
+  .panel-header h2{ font-family:var(--serif); font-size:24px; font-weight:600; }
+  .panel-header p.desc{ color:var(--muted); font-size:14px; margin-top:6px; max-width:680px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:18px 20px; margin-bottom:16px; }
+  .card h3{ font-family:var(--serif); font-size:16px; margin-bottom:12px; }
+  .field-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
+  .field{ flex:1; min-width:160px; }
+  .field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
+  .field input, .field select, textarea{ width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:14px; }
+  .field input:focus, textarea:focus{ outline:none; border-color:var(--gold-dim); }
+  .btn{ background:transparent; border:1px solid var(--gold-dim); color:var(--gold); padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  .btn:hover{ background:rgba(201,162,39,0.08); border-color:var(--gold); }
+  .btn.primary{ background:var(--gold); color:#141414; font-weight:600; border-color:var(--gold); }
+  .btn.primary:hover{ background:#dab63a; }
+  .btn.ghost{ border-color:var(--line); color:var(--muted); }
+  .btn.small{ padding:5px 10px; font-size:11px; }
+  .table-scroll{ overflow-x:auto; }
+  table.day-table{ width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; min-width:760px; }
+  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  table.day-table td{ padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  table.day-table tr:last-child td{ border-bottom:none; }
+  table.day-table input[type="number"], table.day-table input[type="date"]{ width:100px; padding:4px 6px; font-size:12.5px; }
+  .result-box{ border:1px solid var(--gold-dim); border-radius:6px; padding:18px 20px; background:linear-gradient(180deg, rgba(201,162,39,0.05), transparent); margin-top:16px; }
+  .result-box .verdict{ font-family:var(--serif); font-size:22px; color:var(--gold); margin-bottom:4px; }
+  .result-box .verdict-detail{ font-size:13.5px; color:var(--muted); }
+  .helptext{ font-size:12.5px; color:var(--muted); margin-top:4px; }
+  .breakdown-bar{ display:flex; height:28px; border-radius:4px; overflow:hidden; margin:12px 0; border:1px solid var(--line); }
+  .breakdown-bar .seg{ display:flex; align-items:center; justify-content:center; font-size:10px; color:#141414; font-weight:600; overflow:hidden; white-space:nowrap; }
+  .legend{ display:flex; flex-wrap:wrap; gap:14px; margin-top:8px; }
+  .legend .item{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+  .legend .dot{ width:9px; height:9px; border-radius:2px; }
+  .tag{ display:inline-block; font-size:10px; padding:2px 8px; border-radius:10px; text-transform:uppercase; font-weight:600; margin-left:6px; }
+  .tag.green{ background:rgba(74,155,110,0.15); color:var(--green); }
+  .tag.rust{ background:rgba(181,83,60,0.15); color:var(--rust); }
+  .tag.muted{ background:rgba(154,160,168,0.15); color:var(--muted); }
+  .gap-card{ border-color:var(--gold-dim); }
+  .gap-card h3{ color:var(--gold); }
+  .gap-card ol{ margin:8px 0 0 18px; font-size:13px; color:var(--text); }
+  .gap-card li{ margin-bottom:10px; }
+  .acct-chip{ display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:20px; padding:6px 12px; margin:0 8px 8px 0; font-size:12.5px; }
+  .acct-chip .cur{ font-size:10px; color:var(--muted); }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+  @media (max-width:760px){ main.content{ padding:18px; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="seal">📈</div>
+      <div>
+        <h1>Portfolio Tracker</h1>
+        <div class="sub">Financial OS · holdings, allocation, performance — 4 accounts, one view</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <a class="btn small ghost" href="../">← Financial OS</a>
+      <a class="btn small ghost" href="../networth/">Net Worth</a>
+      <button class="btn small ghost" id="themeToggleBtn">☀ Light mode</button>
+      <button class="btn small ghost" id="exportBtn">Export</button>
+      <button class="btn small ghost" id="importBtn">Import</button>
+      <input type="file" id="importFile" accept="application/json" style="display:none">
+    </div>
+  </header>
+  <main class="content" id="content"></main>
+</div>
+
+<script>
+const STORAGE_KEY = 'portfolio_data_v1';
+function defaultData(){
+  return {
+    accounts: [
+      {id:'axis_direct', name:'Axis Direct', country:'IN', currency:'INR'},
+      {id:'tradejini',   name:'Tradejini',    country:'IN', currency:'INR'},
+      {id:'angel_one',   name:'Angel One',    country:'IN', currency:'INR'},
+      {id:'vested_us',   name:'Vested (US)',  country:'US', currency:'USD'},
+    ],
+    holdings: [], // {id, symbol, broker(account id), assetType, qty, buyPrice, buyDate, currentPrice, asOf}
+    fx: { usdInr: '', asOf: '' }, // manual USD->INR rate, entered by user -- no live feed (see Known gaps)
+  };
+}
+function loadData(){
+  try{ const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : defaultData(); }
+  catch(e){ return defaultData(); }
+}
+let data = loadData();
+// Backfill in case an older/imported file predates a field.
+if(!Array.isArray(data.accounts) || data.accounts.length===0) data.accounts = defaultData().accounts;
+if(!Array.isArray(data.holdings)) data.holdings = [];
+if(!data.fx) data.fx = { usdInr:'', asOf:'' };
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function newId(prefix){ return prefix + '_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
+
+let brokerFilter = 'all';
+
+// ---------- shared paste/file helpers, same pattern as every other module ----------
+function parsePastedRows(text){
+  return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
+    .map(line=>{ const sep = line.includes('\t') ? '\t' : ','; return line.split(sep).map(c=>c.trim()); });
+}
+function wireFileUpload(fileInputEl, textareaEl, parseBtnEl){
+  fileInputEl.onchange = (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{ textareaEl.value = ev.target.result; parseBtnEl.click(); fileInputEl.value=''; };
+    reader.readAsText(file);
+  };
+}
+
+// ---------- account resolution ----------
+// Matches pasted broker text against the 4 known accounts (and any custom ones already
+// added); if nothing matches, auto-creates a new account rather than silently dropping the
+// row -- real data over guesses, but doesn't force the user to pre-register every account name.
+function resolveBrokerId(text){
+  const t = (text||'').trim().toLowerCase();
+  if(!t) return null;
+  const aliases = {
+    axis_direct: ['axis direct','axisdirect','axis'],
+    tradejini:   ['tradejini','trade jini'],
+    angel_one:   ['angel one','angelone','angel'],
+    vested_us:   ['vested-us','vested us','vestedus','vested'],
+  };
+  for(const [id, names] of Object.entries(aliases)){
+    if(names.includes(t)) return id;
+  }
+  const exact = data.accounts.find(a=>a.id.toLowerCase()===t || a.name.toLowerCase()===t);
+  if(exact) return exact.id;
+  const isUSD = /usd|\$|us[- ]?listed/i.test(text);
+  const id = newId('acct');
+  data.accounts.push({id, name: text.trim(), country: isUSD?'US':'IN', currency: isUSD?'USD':'INR'});
+  return id;
+}
+function accountOf(brokerId){
+  return data.accounts.find(a=>a.id===brokerId) || {id:brokerId, name:brokerId, country:'IN', currency:'INR'};
+}
+
+// ---------- money formatting ----------
+function formatMoney(amount, currency){
+  if(amount===null || amount===undefined || isNaN(amount)) return '—';
+  const symbol = currency==='USD' ? '$' : '₹';
+  const locale = currency==='USD' ? 'en-US' : 'en-IN';
+  return symbol + amount.toLocaleString(locale, {maximumFractionDigits:2});
+}
+// Manual FX conversion only -- see Known gaps card. Returns null (not 0) when a USD
+// amount can't be converted, so callers can distinguish "zero" from "unknown".
+function toINR(amount, currency){
+  if(currency==='INR') return amount;
+  const rate = parseFloat(data.fx.usdInr);
+  if(!rate || rate<=0) return null;
+  return amount*rate;
+}
+
+// ---------- per-holding and portfolio-level math ----------
+// Current value/gain is always computed from currentPrice as entered by the user (manual
+// entry or re-import) -- there is no live price feed. See Known gaps card.
+function computeHoldingMetrics(h){
+  const acc = accountOf(h.broker);
+  const currency = acc.currency;
+  const qty = +h.qty || 0;
+  const buyPrice = +h.buyPrice || 0;
+  const hasCurrentPrice = h.currentPrice !== '' && h.currentPrice !== null && h.currentPrice !== undefined && !isNaN(+h.currentPrice);
+  const currentPrice = hasCurrentPrice ? +h.currentPrice : buyPrice;
+  const costBasis = qty * buyPrice;
+  const currentValue = qty * currentPrice;
+  const gainAbs = currentValue - costBasis;
+  const gainPct = costBasis > 0 ? (gainAbs / costBasis * 100) : 0;
+  return { currency, accountName: acc.name, qty, buyPrice, currentPrice, costBasis, currentValue, gainAbs, gainPct, isStale: !hasCurrentPrice };
+}
+
+function computePortfolio(){
+  let totalCostINR = 0, totalValueINR = 0;
+  let unconvertedCount = 0;
+  const byBroker = {};   // brokerId -> {name, currency, costNative, valueNative, count}
+  const byAssetType = {}; // assetType -> valueINR (only counts holdings that could be converted)
+
+  data.holdings.forEach(h=>{
+    const m = computeHoldingMetrics(h);
+    if(!byBroker[h.broker]) byBroker[h.broker] = { name: m.accountName, currency: m.currency, costNative:0, valueNative:0, count:0 };
+    byBroker[h.broker].costNative += m.costBasis;
+    byBroker[h.broker].valueNative += m.currentValue;
+    byBroker[h.broker].count++;
+
+    const costINR = toINR(m.costBasis, m.currency);
+    const valINR = toINR(m.currentValue, m.currency);
+    if(costINR===null || valINR===null){ unconvertedCount++; return; }
+    totalCostINR += costINR;
+    totalValueINR += valINR;
+    byAssetType[h.assetType || 'Other'] = (byAssetType[h.assetType || 'Other'] || 0) + valINR;
+  });
+
+  const gainINR = totalValueINR - totalCostINR;
+  const gainPct = totalCostINR > 0 ? (gainINR / totalCostINR * 100) : 0;
+  return { totalCostINR, totalValueINR, gainINR, gainPct, byBroker, byAssetType, unconvertedCount };
+}
+
+// ---------- accounts card ----------
+function renderAccountsCard(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  const countsByAcct = {};
+  data.holdings.forEach(h=>{ countsByAcct[h.broker] = (countsByAcct[h.broker]||0)+1; });
+  card.innerHTML = `
+    <h3>Accounts</h3>
+    <p class="helptext" style="margin-bottom:10px;">The 4 broker/demat accounts this module tracks. Axis Direct, Tradejini and Angel One are Indian/INR accounts; Vested-US is US-listed and USD-denominated. Paste a broker name that isn't recognized and it's added here automatically.</p>
+    <div id="acct_chips"></div>
+    <div class="field-row" style="margin-top:10px;">
+      <div class="field"><label>Add another account</label><input id="acct_new_name" placeholder="e.g. Zerodha"></div>
+      <div class="field" style="max-width:140px;"><label>Currency</label>
+        <select id="acct_new_cur"><option value="INR">INR</option><option value="USD">USD</option></select>
+      </div>
+      <div class="field" style="max-width:120px; display:flex; align-items:flex-end;"><button class="btn small" id="acct_new_btn" style="width:100%;">Add</button></div>
+    </div>
+  `;
+  container.appendChild(card);
+
+  const chips = card.querySelector('#acct_chips');
+  chips.innerHTML = data.accounts.map(a=>{
+    const n = countsByAcct[a.id] || 0;
+    return `<span class="acct-chip">${a.name} <span class="cur">${a.currency}</span> <span class="cur">· ${n} holding${n===1?'':'s'}</span></span>`;
+  }).join('');
+
+  card.querySelector('#acct_new_btn').onclick = ()=>{
+    const nameEl = card.querySelector('#acct_new_name');
+    const name = nameEl.value.trim();
+    if(!name) return;
+    const currency = card.querySelector('#acct_new_cur').value;
+    data.accounts.push({id:newId('acct'), name, country: currency==='USD'?'US':'IN', currency});
+    saveData(); render();
+  };
+}
+
+// ---------- holdings entry card ----------
+function renderHoldingsEntryCard(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h3>Add / update holdings</h3>
+    <p class="helptext" style="margin-bottom:8px;">One holding per line: <code>Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf</code> — CurrentPrice and AsOf are optional (leave blank if you don't have a current price yet; it'll be flagged "stale" and gain/loss shown as zero until you fill it in). Dates as YYYY-MM-DD.</p>
+    <p class="helptext" style="margin-bottom:8px;">Examples:<br>
+      <code>INFY, Axis Direct, Equity, 50, 1450, 2022-04-15, 1850, 2026-08-01</code><br>
+      <code>VOO, Vested-US, ETF, 10, 380.25, 2023-01-10, 512.40, 2026-08-01</code></p>
+    <textarea id="h_paste" rows="4" placeholder="Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf"></textarea>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
+      <button class="btn small primary" id="h_btn">Parse &amp; add</button>
+      <span class="helptext" style="margin:0;">or</span>
+      <button class="btn small ghost" id="h_file_btn">Choose CSV/TXT file</button>
+      <input type="file" id="h_file" accept=".csv,.txt" style="display:none">
+    </div>
+    <div id="h_feedback" class="helptext" style="margin:6px 0;"></div>
+  `;
+  container.appendChild(card);
+  card.querySelector('#h_file_btn').onclick = ()=> card.querySelector('#h_file').click();
+  wireFileUpload(card.querySelector('#h_file'), card.querySelector('#h_paste'), card.querySelector('#h_btn'));
+
+  card.querySelector('#h_btn').onclick = ()=>{
+    const raw = card.querySelector('#h_paste').value;
+    const rows = parsePastedRows(raw);
+    let added=0, skipped=0;
+    rows.forEach(cols=>{
+      if(cols.length<6){ skipped++; return; }
+      const [symbol, brokerTxt, assetType, qty, buyPrice, buyDate, currentPrice, asOf] = cols;
+      if(!symbol || !brokerTxt || isNaN(+qty) || +qty<=0 || isNaN(+buyPrice) || +buyPrice<0 || !buyDate){ skipped++; return; }
+      const brokerId = resolveBrokerId(brokerTxt);
+      const hasCurrentPrice = currentPrice!==undefined && currentPrice!=='' && !isNaN(+currentPrice);
+      data.holdings.push({
+        id: newId('h'),
+        symbol: symbol.toUpperCase(),
+        broker: brokerId,
+        assetType: assetType || 'Equity',
+        qty: +qty,
+        buyPrice: +buyPrice,
+        buyDate: buyDate,
+        currentPrice: hasCurrentPrice ? +currentPrice : '',
+        asOf: (asOf && asOf.trim()) ? asOf.trim() : (hasCurrentPrice ? new Date().toISOString().slice(0,10) : ''),
+      });
+      added++;
+    });
+    saveData(); render();
+    card.querySelector('#h_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped} (missing/invalid Symbol, Broker, AssetType, Qty, BuyPrice or BuyDate)`:''}.`;
+  };
+}
+
+// ---------- holdings table ----------
+function renderHoldingsTable(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <h3 style="margin-bottom:0;">Holdings (${data.holdings.length})</h3>
+      <div class="field" style="max-width:220px; margin-bottom:0;">
+        <select id="broker_filter">
+          <option value="all">All accounts</option>
+          ${data.accounts.map(a=>`<option value="${a.id}" ${brokerFilter===a.id?'selected':''}>${a.name}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <p class="helptext" style="margin:8px 0;">Current Price and As Of are editable directly here — this is the "manually updated" refresh workflow (no live feed). Everything else: delete and re-add via the box above to correct.</p>
+    <div class="table-scroll" id="h_table_wrap"></div>
+  `;
+  container.appendChild(card);
+  card.querySelector('#broker_filter').onchange = (e)=>{ brokerFilter = e.target.value; render(); };
+
+  const wrap = card.querySelector('#h_table_wrap');
+  const rows = data.holdings.filter(h=> brokerFilter==='all' || h.broker===brokerFilter);
+  if(rows.length===0){
+    wrap.innerHTML = `<div class="helptext" style="padding:6px 0;">No holdings yet — add some above.</div>`;
+    return;
+  }
+  const sorted = [...rows].sort((a,b)=> (a.broker+a.symbol).localeCompare(b.broker+b.symbol));
+  const table = document.createElement('table');
+  table.className = 'day-table';
+  table.innerHTML = `<tr>
+    <th>Symbol</th><th>Broker</th><th>Type</th><th>Qty</th><th>Buy Price</th><th>Buy Date</th>
+    <th>Current Price</th><th>As Of</th><th>Value</th><th>Gain/Loss</th><th></th>
+  </tr>`;
+  sorted.forEach(h=>{
+    const m = computeHoldingMetrics(h);
+    const tr = document.createElement('tr');
+    const gainColor = m.gainAbs >= 0 ? 'var(--green)' : 'var(--rust)';
+    tr.innerHTML = `
+      <td>${h.symbol}</td>
+      <td>${m.accountName}</td>
+      <td>${h.assetType}</td>
+      <td>${m.qty}</td>
+      <td>${formatMoney(m.buyPrice, m.currency)}</td>
+      <td>${h.buyDate}</td>
+      <td><input type="number" step="0.01" data-cp="${h.id}" value="${h.currentPrice}" placeholder="${m.buyPrice}"></td>
+      <td><input type="date" data-asof="${h.id}" value="${h.asOf||''}"></td>
+      <td>${formatMoney(m.currentValue, m.currency)}${m.isStale?' <span class="tag muted">stale</span>':''}</td>
+      <td style="color:${gainColor};">${formatMoney(m.gainAbs, m.currency)} (${m.gainPct.toFixed(1)}%)</td>
+      <td><button class="btn small ghost" data-rm="${h.id}">✕</button></td>
+    `;
+    table.appendChild(tr);
+  });
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
+
+  wrap.querySelectorAll('[data-cp]').forEach(inp=>{
+    inp.onchange = (e)=>{
+      const h = data.holdings.find(x=>x.id===e.target.dataset.cp);
+      if(!h) return;
+      h.currentPrice = e.target.value === '' ? '' : +e.target.value;
+      if(!h.asOf) h.asOf = new Date().toISOString().slice(0,10);
+      saveData(); render();
+    };
+  });
+  wrap.querySelectorAll('[data-asof]').forEach(inp=>{
+    inp.onchange = (e)=>{
+      const h = data.holdings.find(x=>x.id===e.target.dataset.asof);
+      if(!h) return;
+      h.asOf = e.target.value;
+      saveData(); render();
+    };
+  });
+  wrap.querySelectorAll('[data-rm]').forEach(btn=>{
+    btn.onclick = (e)=>{
+      data.holdings = data.holdings.filter(x=>x.id!==e.target.dataset.rm);
+      saveData(); render();
+    };
+  });
+}
+
+// ---------- performance + allocation summary ----------
+function renderPerformanceSummary(container){
+  const p = computePortfolio();
+  const box = document.createElement('div');
+  box.className = 'result-box';
+  const gainColor = p.gainINR >= 0 ? 'var(--green)' : 'var(--rust)';
+  box.innerHTML = `
+    <div class="verdict">${formatMoney(p.totalValueINR, 'INR')}</div>
+    <div class="verdict-detail">Current value across all INR-convertible holdings · cost basis ${formatMoney(p.totalCostINR,'INR')} ·
+      <span style="color:${gainColor};">${p.gainINR>=0?'+':''}${formatMoney(p.gainINR,'INR')} (${p.gainPct.toFixed(1)}%)</span>
+    </div>
+    ${p.unconvertedCount>0 ? `<div class="verdict-detail" style="color:var(--rust); margin-top:8px;">${p.unconvertedCount} holding(s) in USD couldn't be included in this INR total — set the USD → INR rate below to fold Vested-US in.</div>` : ''}
+  `;
+  container.appendChild(box);
+}
+
+function renderAllocationCard(container){
+  const p = computePortfolio();
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<h3>Asset allocation</h3><p class="helptext" style="margin-bottom:6px;">By asset type, based on current INR-convertible value.</p>`;
+  container.appendChild(card);
+
+  const catColors = ['#C9A227','#4A9B6E','#7EA8C9','#B5533C','#9B7EC9','#5FA3A3'];
+  const segs = Object.entries(p.byAssetType).filter(([k,v])=>v>0);
+  if(segs.length===0){
+    card.innerHTML += `<div class="helptext">Nothing to show yet.</div>`;
+    return;
+  }
+  const total = segs.reduce((s,[,v])=>s+v,0);
+  const barHtml = segs.map(([k,v],i)=>{
+    const pct = (v/total*100).toFixed(1);
+    return `<div class="seg" style="width:${pct}%; background:${catColors[i%catColors.length]};" title="${k}: ${formatMoney(v,'INR')}">${pct>8?pct+'%':''}</div>`;
+  }).join('');
+  const legendHtml = segs.map(([k,v],i)=>`<div class="item"><span class="dot" style="background:${catColors[i%catColors.length]};"></span>${k}: ${formatMoney(v,'INR')} (${(v/total*100).toFixed(1)}%)</div>`).join('');
+  card.innerHTML += `<div class="breakdown-bar">${barHtml}</div><div class="legend">${legendHtml}</div>`;
+}
+
+function renderBrokerBreakdown(container){
+  const p = computePortfolio();
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<h3>By account</h3><p class="helptext" style="margin-bottom:6px;">Native-currency totals per broker/demat account.</p>`;
+  container.appendChild(card);
+  const entries = Object.entries(p.byBroker);
+  if(entries.length===0){ card.innerHTML += `<div class="helptext">Nothing to show yet.</div>`; return; }
+  const wrap = document.createElement('div');
+  wrap.className = 'table-scroll';
+  const table = document.createElement('table');
+  table.className = 'day-table';
+  table.innerHTML = `<tr><th>Account</th><th>Holdings</th><th>Cost Basis</th><th>Current Value</th><th>Gain/Loss</th></tr>`;
+  entries.forEach(([id,b])=>{
+    const gain = b.valueNative - b.costNative;
+    const gainPct = b.costNative>0 ? gain/b.costNative*100 : 0;
+    const gainColor = gain>=0 ? 'var(--green)' : 'var(--rust)';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${b.name} <span class="tag muted">${b.currency}</span></td><td>${b.count}</td><td>${formatMoney(b.costNative,b.currency)}</td><td>${formatMoney(b.valueNative,b.currency)}</td><td style="color:${gainColor};">${formatMoney(gain,b.currency)} (${gainPct.toFixed(1)}%)</td>`;
+    table.appendChild(tr);
+  });
+  wrap.appendChild(table);
+  card.appendChild(wrap);
+}
+
+// ---------- FX card ----------
+function renderFxCard(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h3>USD → INR rate (manual)</h3>
+    <p class="helptext" style="margin-bottom:8px;">Entered by hand, not fetched live — this is what lets Vested-US holdings fold into the INR totals above. Update it whenever you refresh Vested-US current prices.</p>
+    <div class="field-row">
+      <div class="field" style="max-width:180px;"><label>1 USD = ₹</label><input id="fx_rate" type="number" step="0.01" value="${data.fx.usdInr||''}" placeholder="e.g. 87.50"></div>
+      <div class="field" style="max-width:180px;"><label>As of</label><input id="fx_asof" type="date" value="${data.fx.asOf||''}"></div>
+    </div>
+  `;
+  container.appendChild(card);
+  card.querySelector('#fx_rate').onchange = (e)=>{ data.fx.usdInr = e.target.value; if(!data.fx.asOf) data.fx.asOf = new Date().toISOString().slice(0,10); saveData(); render(); };
+  card.querySelector('#fx_asof').onchange = (e)=>{ data.fx.asOf = e.target.value; saveData(); render(); };
+}
+
+// ---------- Net Worth feed ----------
+// Builds the cross-module contract array documented in MASTER_ROADMAP.md:
+// {category, label, value, asOf}[]. Net Worth Dashboard's own Import currently replaces
+// its whole internal data object rather than merging this generic shape, so this is a
+// hand-off file today, not an automatic live link -- see Known gaps.
+function buildNetWorthFeed(){
+  const p = computePortfolio();
+  const today = new Date().toISOString().slice(0,10);
+  return Object.entries(p.byBroker).map(([id,b])=>{
+    const valueINR = toINR(b.valueNative, b.currency);
+    return {
+      category: 'investments',
+      label: `${b.name} (Portfolio Tracker)`,
+      value: valueINR!==null ? Math.round(valueINR) : Math.round(b.valueNative), // native value if unconverted -- flagged in note below
+      asOf: today,
+      _currency: valueINR!==null ? 'INR' : b.currency, // not part of the formal contract; kept so an unconverted USD row isn't silently mistaken for INR
+    };
+  });
+}
+function renderNetWorthFeedCard(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <h3>Feed Net Worth's Investments category</h3>
+    <p class="helptext" style="margin-bottom:8px;">Exports one row per account in the shared <code>{category, label, value, asOf}[]</code> contract. Net Worth Dashboard doesn't auto-import this shape yet (its own Import expects its full internal data object) — download the JSON for reference, or copy the paste-ready lines below directly into Net Worth's Investments card (same "Label, Value" format it already accepts).</p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn small" id="nw_export_json">Download Net Worth feed (JSON)</button>
+      <button class="btn small ghost" id="nw_copy_lines">Copy paste-ready lines for Net Worth</button>
+    </div>
+    <div id="nw_feed_fb" class="helptext" style="margin-top:8px;"></div>
+  `;
+  container.appendChild(card);
+
+  card.querySelector('#nw_export_json').onclick = ()=>{
+    const feed = buildNetWorthFeed();
+    const blob = new Blob([JSON.stringify(feed, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `portfolio-networth-feed-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  card.querySelector('#nw_copy_lines').onclick = async ()=>{
+    const feed = buildNetWorthFeed();
+    const lines = feed.map(r=> `${r.label}, ${r.value}`).join('\n');
+    const fb = card.querySelector('#nw_feed_fb');
+    try{
+      await navigator.clipboard.writeText(lines);
+      fb.textContent = 'Copied — paste directly into Net Worth Dashboard\'s Investments box.';
+    }catch(e){
+      fb.textContent = 'Could not access clipboard; here it is to copy manually:\n' + lines;
+    }
+  };
+}
+
+// ---------- known gaps ----------
+function renderKnownGapsCard(container){
+  const card = document.createElement('div');
+  card.className = 'card gap-card';
+  card.innerHTML = `
+    <h3>Known gaps — flagged, not papered over</h3>
+    <ol>
+      <li><strong>No live price feed.</strong> Yahoo/NSE/Google Finance are CORS-blocked from a browser with zero backend; Goals module's research concluded a dedicated API (Twelve Data-style, needs a paid key) is the only viable client-side option. Current Price above is always user-entered — manually typed or re-imported via paste/CSV — never fetched. Picking and paying for a data provider is a real, unfinished decision left to you.</li>
+      <li><strong>The earlier "dark-terminal, Twelve Data, technical indicators" Portfolio Tracker referenced in past notes was never located in this repo</strong> and its actual design couldn't be re-confirmed. This module was built fresh, using this repo's real design system (the shared light/dark toggle below, not a fixed dark-terminal look) rather than guessing at that unseen file.</li>
+      <li><strong>5+ years of historical portfolio data in Google Drive has not been reconciled against this module.</strong> This session had no Drive access, so the data model above is a reasonable first design, not one validated against your real trade history. A future session with Drive access should pull that data and check it actually fits (assetType categories, per-broker fields, USD handling) before treating this as final.</li>
+    </ol>
+  `;
+  container.appendChild(card);
+}
+
+// ---------- master render ----------
+function render(){
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'panel-header';
+  header.innerHTML = `
+    <div class="eyebrow">Financial OS · the next major phase per MASTER_ROADMAP.md</div>
+    <h2>Portfolio Tracker</h2>
+    <p class="desc">Holdings across your 4 broker/demat accounts, asset allocation, and gain/loss vs cost basis — feeds Net Worth's Investments category once you're ready. Manual entry and re-import, same as every other module here; no live prices (see Known gaps below).</p>
+  `;
+  content.appendChild(header);
+
+  renderPerformanceSummary(content);
+  renderAccountsCard(content);
+  renderHoldingsEntryCard(content);
+  renderHoldingsTable(content);
+
+  const breakHeader = document.createElement('div');
+  breakHeader.className = 'panel-header';
+  breakHeader.style.marginTop = '28px';
+  breakHeader.innerHTML = `<h2 style="font-size:18px;">Allocation &amp; performance</h2>`;
+  content.appendChild(breakHeader);
+  renderAllocationCard(content);
+  renderBrokerBreakdown(content);
+  renderFxCard(content);
+
+  const feedHeader = document.createElement('div');
+  feedHeader.className = 'panel-header';
+  feedHeader.style.marginTop = '28px';
+  feedHeader.innerHTML = `<h2 style="font-size:18px;">Cross-module</h2>`;
+  content.appendChild(feedHeader);
+  renderNetWorthFeedCard(content);
+
+  renderKnownGapsCard(content);
+}
+
+const THEME_KEY = 'itrgenie_theme'; // deliberately shared with every other module so theme choice is consistent site-wide
+function applyTheme(theme){
+  document.body.dataset.theme = theme;
+  document.getElementById('themeToggleBtn').textContent = theme==='light' ? '● Dark mode' : '☀ Light mode';
+  localStorage.setItem(THEME_KEY, theme);
+}
+document.getElementById('themeToggleBtn').onclick = ()=>{
+  const current = document.body.dataset.theme === 'light' ? 'light' : 'dark';
+  applyTheme(current==='light' ? 'dark' : 'light');
+};
+applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+
+document.getElementById('exportBtn').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `portfolio-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+document.getElementById('importBtn').onclick = ()=> document.getElementById('importFile').click();
+document.getElementById('importFile').onchange = (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{
+      const parsed = JSON.parse(ev.target.result);
+      if(!Array.isArray(parsed.accounts) || parsed.accounts.length===0) parsed.accounts = defaultData().accounts;
+      if(!Array.isArray(parsed.holdings)) parsed.holdings = [];
+      if(!parsed.fx) parsed.fx = { usdInr:'', asOf:'' };
+      data = parsed;
+      saveData(); render();
+    }
+    catch(err){ alert('Could not read that file — not valid JSON.'); }
+  };
+  reader.readAsText(file);
+};
+
+render();
+</script>
+</body>
+</html>
