@@ -160,3 +160,37 @@ they're the layer that comes after Portfolio + Synthesis Layer exist, since
 several (financial independence date, health report card) need real
 cross-module data flowing before they can compute anything meaningful rather
 than show a placeholder.
+
+## Desktop/Python app started (2026-08-07)
+User has Python installed on Mac, ready to begin the installable-app phase.
+Architecture decided: core-logic/UI separation FIRST, before any wrapper --
+`desktop/core/` is pure Python with zero UI dependency, so cloud deployment
+later means wrapping the same functions in an API, not rewriting them.
+
+**Cross-platform reality check, decided:**
+- Windows + Mac: `pywebview` wraps the EXISTING itrgenie HTML/JS almost
+  unchanged (renders via native WebKit/WebView2), Python only handles what
+  JS can't (file system, OCR, encrypted-file decrypt). Reuses ~90% of what's
+  already built. Packaged via PyInstaller into .exe / .app.
+- Android/iPhone: staying on the GitHub Pages web version (already works),
+  optionally add a PWA manifest for home-screen install feel. True native
+  mobile packaging (Buildozer for Android, App Store for iOS) is a distinct,
+  much larger future project -- iOS specifically has no sideload path,
+  requires Apple Developer Program + review. Not started, not blocking.
+- AI-agent access: clarified as two separate things -- Claude continuing to
+  build the codebase (already happening via chat+GitHub) vs. an in-app AI
+  feature (separate, optional, future, needs network + API key toggle).
+- Cloud: deferred, but the core/UI separation done now is specifically what
+  makes it non-disruptive later.
+
+**Built this session:**
+- `desktop/core/models.py` -- dataclasses mirroring the JS profile object
+- `desktop/core/residency.py` -- first ported module (residency calculator,
+  RNOR logic, holding-period-days helper with the 365-day boundary fix
+  preserved from JS source comments)
+- `desktop/tests/test_residency.py` -- 4 tests, verified against REAL data
+  from this session (the actual FY2025-26 voyage: 160 days in India, NRI)
+- `desktop/README.md` -- documents the porting convention for future sessions
+
+**Next**: continue porting remaining 26 modules in JS order sequence, then
+SQLite storage layer, then the pywebview wrapper itself.
