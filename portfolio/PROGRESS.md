@@ -43,6 +43,21 @@ it did not exist in this repo before this session; everything here is new.
 - Export/Import full-state JSON for backup, own storage key
   (`portfolio_data_v1`), independent of every other module's data.
 
+## Updated 2026-08-09 — Net Worth feed is now a one-click auto-import
+Net Worth Dashboard's Import button now detects and merges this module's
+feed shape directly (see `networth/PROGRESS.md`'s matching entry) — the
+"Net Worth's own Import wasn't modified to auto-consume the feed" gap noted
+below under "Deliberately NOT done yet" is resolved. The "Download Net
+Worth feed (JSON)" button's downloaded file can now be fed straight into
+Net Worth's Import file picker: it merges into the Investments category,
+upserting by account label so re-exporting/re-importing after these
+numbers change updates the existing row rather than duplicating it, and
+correctly skips any account still unconverted (no USD→INR rate set) rather
+than importing a raw dollar figure as rupees. The "copy paste-ready lines"
+button remains as a manual alternative. `renderNetWorthFeedCard()`'s
+description text was updated to point at the Import button as the primary
+path.
+
 ## Known gaps — flagged deliberately, not resolved by guessing
 Per explicit instruction not to silently resolve these, and not to fabricate
 functionality to paper over them:
@@ -95,12 +110,6 @@ functionality to paper over them:
   characterization of gains — that's ITRGenie's domain (capital gains
   logic), deliberately kept separate per the roadmap's synthesis-layer
   framing ("Portfolio + ITRGenie's capital gains logic" is future work).
-- Net Worth Dashboard's own Import was not modified to auto-consume this
-  module's feed. It currently replaces its whole internal data object on
-  import rather than merging a generic `{category,label,value,asOf}[]`
-  array, so today's hand-off is the JSON download / paste-ready-lines button
-  above, not a one-click auto-sync. Wiring that up is a small, well-scoped
-  future task once the shape above has been used for real at least once.
 - No corporate-actions handling (splits, bonuses, dividends, mergers) — buy
   price/qty are taken as entered; adjusting historical cost basis for these
   events is out of scope until real historical data (gap #3) shows it's

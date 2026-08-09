@@ -497,7 +497,7 @@ function renderNetWorthFeedCard(container){
   card.className = 'card';
   card.innerHTML = `
     <h3>Feed Net Worth's Investments category</h3>
-    <p class="helptext" style="margin-bottom:8px;">Exports one row per account in the shared <code>{category, label, value, asOf}[]</code> contract. Net Worth Dashboard doesn't auto-import this shape yet (its own Import expects its full internal data object) — download the JSON for reference, or copy the paste-ready lines below directly into Net Worth's Investments card (same "Label, Value" format it already accepts).</p>
+    <p class="helptext" style="margin-bottom:8px;">Exports one row per account in the shared <code>{category, label, value, asOf}[]</code> contract. Download the JSON below and feed it straight into Net Worth Dashboard's own Import button — it detects this feed shape and merges it into the Investments category (upserting by account label, so re-importing after these numbers change updates rather than duplicates). USD accounts without an FX rate set above are skipped on that end rather than imported as rupees. Prefer copy-pasting instead? The paste-ready lines button below matches Net Worth's "Label, Value" format for manual entry into its Investments card.</p>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <button class="btn small" id="nw_export_json">Download Net Worth feed (JSON)</button>
       <button class="btn small ghost" id="nw_copy_lines">Copy paste-ready lines for Net Worth</button>

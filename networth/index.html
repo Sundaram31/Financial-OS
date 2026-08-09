@@ -337,14 +337,60 @@ document.getElementById('exportBtn').onclick = ()=>{
   a.click();
   URL.revokeObjectURL(url);
 };
+// Merges a generic cross-module feed array ({category, label, value, asOf}[], see
+// MASTER_ROADMAP.md's data contract) into the existing data object, instead of replacing it.
+// Upserts by label within the matched category so re-importing after a source module's
+// numbers change updates the row in place rather than duplicating it. Rows whose _currency
+// is present and isn't 'INR' are skipped -- that field isn't part of the formal contract
+// (Portfolio Tracker adds it) but exists specifically so an unconverted foreign-currency
+// number can't be silently imported as if it were rupees.
+function mergeNetWorthFeed(feed){
+  let added=0, updated=0, skippedCurrency=0, skippedCategory=0, skippedInvalid=0;
+  feed.forEach(row=>{
+    if(!row || typeof row !== 'object'){ skippedInvalid++; return; }
+    const { category, label, value } = row;
+    if(!category || !label || isNaN(+value) || +value<0){ skippedInvalid++; return; }
+    if(row._currency !== undefined && row._currency !== 'INR'){ skippedCurrency++; return; }
+    const cat = data.categories[category];
+    if(!cat){ skippedCategory++; return; }
+    const cleanLabel = String(label).trim();
+    const existing = cat.rows.find(r=>r.label === cleanLabel);
+    if(existing){ existing.value = +value; updated++; }
+    else { cat.rows.push({label: cleanLabel, value: +value}); added++; }
+  });
+  saveData(); render();
+  const skippedTotal = skippedCurrency + skippedCategory + skippedInvalid;
+  let msg = `Feed import: ${added} row(s) added, ${updated} updated.`;
+  if(skippedTotal>0){
+    const parts = [];
+    if(skippedCurrency>0) parts.push(`${skippedCurrency} not INR-convertible`);
+    if(skippedCategory>0) parts.push(`${skippedCategory} unknown category`);
+    if(skippedInvalid>0) parts.push(`${skippedInvalid} invalid row`);
+    msg += ` ${skippedTotal} skipped (${parts.join(', ')}).`;
+  }
+  alert(msg);
+}
+
 document.getElementById('importBtn').onclick = ()=> document.getElementById('importFile').click();
 document.getElementById('importFile').onchange = (e)=>{
   const file = e.target.files[0];
   if(!file) return;
   const reader = new FileReader();
   reader.onload = (ev)=>{
-    try{ data = JSON.parse(ev.target.result); saveData(); render(); }
-    catch(err){ alert('Could not read that file — not valid JSON.'); }
+    let parsed;
+    try{ parsed = JSON.parse(ev.target.result); }
+    catch(err){ alert('Could not read that file — not valid JSON.'); e.target.value=''; return; }
+
+    if(Array.isArray(parsed)){
+      // A cross-module feed (e.g. Portfolio Tracker's Net Worth feed export) -- merge, don't replace.
+      mergeNetWorthFeed(parsed);
+    } else if(parsed && typeof parsed === 'object' && parsed.categories){
+      // Net Worth's own full-export shape -- restore as before, unchanged.
+      data = parsed; saveData(); render();
+    } else {
+      alert('Could not read that file — valid JSON, but not a Net Worth backup or a recognized feed.');
+    }
+    e.target.value='';
   };
   reader.readAsText(file);
 };
