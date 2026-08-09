@@ -17,11 +17,17 @@ this prompt or in the repo itself.
    the authoritative, up-to-date version of this project's rules. Treat
    this prompt as a summary and the skill as the source of truth if they
    ever disagree.
-2. Read `INDEX.md` for current module status, then the `PROGRESS.md` of
+2. If your work touches anything visual (a new screen, a redesign, a
+   chart, a new component), also call the `financial-os-visual-design`
+   skill before writing markup — it has the exact colors/fonts/motifs
+   already in use across every module and the specific generic-AI-look
+   patterns to avoid, so what you build looks like part of this app
+   instead of a default template.
+3. Read `INDEX.md` for current module status, then the `PROGRESS.md` of
    whichever module you're about to touch. If you're building a brand-new
    module, read `MASTER_ROADMAP.md`'s module list and data-contract
    sections instead.
-3. If a design decision you need isn't written in `INDEX.md`,
+4. If a design decision you need isn't written in `INDEX.md`,
    `MASTER_ROADMAP.md`, or the relevant `PROGRESS.md`, treat it as **not
    decided** — don't assume a past chat settled it. Flag the gap in your
    final report rather than guessing.
@@ -50,6 +56,12 @@ this prompt or in the repo itself.
   a bug or an ambiguous requirement, fix the underlying logic rather than
   patch a symptom, and prefer asking for a real document/clarification
   over guessing and stating something as fact.
+- **One visual identity, kept professional.** Reuse the existing gold/rust
+  green ledger palette, IBM Plex Mono + Source Serif 4 pairing, and
+  seal-mark motif rather than introducing new colors or fonts — see the
+  `financial-os-visual-design` skill for the exact tokens and for the
+  generic AI-look patterns (default chart-library styling, drop-shadow
+  SaaS cards, numbered badges, gratuitous motion) to avoid.
 
 ## Before you finish
 
