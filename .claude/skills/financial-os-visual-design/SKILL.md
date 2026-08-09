@@ -1,6 +1,6 @@
 ---
 name: financial-os-visual-design
-description: Required visual identity for every screen in the Financial-OS repo (Sundaram31/Financial-OS), and how to keep new screens from drifting into the generic "obviously AI-generated" look. Use this whenever building a NEW module's UI, redesigning an existing one, or adding any visual element (charts, dashboards, cards, buttons, empty states) to itrgenie/, networth/, goals/, loans/, insurance/, or a new module directory. Trigger this even if the user just says "build" or "add a screen for X" without mentioning design — every module in this repo is a real screen the user looks at, not throwaway output, so it must look professional and deliberately branded, never like a default AI-generated template.
+description: Required visual identity AND usability/ease-of-operation bar for every screen in the Financial-OS repo (Sundaram31/Financial-OS) — how to keep new screens from drifting into the generic "obviously AI-generated" look, AND how to keep them genuinely easy to use on a phone (readable type, low-friction data entry, numbers before paragraphs). Use this whenever building a NEW module's UI, redesigning an existing one, or adding any visual element (charts, dashboards, cards, buttons, empty states, forms) to itrgenie/, networth/, goals/, loans/, insurance/, or a new module directory. Trigger this even if the user just says "build" or "add a screen for X" without mentioning design or usability — every module in this repo is a real screen a real person operates on their phone, not throwaway output, so it must look professional, be genuinely easy to operate, and never read as a default AI-generated template.
 ---
 
 # Financial-OS visual identity
@@ -74,6 +74,47 @@ Concretely, avoid:
 - **Generic copy** — "Unlock insights", "Get started today", marketing
   filler. Match the existing modules' plain, functional voice (labels name
   what the user controls, empty states say what to do next, nothing sells).
+
+## Ease of use, not just looks
+
+A screen can match every token above perfectly and still be genuinely hard
+to use — that happened for real: Portfolio Tracker's first build (2026-08-09)
+matched the visual system correctly but drew direct user complaints on a
+phone: text too small to read, the only way to add a holding was typing an
+8-field comma-separated line, and the real numbers (holdings, gain/loss)
+were buried below several paragraphs of explanation. It took a second pass
+to fix. Treat these as load-bearing requirements, not polish, on every
+screen from the start:
+
+- **Mobile type must actually be readable.** Nothing in normal reading flow
+  (table cells, labels, helper text) should render below ~13-14px on a
+  narrow viewport. Add a real `@media (max-width: 760px)` type-size bump if
+  the base sizing is denser than that on desktop — don't just shrink padding
+  and assume the text is fine. If a data table won't fit a phone width
+  without horizontal scrolling, prefer a stacked label/value card layout
+  under that breakpoint (see `portfolio/index.html`'s holdings table for the
+  pattern) over forcing a cramped scrollable table.
+- **Give every data-entry screen a guided, low-friction path.** This
+  project's convention is paste-and-parse *and* file upload, not
+  form-fields-only (see `financial-os-conventions`) — that rule exists to
+  ban forms-only tedium, it was never meant to make bulk-paste the *only*
+  option either. For anything a user adds one item at a time (a holding, a
+  policy, a goal), pair the bulk paste/CSV path with a simple labeled form
+  (proper `<input>`/`<select>` fields, not "remember the comma order") as
+  the primary, default-visible way in. Typing a precise multi-field
+  comma-separated line on a phone keyboard is real friction — don't make it
+  someone's only option.
+- **Lead with the numbers, not the explanation.** A user opens a financial
+  screen to see a total, a holding, a gain/loss — not to read about how the
+  screen works. Put the actual data (summary stats, the primary table)
+  immediately after the header. Move explanatory paragraphs, settings, and
+  edge-case documentation (known gaps, how a feature works internally)
+  behind a collapsed `<details>` or a short one-line hint — detail should be
+  one tap away, not something to scroll past to reach the content.
+- **Verify this the same way you'd verify anything else here** — real
+  headless-browser checks at a real mobile viewport (375×812 is a reasonable
+  stand-in for "a phone"), not eyeballing a desktop screenshot and assuming
+  it scales down fine.
 
 ## Process for any new UI work
 
