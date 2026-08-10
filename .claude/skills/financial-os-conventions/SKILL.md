@@ -59,15 +59,19 @@ tools that happen to share a repo:
   `itrgenie_theme` localStorage key so the light/dark toggle is consistent
   site-wide — but each module owns its *own* data storage key (e.g.
   `networth_data_v1`). Never fold one module's data into another's key.
-- **One visual identity, not a fresh design per module.** Every screen must
-  look professional and deliberately branded — never like an unbriefed,
-  generic AI-generated template. Load the `financial-os-visual-design`
-  skill before building or redesigning any UI: it has the exact color/type
-  tokens already in use (gold/rust/green accents, IBM Plex Mono + Source
-  Serif 4, the seal-mark motif) and the specific generic patterns
-  (default chart-library styling, drop-shadow SaaS cards, numbered badges,
-  gratuitous motion) to avoid so new screens don't clash with the rest of
-  the app.
+- **One visual identity, and genuinely easy to use — not just a fresh look
+  per module.** Every screen must look professional and deliberately
+  branded, AND actually be easy to operate on a phone. Load the
+  `financial-os-visual-design` skill before building or redesigning any UI:
+  it has the exact color/type tokens already in use (gold/rust/green
+  accents, IBM Plex Mono + Source Serif 4, the seal-mark motif), the
+  specific generic patterns (default chart-library styling, drop-shadow
+  SaaS cards, numbered badges, gratuitous motion) to avoid, and — learned
+  the hard way from real user feedback on Portfolio Tracker's first build —
+  the usability bar every screen must clear: readable mobile type sizes, a
+  guided low-friction form alongside any bulk paste/CSV entry (never
+  paste-only), and real data/numbers leading the page rather than buried
+  under explanatory paragraphs.
 - **Conform to existing cross-module data contracts** rather than
   inventing a parallel shape. Check `MASTER_ROADMAP.md`'s "Cross-module
   data contracts" section first — e.g. net worth inputs are

@@ -18,11 +18,13 @@ this prompt or in the repo itself.
    this prompt as a summary and the skill as the source of truth if they
    ever disagree.
 2. If your work touches anything visual (a new screen, a redesign, a
-   chart, a new component), also call the `financial-os-visual-design`
-   skill before writing markup — it has the exact colors/fonts/motifs
-   already in use across every module and the specific generic-AI-look
-   patterns to avoid, so what you build looks like part of this app
-   instead of a default template.
+   chart, a new component, a form), also call the
+   `financial-os-visual-design` skill before writing markup — it has the
+   exact colors/fonts/motifs already in use across every module, the
+   specific generic-AI-look patterns to avoid, AND the usability bar every
+   screen must clear (mobile-readable type, low-friction data entry,
+   numbers before paragraphs) so what you build looks like part of this app
+   and is actually easy to use, not just a default template.
 3. Read `INDEX.md` for current module status, then the `PROGRESS.md` of
    whichever module you're about to touch. If you're building a brand-new
    module, read `MASTER_ROADMAP.md`'s module list and data-contract
@@ -41,8 +43,12 @@ this prompt or in the repo itself.
 - **Nothing the user enters ever leaves the browser.** This is the app's
   stated privacy promise. Don't add a network call or third-party service
   that would break it.
-- **Paste-and-parse *and* file upload**, not form-fields-only, for data
-  entry — match the existing parser pattern used across modules.
+- **Paste-and-parse *and* file upload, plus a guided single-item form** —
+  never paste-only. Bulk paste/CSV serves power users adding many rows at
+  once; a proper labeled form (real `<input>`/`<select>` fields) is the
+  low-friction default for adding one thing on a phone. Portfolio Tracker's
+  first build had paste-only entry and drew a direct complaint ("very
+  difficult to add stock details") — don't repeat that.
 - **Shared theme, separate data.** Read/write the same `itrgenie_theme`
   localStorage key for the light/dark toggle so it stays consistent
   site-wide, but give your module its own data storage key (e.g.
@@ -56,12 +62,15 @@ this prompt or in the repo itself.
   a bug or an ambiguous requirement, fix the underlying logic rather than
   patch a symptom, and prefer asking for a real document/clarification
   over guessing and stating something as fact.
-- **One visual identity, kept professional.** Reuse the existing gold/rust
-  green ledger palette, IBM Plex Mono + Source Serif 4 pairing, and
-  seal-mark motif rather than introducing new colors or fonts — see the
-  `financial-os-visual-design` skill for the exact tokens and for the
-  generic AI-look patterns (default chart-library styling, drop-shadow
-  SaaS cards, numbered badges, gratuitous motion) to avoid.
+- **One visual identity, kept professional — and genuinely easy to use.**
+  Reuse the existing gold/rust/green ledger palette, IBM Plex Mono + Source
+  Serif 4 pairing, and seal-mark motif rather than introducing new colors or
+  fonts. Also clear the usability bar: readable type at mobile widths (test
+  at ~375px, not just desktop), the summary/primary data immediately after
+  the header rather than buried under explanatory paragraphs, verbose
+  help/settings/edge-case text tucked behind collapsed sections. See the
+  `financial-os-visual-design` skill for the exact tokens, the generic
+  AI-look patterns to avoid, and the full usability guidance.
 
 ## Before you finish
 

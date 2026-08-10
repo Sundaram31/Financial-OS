@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synthesis — Financial OS</title>
+<style>
+  :root{
+    --bg:#0B0E11; --panel:#12161B; --panel-2:#171C22; --line:#242A31;
+    --text:#E8E6E0; --muted:#9BA0A8; --gold:#C9A227; --gold-dim:#8f7419;
+    --green:#4A9B6E; --rust:#B5533C;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+  body[data-theme="light"]{
+    --bg:#F7F5F0; --panel:#FFFFFF; --panel-2:#F1EEE7; --line:#DCD7CC;
+    --text:#242220; --muted:#6B6660; --gold:#96741A; --gold-dim:#7a5f15;
+    --green:#2F7A50; --rust:#9B3F2A;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:var(--bg); color:var(--text); font-family:var(--mono); font-size:15.5px; line-height:1.6; min-height:100vh; }
+  a{color:var(--gold);}
+  .app{ display:flex; min-height:100vh; flex-direction:column; }
+  header.topbar{ display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; gap:10px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand .seal{ width:28px; height:28px; border:1.5px solid var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:14px; color:var(--gold); font-weight:600; }
+  .brand h1{ font-family:var(--serif); font-size:17px; font-weight:600; }
+  .brand .sub{ font-size:11px; color:var(--muted); }
+  .topbar-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  main.content{ flex:1; overflow-y:auto; padding:26px 32px; max-width:1000px; margin:0 auto; width:100%; }
+  .panel-header{ margin-bottom:18px; }
+  .panel-header .eyebrow{ font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
+  .panel-header h2{ font-family:var(--serif); font-size:24px; font-weight:600; }
+  .panel-header p.desc{ color:var(--muted); font-size:14px; margin-top:6px; max-width:680px; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:18px 20px; margin-bottom:16px; }
+  .card h3{ font-family:var(--serif); font-size:16px; margin-bottom:4px; }
+  .card .card-sub{ font-size:12px; color:var(--muted); margin-bottom:12px; }
+  .section-title{ font-family:var(--serif); font-size:14px; color:var(--gold); text-transform:uppercase; letter-spacing:1px; margin:26px 0 10px; }
+  .section-title:first-of-type{ margin-top:6px; }
+  .field-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:6px; }
+  .field{ flex:1; min-width:200px; }
+  .field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
+  .field input{ width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:14px; }
+  .field input:focus{ outline:none; border-color:var(--gold-dim); }
+  .btn{ background:transparent; border:1px solid var(--gold-dim); color:var(--gold); padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  .btn:hover{ background:rgba(201,162,39,0.08); border-color:var(--gold); }
+  .btn.small{ padding:5px 10px; font-size:11px; }
+  .btn.ghost{ border-color:var(--line); color:var(--muted); }
+  .stat-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:12px; margin-bottom:14px; }
+  .stat-tile{ background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:16px 18px; }
+  .stat-tile.accent{ border-color:var(--gold-dim); background:linear-gradient(180deg, rgba(201,162,39,0.06), transparent); }
+  .stat-tile .stat-label{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .stat-tile .stat-value{ font-family:var(--serif); font-size:23px; font-weight:600; }
+  .stat-tile .stat-note{ font-size:11.5px; color:var(--muted); margin-top:4px; }
+  .helptext{ font-size:12.5px; color:var(--muted); margin-top:4px; }
+  .breakdown-bar{ display:flex; height:26px; border-radius:4px; overflow:hidden; margin:12px 0; border:1px solid var(--line); }
+  .breakdown-bar .seg{ display:flex; align-items:center; justify-content:center; font-size:10px; color:#141414; font-weight:600; overflow:hidden; white-space:nowrap; }
+  .legend{ display:flex; flex-wrap:wrap; gap:14px; margin-top:8px; }
+  .legend .item{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+  .legend .dot{ width:9px; height:9px; border-radius:2px; flex-shrink:0; }
+  .tag{ display:inline-block; font-size:10px; padding:2px 8px; border-radius:10px; text-transform:uppercase; font-weight:600; margin-left:6px; white-space:nowrap; }
+  .tag.green{ background:rgba(74,155,110,0.15); color:var(--green); }
+  .tag.rust{ background:rgba(181,83,60,0.15); color:var(--rust); }
+  .tag.muted{ background:rgba(154,160,168,0.15); color:var(--muted); }
+  .tag.gold{ background:rgba(201,162,39,0.15); color:var(--gold); }
+  .progress-track{ height:12px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:8px 0; }
+  .progress-fill{ height:100%; background:var(--gold); }
+  .progress-fill.behind{ background:var(--rust); }
+  .progress-fill.ontrack{ background:var(--green); }
+  .item-row{ border:1px solid var(--line); border-radius:6px; padding:12px 14px; margin-bottom:10px; background:var(--panel-2); }
+  .item-row:last-child{ margin-bottom:0; }
+  .item-row-head{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .item-row-title{ font-weight:600; }
+  .item-row-figure{ font-family:var(--serif); font-weight:600; white-space:nowrap; }
+  .item-row-sub{ font-size:12px; color:var(--muted); margin-top:3px; }
+  .empty-state{ padding:4px 0; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+  .empty-state p{ font-size:13px; color:var(--muted); }
+  details.collapsible{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px 20px; margin-bottom:16px; }
+  details.collapsible summary{ cursor:pointer; font-family:var(--serif); font-size:15px; list-style:none; }
+  details.collapsible summary::-webkit-details-marker{ display:none; }
+  details.collapsible summary::before{ content:'▸ '; color:var(--gold); font-family:var(--mono); }
+  details.collapsible[open] summary::before{ content:'▾ '; }
+  details.collapsible .details-body{ margin-top:14px; font-size:13.5px; }
+  details.collapsible .details-body p{ margin-bottom:10px; color:var(--muted); }
+  details.collapsible .details-body ul{ margin:0 0 10px 18px; color:var(--muted); }
+  details.collapsible .details-body li{ margin-bottom:6px; }
+  .sparkline{ width:100%; margin-top:10px; }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+  @media (max-width:760px){
+    main.content{ padding:16px; }
+    .card{ padding:14px 16px; }
+    body{ font-size:16px; }
+    .panel-header h2{ font-size:21px; }
+    .panel-header p.desc{ font-size:14.5px; }
+    .panel-header .eyebrow{ font-size:11.5px; }
+    .brand h1{ font-size:16px; }
+    .brand .sub{ font-size:12px; }
+    .field label{ font-size:12.5px; }
+    .field input{ font-size:16px; padding:9px 10px; } /* 16px avoids iOS auto-zoom-on-focus */
+    .btn{ font-size:14px; padding:10px 16px; }
+    .btn.small{ font-size:13px; padding:9px 13px; }
+    .helptext{ font-size:13.5px; }
+    .stat-tile .stat-value{ font-size:21px; }
+    .stat-tile .stat-label{ font-size:13px; }
+    .stat-tile .stat-note{ font-size:13px; }
+    .legend .item{ font-size:13.5px; }
+    .tag{ font-size:12px; }
+    .section-title{ font-size:13.5px; }
+    .item-row-sub{ font-size:13px; }
+    .card .card-sub{ font-size:13px; }
+    details.collapsible summary{ font-size:14.5px; }
+    .empty-state{ flex-direction:column; align-items:flex-start; }
+    .empty-state p{ font-size:13.5px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="seal">&Sigma;</div>
+      <div>
+        <h1>Synthesis</h1>
+        <div class="sub">Financial OS · one page, every module — read-only</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <a class="btn small ghost" href="../">← Financial OS</a>
+      <button class="btn small ghost" id="themeToggleBtn">☀ Light mode</button>
+      <button class="btn small ghost" id="refreshBtn">↻ Refresh</button>
+    </div>
+  </header>
+  <main class="content" id="content"></main>
+</div>
+
+<script>
+// ---------- this module's OWN storage (read/write) ----------
+// Synthesis owns exactly one small thing: a manually-entered annual income figure, needed to
+// judge insurance cover adequacy (see readInsuranceSection below for why this isn't pulled from
+// ITRGenie's profile). Everything else on this page is READ-ONLY against other modules' keys --
+// this file never calls localStorage.setItem() on any key except its own.
+const STORAGE_KEY = 'synthesis_data_v1';
+function defaultData(){ return { annualIncome: '' }; }
+function loadData(){
+  try{ const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : defaultData(); }
+  catch(e){ return defaultData(); }
+}
+let data = loadData();
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+// ---------- read-only access to every other module's data ----------
+// Same-origin localStorage means every module's key is already readable from here (all modules
+// deploy under the one github.io origin) -- no export/import handshake needed for a read view.
+// This function is the ONLY place this file touches another module's key, and it only ever reads.
+function readModuleData(key){
+  try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+const nwData = readModuleData('networth_data_v1');
+const goalsData = readModuleData('goals_data_v1');
+const portfolioData = readModuleData('portfolio_data_v1');
+const loansData = readModuleData('loans_data_v1');
+const insuranceData = readModuleData('insurance_data_v1');
+
+// One-time convenience: if this module has never had an income figure entered, but Insurance
+// Tracker already has one (real user-entered data, not a guess), prefill from it -- still saved
+// into Synthesis's OWN key, still fully editable, never read again once this module has its own
+// value. Never touches insurance_data_v1.
+let incomeWasPrefilled = false;
+if((data.annualIncome===''||data.annualIncome===undefined||data.annualIncome===null) && insuranceData && insuranceData.annualIncome){
+  data.annualIncome = insuranceData.annualIncome;
+  incomeWasPrefilled = true;
+  saveData();
+}
+
+// ---------- formatting helpers ----------
+function fmtINR(v){ return (v===null||v===undefined||isNaN(v)) ? '—' : '₹' + Math.round(v).toLocaleString('en-IN'); }
+function fmtDate(d){
+  if(!d) return '—';
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if(isNaN(dt.getTime())) return '—';
+  return dt.toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
+}
+function addMonths(date, months){ const d = new Date(date); d.setMonth(d.getMonth() + Math.round(months)); return d; }
+const CAT_COLORS = ['#C9A227','#4A9B6E','#7EA8C9','#B5533C','#9B7EC9','#6BA5A0'];
+
+// ============================================================
+// NET WORTH -- reads networth_data_v1 ({categories:{...}, liabilities:{...}, snapshots:[...]})
+// ============================================================
+function netWorthHasData(nw){
+  if(!nw) return false;
+  const anyRows = Object.values(nw.categories||{}).some(c=>(c.rows||[]).length>0) || ((nw.liabilities&&nw.liabilities.rows)||[]).length>0;
+  const anySnap = (nw.snapshots||[]).length>0;
+  return anyRows || anySnap;
+}
+// Same totals math as networth/index.html's computeTotals() -- current totals are computed live
+// from entered assets/liabilities, not just the last saved snapshot, so this stays accurate even
+// if the user hasn't clicked "save snapshot" recently.
+function computeNetWorthTotals(nw){
+  let totalAssets = 0;
+  const byCategory = {};
+  Object.entries(nw.categories||{}).forEach(([key,cat])=>{
+    const sum = (cat.rows||[]).reduce((s,r)=>s+(+r.value||0),0);
+    byCategory[key] = { label: cat.label, value: sum };
+    totalAssets += sum;
+  });
+  const totalLiabilities = ((nw.liabilities&&nw.liabilities.rows)||[]).reduce((s,r)=>s+(+r.value||0),0);
+  return { totalAssets, totalLiabilities, netWorth: totalAssets - totalLiabilities, byCategory };
+}
+function renderNetWorthCard(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  if(!netWorthHasData(nwData)){
+    card.innerHTML = `<h3>Net worth</h3>
+      <div class="empty-state">
+        <p>No net worth data yet — add your assets and liabilities to see a total here.</p>
+        <a class="btn small" href="../networth/">Add in Net Worth Dashboard →</a>
+      </div>`;
+    container.appendChild(card);
+    return;
+  }
+  const t = computeNetWorthTotals(nwData);
+  const snaps = [...(nwData.snapshots||[])].sort((a,b)=>a.date.localeCompare(b.date));
+  let trendHtml = '';
+  if(snaps.length>=2){
+    const first = snaps[0], last = snaps[snaps.length-1];
+    const delta = last.netWorth - first.netWorth;
+    const sign = delta>=0 ? '+' : '';
+    const color = delta>=0 ? 'var(--green)' : 'var(--rust)';
+    trendHtml = `<div class="stat-note" style="color:${color};">${sign}${fmtINR(delta)} since ${fmtDate(first.date)} (${snaps.length} snapshots)</div>`;
+  } else if(snaps.length===1){
+    trendHtml = `<div class="stat-note">Only one snapshot saved (${fmtDate(snaps[0].date)}) — save another later to see a trend.</div>`;
+  } else {
+    trendHtml = `<div class="stat-note">No snapshots saved yet — total below is computed live from entered assets/liabilities. Save a snapshot in Net Worth Dashboard to start a trend.</div>`;
+  }
+  let sparkHtml = '';
+  if(snaps.length>=2){
+    const w=560, h=60, pad=6;
+    const vals = snaps.map(s=>s.netWorth);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const range = (max-min)||1;
+    const pts = snaps.map((s,i)=>{
+      const x = pad + (i/(snaps.length-1))*(w-2*pad);
+      const y = h-pad - ((s.netWorth-min)/range)*(h-2*pad);
+      return `${x},${y}`;
+    }).join(' ');
+    sparkHtml = `<svg class="sparkline" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="var(--gold)" stroke-width="2"/></svg>`;
+  }
+  const segs = Object.entries(t.byCategory).filter(([k,c])=>c.value>0);
+  const barHtml = segs.length>0 ? segs.map(([k,c],i)=>{
+    const pct = (c.value/t.totalAssets*100).toFixed(1);
+    return `<div class="seg" style="width:${pct}%; background:${CAT_COLORS[i%CAT_COLORS.length]};" title="${c.label}: ${fmtINR(c.value)}">${pct>8?pct+'%':''}</div>`;
+  }).join('') : '';
+  const legendHtml = segs.map(([k,c],i)=>`<div class="item"><span class="dot" style="background:${CAT_COLORS[i%CAT_COLORS.length]};"></span>${c.label}: ${fmtINR(c.value)}</div>`).join('');
+  card.innerHTML = `
+    <h3>Net worth</h3>
+    <div class="card-sub">From Net Worth Dashboard</div>
+    <div class="stat-grid">
+      <div class="stat-tile accent"><div class="stat-label">Net worth</div><div class="stat-value">${fmtINR(t.netWorth)}</div>${trendHtml}</div>
+      <div class="stat-tile"><div class="stat-label">Total assets</div><div class="stat-value">${fmtINR(t.totalAssets)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Total liabilities</div><div class="stat-value">${fmtINR(t.totalLiabilities)}</div></div>
+    </div>
+    ${sparkHtml}
+    ${segs.length>0 ? `<div class="breakdown-bar">${barHtml}</div><div class="legend">${legendHtml}</div>` : ''}
+  `;
+  container.appendChild(card);
+}
+
+// ============================================================
+// GOALS -- reads goals_data_v1 ({goals:[{id,name,category,targetAmount,targetDate,
+//   monthlyContribution,assumedReturn,investments:[{label,value}]}]})
+// ============================================================
+// Identical math to goals/index.html's projectGoal() -- kept in lockstep with that module
+// rather than a paraphrase, since the two need to agree on what "on track" means.
+function projectGoal(goal){
+  const currentValue = (goal.investments||[]).reduce((s,r)=>s+(+r.value||0),0);
+  const target = +goal.targetAmount || 0;
+  const targetDate = goal.targetDate ? new Date(goal.targetDate) : null;
+  const today = new Date();
+  const monthsLeft = targetDate ? Math.max(0, Math.round((targetDate-today)/(1000*60*60*24*30.44))) : null;
+  const annualReturn = +goal.assumedReturn || 0;
+  const monthlyRate = annualReturn/12/100;
+  const pmt = +goal.monthlyContribution || 0;
+  let projectedValue = currentValue;
+  if(monthsLeft!==null && monthsLeft>0){
+    const growthFactor = Math.pow(1+monthlyRate, monthsLeft);
+    const fvCurrent = currentValue * growthFactor;
+    const fvContrib = monthlyRate>0 ? pmt * ((growthFactor-1)/monthlyRate) : pmt*monthsLeft;
+    projectedValue = fvCurrent + fvContrib;
+  }
+  const progressPct = target>0 ? Math.min(100, (currentValue/target)*100) : 0;
+  const onTrack = target>0 && projectedValue >= target;
+  return { currentValue, target, monthsLeft, projectedValue, progressPct, onTrack };
+}
+function goalsHasData(g){ return !!(g && Array.isArray(g.goals) && g.goals.length>0); }
+function renderGoalsCard(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  if(!goalsHasData(goalsData)){
+    card.innerHTML = `<h3>Goal progress</h3>
+      <div class="empty-state">
+        <p>No goals set up yet — add a goal to track progress toward it here.</p>
+        <a class="btn small" href="../goals/">Add in Goals →</a>
+      </div>`;
+    container.appendChild(card);
+    return;
+  }
+  const goals = goalsData.goals.map(g=>({ g, proj: projectGoal(g) }));
+  const withDate = goals.filter(x=>x.g.targetDate && x.g.targetAmount);
+  const onTrack = withDate.filter(x=>x.proj.onTrack).length;
+  const behind = withDate.length - onTrack;
+  const totalTagged = goals.reduce((s,x)=>s+x.proj.currentValue,0);
+  const rows = goals.map(({g,proj})=>{
+    const statusTag = (g.targetDate && g.targetAmount)
+      ? (proj.onTrack ? `<span class="tag green">On track</span>` : `<span class="tag rust">Behind</span>`)
+      : `<span class="tag muted">No target set</span>`;
+    return `
+      <div class="item-row">
+        <div class="item-row-head">
+          <div class="item-row-title">${g.name || 'Untitled goal'} ${statusTag}</div>
+          <div class="item-row-figure">${fmtINR(proj.currentValue)} ${g.targetAmount ? `of ${fmtINR(+g.targetAmount)}` : ''}</div>
+        </div>
+        <div class="progress-track"><div class="progress-fill ${g.targetDate ? (proj.onTrack?'ontrack':'behind') : ''}" style="width:${proj.progressPct.toFixed(1)}%;"></div></div>
+        <div class="item-row-sub">${g.category||'General'}${g.targetDate ? ` · target ${fmtDate(g.targetDate)}` : ' · no target date set'}</div>
+      </div>`;
+  }).join('');
+  card.innerHTML = `
+    <h3>Goal progress</h3>
+    <div class="card-sub">From Goals</div>
+    <div class="stat-grid">
+      <div class="stat-tile accent"><div class="stat-label">On track</div><div class="stat-value">${onTrack} of ${withDate.length}</div>${withDate.length<goals.length ? `<div class="stat-note">${goals.length-withDate.length} goal(s) missing a target date/amount, not assessed</div>`:''}</div>
+      <div class="stat-tile"><div class="stat-label">Behind</div><div class="stat-value" style="${behind>0?'color:var(--rust);':''}">${behind}</div></div>
+      <div class="stat-tile"><div class="stat-label">Total tagged so far</div><div class="stat-value">${fmtINR(totalTagged)}</div></div>
+    </div>
+    ${rows}
+  `;
+  container.appendChild(card);
+}
+
+// ============================================================
+// PORTFOLIO -- reads portfolio_data_v1 ({accounts:[...], holdings:[...], fx:{usdInr,asOf}})
+// ============================================================
+function portfolioHasData(p){ return !!(p && Array.isArray(p.holdings) && p.holdings.length>0); }
+function accountOfP(pData, brokerId){
+  return (pData.accounts||[]).find(a=>a.id===brokerId) || {id:brokerId, name:brokerId, country:'IN', currency:'INR'};
+}
+function toINR_P(pData, amount, currency){
+  if(currency==='INR') return amount;
+  const rate = parseFloat(pData.fx && pData.fx.usdInr);
+  if(!rate || rate<=0) return null;
+  return amount*rate;
+}
+// Same math as portfolio/index.html's computeHoldingMetrics() + computePortfolio().
+function computePortfolioTotals(pData){
+  let totalCostINR = 0, totalValueINR = 0, unconvertedCount = 0;
+  const byAssetType = {};
+  (pData.holdings||[]).forEach(h=>{
+    const acc = accountOfP(pData, h.broker);
+    const qty = +h.qty || 0;
+    const buyPrice = +h.buyPrice || 0;
+    const hasCurrentPrice = h.currentPrice!=='' && h.currentPrice!==null && h.currentPrice!==undefined && !isNaN(+h.currentPrice);
+    const currentPrice = hasCurrentPrice ? +h.currentPrice : buyPrice;
+    const costBasis = qty*buyPrice, currentValue = qty*currentPrice;
+    const costINR = toINR_P(pData, costBasis, acc.currency);
+    const valINR = toINR_P(pData, currentValue, acc.currency);
+    if(costINR===null || valINR===null){ unconvertedCount++; return; }
+    totalCostINR += costINR; totalValueINR += valINR;
+    byAssetType[h.assetType||'Other'] = (byAssetType[h.assetType||'Other']||0) + valINR;
+  });
+  const gainINR = totalValueINR - totalCostINR;
+  const gainPct = totalCostINR>0 ? (gainINR/totalCostINR*100) : 0;
+  return { totalCostINR, totalValueINR, gainINR, gainPct, byAssetType, unconvertedCount };
+}
+function renderPortfolioCard(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  if(!portfolioHasData(portfolioData)){
+    card.innerHTML = `<h3>Portfolio performance</h3>
+      <div class="empty-state">
+        <p>No holdings tracked yet — add your holdings to see value and allocation here.</p>
+        <a class="btn small" href="../portfolio/">Add in Portfolio Tracker →</a>
+      </div>`;
+    container.appendChild(card);
+    return;
+  }
+  const p = computePortfolioTotals(portfolioData);
+  const gainColor = p.gainINR>=0 ? 'var(--green)' : 'var(--rust)';
+  const gainSign = p.gainINR>=0 ? '+' : '';
+  const segs = Object.entries(p.byAssetType).filter(([k,v])=>v>0);
+  const barHtml = segs.length>0 ? segs.map(([k,v],i)=>{
+    const pct = (v/p.totalValueINR*100).toFixed(1);
+    return `<div class="seg" style="width:${pct}%; background:${CAT_COLORS[i%CAT_COLORS.length]};" title="${k}: ${fmtINR(v)}">${pct>8?pct+'%':''}</div>`;
+  }).join('') : '';
+  const legendHtml = segs.map(([k,v],i)=>`<div class="item"><span class="dot" style="background:${CAT_COLORS[i%CAT_COLORS.length]};"></span>${k}: ${fmtINR(v)}</div>`).join('');
+  card.innerHTML = `
+    <h3>Portfolio performance</h3>
+    <div class="card-sub">From Portfolio Tracker · converted to INR</div>
+    <div class="stat-grid">
+      <div class="stat-tile accent"><div class="stat-label">Current value</div><div class="stat-value">${fmtINR(p.totalValueINR)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Cost basis</div><div class="stat-value">${fmtINR(p.totalCostINR)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Gain / loss</div><div class="stat-value" style="color:${gainColor};">${gainSign}${fmtINR(p.gainINR)}</div><div class="stat-note" style="color:${gainColor};">${gainSign}${p.gainPct.toFixed(1)}%</div></div>
+    </div>
+    ${segs.length>0 ? `<div class="breakdown-bar">${barHtml}</div><div class="legend">${legendHtml}</div>` : ''}
+    ${p.unconvertedCount>0 ? `<p class="helptext">${p.unconvertedCount} holding(s) excluded — no USD→INR rate set in Portfolio Tracker yet.</p>` : ''}
+  `;
+  container.appendChild(card);
+}
+
+// ============================================================
+// DEBT / LOANS -- reads loans_data_v1 ({loans:[{id,lender,type,principal,annualRate,
+//   emiAmount,payments:[{date,type,amount}]}]})
+// ============================================================
+// Loans doesn't store a debt-free date field directly -- confirmed by reading loans/index.html.
+// It DOES compute months-to-payoff via a standard amortization formula (amortizationSummary());
+// reused verbatim here rather than inventing a second projection method.
+function amortizationSummary(loan){
+  const principal = +loan.principal || 0;
+  const rate = (+loan.annualRate || 0) / 100 / 12;
+  const emi = +loan.emiAmount || 0;
+  const paid = (loan.payments||[]).reduce((s,p)=>s+(+p.amount||0),0);
+  const outstanding = Math.max(0, principal-paid);
+  let monthsLeft = null;
+  if(emi>0 && rate>0 && outstanding>0){
+    const ratio = emi / (emi - outstanding*rate);
+    if(ratio>0) monthsLeft = Math.log(ratio) / Math.log(1+rate);
+  } else if(emi>0 && outstanding>0){
+    monthsLeft = outstanding/emi;
+  }
+  return { principal, paid, outstanding, monthsLeft: monthsLeft && isFinite(monthsLeft) ? Math.ceil(monthsLeft) : null };
+}
+function loansHasData(l){ return !!(l && Array.isArray(l.loans) && l.loans.length>0); }
+function renderLoansCard(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  if(!loansHasData(loansData)){
+    card.innerHTML = `<h3>Debt &amp; loans</h3>
+      <div class="empty-state">
+        <p>No loans tracked yet — add a loan to see outstanding balance and payoff date here.</p>
+        <a class="btn small" href="../loans/">Add in Debt &amp; Loan Tracker →</a>
+      </div>`;
+    container.appendChild(card);
+    return;
+  }
+  const rows = loansData.loans.map(l=>({ l, s: amortizationSummary(l) })).filter(x=>x.s.outstanding>0 || x.s.principal>0);
+  const totalOutstanding = rows.reduce((s,x)=>s+x.s.outstanding,0);
+  const totalEmi = loansData.loans.reduce((s,l)=>s+(+l.emiAmount||0),0);
+  const projectable = rows.filter(x=>x.s.monthsLeft!==null && x.s.outstanding>0);
+  const today = new Date();
+  let debtFreeHtml = '';
+  if(rows.filter(x=>x.s.outstanding>0).length===0){
+    debtFreeHtml = `<div class="stat-value" style="color:var(--green);">Debt-free</div>`;
+  } else if(projectable.length>0){
+    const maxMonths = Math.max(...projectable.map(x=>x.s.monthsLeft));
+    const dfDate = addMonths(today, maxMonths);
+    const allProjectable = projectable.length === rows.filter(x=>x.s.outstanding>0).length;
+    debtFreeHtml = `<div class="stat-value">${fmtDate(dfDate)}</div>${!allProjectable ? `<div class="stat-note">Based on ${projectable.length} of ${rows.filter(x=>x.s.outstanding>0).length} loans with enough info to project — others missing rate/EMI</div>`:''}`;
+  } else {
+    debtFreeHtml = `<div class="stat-value" style="font-size:16px;">Can't project</div><div class="stat-note">Missing interest rate or EMI on your loan(s)</div>`;
+  }
+  const listHtml = rows.map(({l,s})=>{
+    const payoff = (s.monthsLeft!==null && s.outstanding>0) ? fmtDate(addMonths(today, s.monthsLeft)) : (s.outstanding<=0 ? 'Paid off' : 'Can\'t project');
+    return `
+      <div class="item-row">
+        <div class="item-row-head">
+          <div class="item-row-title">${l.lender || 'Unnamed loan'} <span class="tag muted">${l.type||'Loan'}</span></div>
+          <div class="item-row-figure">${fmtINR(s.outstanding)}</div>
+        </div>
+        <div class="item-row-sub">Original ${fmtINR(s.principal)} · EMI ${l.emiAmount ? fmtINR(+l.emiAmount)+'/mo' : '—'} · payoff ${payoff}</div>
+      </div>`;
+  }).join('');
+  card.innerHTML = `
+    <h3>Debt &amp; loans</h3>
+    <div class="card-sub">From Debt &amp; Loan Tracker · payoff dates are approximate (don't re-amortize after prepayments)</div>
+    <div class="stat-grid">
+      <div class="stat-tile accent"><div class="stat-label">Outstanding balance</div><div class="stat-value">${fmtINR(totalOutstanding)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Total EMI / month</div><div class="stat-value">${fmtINR(totalEmi)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Debt-free date</div>${debtFreeHtml}</div>
+    </div>
+    ${listHtml}
+  `;
+  container.appendChild(card);
+}
+
+// ============================================================
+// INSURANCE ADEQUACY -- reads insurance_data_v1 ({policies:[...], annualIncome, dependents,
+//   existingLoans}). Adequacy needs an annual income figure; per explicit scoping this is a
+//   manual input OWNED by this module (synthesis_data_v1.annualIncome), prefilled once from
+//   Insurance Tracker's own annualIncome field if it already has one (real data, not a guess) --
+//   never parsed out of ITRGenie's scattered per-module profile shape.
+// ============================================================
+function insuranceHasData(i){ return !!(i && Array.isArray(i.policies) && i.policies.length>0); }
+function renderInsuranceCard(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  if(!insuranceHasData(insuranceData)){
+    card.innerHTML = `<h3>Insurance adequacy</h3>
+      <div class="empty-state">
+        <p>No policies tracked yet — add a policy to check cover adequacy here.</p>
+        <a class="btn small" href="../insurance/">Add in Insurance Tracker →</a>
+      </div>`;
+    container.appendChild(card);
+    return;
+  }
+  const policies = insuranceData.policies;
+  const totalTermCover = policies.filter(p=>p.type==='Term Life').reduce((s,p)=>s+(+p.coverAmount||0),0);
+  const income = +data.annualIncome || 0;
+  const multiple = income>0 ? (totalTermCover/income) : null;
+  let verdictTag = `<span class="tag muted">Enter income to check</span>`;
+  if(income>0){
+    verdictTag = multiple>=10 ? `<span class="tag green">Adequate</span>` : `<span class="tag rust">Below 10x floor</span>`;
+  }
+  const incomeHint = incomeWasPrefilled
+    ? `Pulled from your Insurance Tracker entry — edit here if it's changed. Stored separately in Synthesis, not shared back.`
+    : `Used only to check cover adequacy on this page — stored in Synthesis's own data, separate from Insurance Tracker's own copy of this field.`;
+  card.innerHTML = `
+    <h3>Insurance adequacy</h3>
+    <div class="card-sub">From Insurance Tracker</div>
+    <div class="stat-grid">
+      <div class="stat-tile"><div class="stat-label">Policies</div><div class="stat-value">${policies.length}</div></div>
+      <div class="stat-tile accent"><div class="stat-label">Total term life cover</div><div class="stat-value">${fmtINR(totalTermCover)}</div>${verdictTag}</div>
+      <div class="stat-tile"><div class="stat-label">Cover vs income</div><div class="stat-value">${multiple!==null ? multiple.toFixed(1)+'x' : '—'}</div><div class="stat-note">floor is 10x for a primary earner</div></div>
+    </div>
+    <div class="field-row" style="margin-top:6px;">
+      <div class="field">
+        <label>Annual income (₹)</label>
+        <input id="syn_income" type="number" value="${data.annualIncome}" placeholder="e.g. 1800000">
+        <div class="helptext">${incomeHint}</div>
+      </div>
+    </div>
+    <p class="helptext" style="margin-top:10px;">Per-policy mis-selling checks (ULIP bundling, unexplained riders, commission awareness) live in Insurance Tracker — this view only aggregates totals.</p>
+  `;
+  container.appendChild(card);
+  card.querySelector('#syn_income').onchange = (e)=>{
+    data.annualIncome = e.target.value;
+    incomeWasPrefilled = false;
+    saveData();
+    render();
+  };
+}
+
+// ============================================================
+// TOP OVERVIEW ROW -- one headline number per pillar, numbers first per the usability bar
+// ============================================================
+function renderOverview(container){
+  const wrap = document.createElement('div');
+  wrap.className = 'stat-grid';
+  const tiles = [];
+
+  if(netWorthHasData(nwData)){
+    const t = computeNetWorthTotals(nwData);
+    tiles.push(`<div class="stat-tile accent"><div class="stat-label">Net worth</div><div class="stat-value">${fmtINR(t.netWorth)}</div></div>`);
+  } else {
+    tiles.push(`<div class="stat-tile"><div class="stat-label">Net worth</div><div class="stat-value" style="font-size:14px; color:var(--muted);">No data</div></div>`);
+  }
+
+  if(portfolioHasData(portfolioData)){
+    const p = computePortfolioTotals(portfolioData);
+    const gainColor = p.gainINR>=0 ? 'var(--green)' : 'var(--rust)';
+    tiles.push(`<div class="stat-tile"><div class="stat-label">Portfolio value</div><div class="stat-value">${fmtINR(p.totalValueINR)}</div><div class="stat-note" style="color:${gainColor};">${p.gainINR>=0?'+':''}${p.gainPct.toFixed(1)}%</div></div>`);
+  } else {
+    tiles.push(`<div class="stat-tile"><div class="stat-label">Portfolio value</div><div class="stat-value" style="font-size:14px; color:var(--muted);">No data</div></div>`);
+  }
+
+  if(goalsHasData(goalsData)){
+    const goals = goalsData.goals.map(g=>({ g, proj: projectGoal(g) }));
+    const withDate = goals.filter(x=>x.g.targetDate && x.g.targetAmount);
+    const onTrack = withDate.filter(x=>x.proj.onTrack).length;
+    tiles.push(`<div class="stat-tile"><div class="stat-label">Goals on track</div><div class="stat-value">${onTrack} / ${withDate.length}</div></div>`);
+  } else {
+    tiles.push(`<div class="stat-tile"><div class="stat-label">Goals on track</div><div class="stat-value" style="font-size:14px; color:var(--muted);">No data</div></div>`);
+  }
+
+  if(loansHasData(loansData)){
+    const rows = loansData.loans.map(l=>amortizationSummary(l));
+    const totalOutstanding = rows.reduce((s,r)=>s+r.outstanding,0);
+    tiles.push(`<div class="stat-tile"><div class="stat-label">Debt outstanding</div><div class="stat-value">${fmtINR(totalOutstanding)}</div></div>`);
+  } else {
+    tiles.push(`<div class="stat-tile"><div class="stat-label">Debt outstanding</div><div class="stat-value" style="font-size:14px; color:var(--muted);">No data</div></div>`);
+  }
+
+  if(insuranceHasData(insuranceData)){
+    const totalTermCover = insuranceData.policies.filter(p=>p.type==='Term Life').reduce((s,p)=>s+(+p.coverAmount||0),0);
+    const income = +data.annualIncome || 0;
+    let verdict = 'Set income to check';
+    let color = 'var(--muted)';
+    if(income>0){ const ok = totalTermCover >= income*10; verdict = ok ? 'Adequate' : 'Below floor'; color = ok ? 'var(--green)' : 'var(--rust)'; }
+    tiles.push(`<div class="stat-tile"><div class="stat-label">Term cover</div><div class="stat-value">${fmtINR(totalTermCover)}</div><div class="stat-note" style="color:${color};">${verdict}</div></div>`);
+  } else {
+    tiles.push(`<div class="stat-tile"><div class="stat-label">Term cover</div><div class="stat-value" style="font-size:14px; color:var(--muted);">No data</div></div>`);
+  }
+
+  wrap.innerHTML = tiles.join('');
+  container.appendChild(wrap);
+}
+
+// ============================================================
+// PAGE ASSEMBLY
+// ============================================================
+function render(){
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'panel-header';
+  header.innerHTML = `
+    <div class="eyebrow">Financial OS · reads every module's own data, changes none of it</div>
+    <h2>Synthesis</h2>
+    <p class="desc">The whole picture in one place — net worth, goals, portfolio, debt, and insurance, pulled live from each module you've already filled in.</p>
+  `;
+  content.appendChild(header);
+
+  renderOverview(content);
+
+  const t1 = document.createElement('div'); t1.className='section-title'; t1.textContent='Net worth & investments';
+  content.appendChild(t1);
+  renderNetWorthCard(content);
+  renderPortfolioCard(content);
+
+  const t2 = document.createElement('div'); t2.className='section-title'; t2.textContent='Goals';
+  content.appendChild(t2);
+  renderGoalsCard(content);
+
+  const t3 = document.createElement('div'); t3.className='section-title'; t3.textContent='Debt & protection';
+  content.appendChild(t3);
+  renderLoansCard(content);
+  renderInsuranceCard(content);
+
+  const details = document.createElement('details');
+  details.className = 'collapsible';
+  details.innerHTML = `
+    <summary>About this page <span class="summary-hint">— scope, and what's deliberately not here yet</span></summary>
+    <div class="details-body">
+      <p>This is a read-only view. It never writes to Net Worth, Goals, Portfolio, Debt &amp; Loan, or Insurance Tracker's data — it only reads what's already there (same-origin localStorage, since every module deploys under the same site). The one exception is the annual income figure above, which belongs to Synthesis itself.</p>
+      <p>Built as a first pass at the "annual financial health report card" from the roadmap's Life Confidence pillar: net worth + trend, per-goal progress, portfolio performance, debt picture, and insurance adequacy — the parts genuinely computable from data that already exists in this app.</p>
+      <p>Deliberately left out of this first pass:</p>
+      <ul>
+        <li>What-if fund-switch / capital gains tax modeling — needs Portfolio's sold-position (realized gains) tracking, which doesn't exist yet; Portfolio currently only tracks open holdings.</li>
+        <li>Legally-reducible tax synthesis across Portfolio + ITRGenie — same blocker as above.</li>
+        <li>Financial independence date, income-shock stress test, retirement corpus projection — later Life Confidence items, not this pass's scope.</li>
+      </ul>
+      <p>Refresh this page after adding data elsewhere, or use the ↻ Refresh button, if a section looks out of date — it reads localStorage once when the page loads, not continuously.</p>
+    </div>
+  `;
+  content.appendChild(details);
+}
+
+render();
+
+const THEME_KEY = 'itrgenie_theme'; // shared across every Financial OS module
+function applyTheme(theme){
+  document.body.dataset.theme = theme;
+  document.getElementById('themeToggleBtn').textContent = theme==='light' ? '● Dark mode' : '☀ Light mode';
+  localStorage.setItem(THEME_KEY, theme);
+}
+document.getElementById('themeToggleBtn').onclick = ()=>{
+  const current = document.body.dataset.theme === 'light' ? 'light' : 'dark';
+  applyTheme(current==='light' ? 'dark' : 'light');
+};
+applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+
+document.getElementById('refreshBtn').onclick = ()=> location.reload();
+</script>
+</body>
+</html>

@@ -16,32 +16,56 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 | Module | Path | Status | Last touched |
 |---|---|---|---|
 | ITRGenie | `/itrgenie/` | 27 modules, AIS auto-import + Prior Years fix | 2026-08-03 |
-| Portfolio Tracker | `/portfolio/` | Live, manual entry + live prices (Yahoo no-setup + optional Twelve Data key) — holdings, allocation, performance across 4 accounts | 2026-08-09 |
+| Portfolio Tracker | `/portfolio/` | Live, guided form + paste/CSV/Excel entry + CAS (NSDL/CDSL) PDF import (dedup/refresh-safe, lazy-loaded libs) + live prices (Yahoo + Stooq no-setup, optional Twelve Data key) — holdings, allocation, performance across 4 accounts; mobile UX pass done | 2026-08-10 |
 | Net Worth Dashboard | `/networth/` | Live, manual entry | 2026-08-03 |
 | Goals | `/goals/` | Live, manual entry + file upload | 2026-08-03 |
 | Debt & Loan Tracker | `/loans/` | Live, auto-detects from bank statement | 2026-08-07 |
 | Insurance Tracker | `/insurance/` | Live, mis-selling checks | 2026-08-03 |
+| Synthesis | `/synthesis/` | Live, read-only cross-module view (net worth, goals, portfolio, debt, insurance adequacy) — first pass | 2026-08-09 |
 | Retirement/Pension Planner | — | Not started | — |
 | Estate Planning / Document Vault | — | Not started | — |
 | GST/e-way bill tool | not yet moved here | Built elsewhere | — |
 
-## Current phase: Portfolio (built 2026-08-09, gaps remain)
+## Current phase: Synthesis Layer, first pass (built 2026-08-09)
+`/synthesis/` is live — a read-only page joining Net Worth, Goals, Portfolio,
+Debt & Loan, and Insurance data into one view: net worth + trend, per-goal
+progress, portfolio value/gain/allocation, debt outstanding + projected
+debt-free date, and insurance cover-vs-income adequacy. It never writes to
+another module's storage key. Scoped deliberately to the "annual financial
+health report card" item from the roadmap's Life Confidence pillar, not the
+full Synthesis Layer wishlist — capital-gains/what-if tax modeling is still
+out, since it needs Portfolio's not-yet-built sold-position tracking. See
+`synthesis/PROGRESS.md` for full scope and the income-figure design
+decision (own manual field, one-time prefill from Insurance's own entry,
+never parsed out of ITRGenie's profile).
+
+## Previous phase: Portfolio (built 2026-08-09, UX pass same day, gaps remain)
 ITRGenie/tax and the smaller Financial OS modules (Goals, Net Worth, Insurance,
-Debt & Loan) are done. Portfolio Tracker (`/portfolio/`) is now live: holdings
+Debt & Loan) are done. Portfolio Tracker (`/portfolio/`) is live: holdings
 across all 4 broker/demat accounts, performance vs cost basis, asset
-allocation, a Net Worth feed export, and (as of 2026-08-09) a two-tier live
-price feed — Yahoo Finance with zero setup, plus an optional bring-your-own-key
-Twelve Data integration for Stock/Equity/ETF holdings. One thing about that
-feed is still open: Tier 1 (Yahoo) was built defensively but its real-browser
-CORS behavior is unverified — this dev environment's own sandbox blocks
-outbound network to arbitrary hosts, so nobody has confirmed it actually works
-against Yahoo's live endpoint yet (see `portfolio/PROGRESS.md`). Also still
-open: no reconciliation yet against the user's 5+ years of historical data in
-Drive (this repo had no Drive access when Portfolio was built — see
-`portfolio/PROGRESS.md`'s Known gaps). See MASTER_ROADMAP.md's
-"Synthesis Layer" section for why this matters more than it might look --
-it's the piece that unlocks cross-module insights (goal progress, true net
-worth trend, what-if tax modeling), not just another standalone tracker.
+allocation, a Net Worth feed export, and a three-tier live price feed —
+Yahoo Finance and Stooq with zero setup, plus an optional bring-your-own-key
+Twelve Data integration for Stock/Equity/ETF holdings. Real phone usage
+surfaced blunt feedback the same day the module was built (live feed
+actually failed, mobile fonts too small, entry too hard, layout too
+text-heavy) — all four addressed in a same-day UX pass: Stooq added as a
+second no-key attempt with failure messages that link straight to Twelve
+Data setup, mobile font/layout overhaul (holdings table becomes a stacked
+card list under 760px, no horizontal scroll), a guided "Add a holding" form
+as the primary entry path (bulk paste/CSV kept as a collapsed "advanced"
+option), and a reordered page (bold summary + holdings table first,
+everything else collapsed/pushed down). What's still open: neither Yahoo nor
+Stooq has been exercised against the real internet from this build
+environment (its sandbox blocks outbound network to arbitrary hosts) — Yahoo
+is now confirmed broken in at least one real browser, Stooq's real behavior
+(especially for NSE symbols) is completely untested; Twelve Data remains the
+one tier with real-world provenance. Also still open: no reconciliation yet
+against the user's 5+ years of historical data in Drive (this repo had no
+Drive access when Portfolio was built — see `portfolio/PROGRESS.md`'s Known
+gaps). See MASTER_ROADMAP.md's "Synthesis Layer" section for why this
+matters more than it might look -- it's the piece that unlocks cross-module
+insights (goal progress, true net worth trend, what-if tax modeling), not
+just another standalone tracker.
 
 ## Rule going forward
 Every session that touches a module updates:
