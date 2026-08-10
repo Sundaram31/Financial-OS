@@ -131,6 +131,35 @@ module files (not mocks) via a local static server:
 ## Path chosen
 `/synthesis/` — added as a live card to the root `index.html` module list.
 
+## Updated (2026-08-10) — Emergency fund coverage line on the Goals card
+Small, additive touch alongside `goals/index.html`'s new Emergency fund adequacy calculator (see
+`goals/PROGRESS.md`'s 2026-08-10 entry, and `MASTER_ROADMAP.md`'s Life Confidence pillar item 1).
+For any goal with `category === 'Emergency fund'` that has a nonzero `efMonthlyExpenses` entered,
+`renderGoalsCard()`'s per-goal row now shows one extra line — "Emergency fund: 4.2 of 9 months
+covered" — computed as `proj.currentValue / efMonthlyExpenses` (reusing the same tagged-
+investments total already computed for that goal's normal progress bar, against
+`efMonthsWanted||9`), with the same red-under-3 / gold-building / green-adequate tier coloring
+`goals/index.html` uses. Every other goal category, and an Emergency-fund goal with no expenses
+entered yet, renders exactly as before (line is simply omitted, not a placeholder/zero). This is
+the one figure from the Life Confidence pillar's "peace of mind" framing worth surfacing on the
+cross-module dashboard specifically, not buried inside Goals — kept deliberately small (one new
+helper function, one new line in the existing row template), not a restructure of the card.
+
+Verified via real headless-Chromium (Playwright): seeded `goals_data_v1` with one Emergency-fund
+goal (₹50,000/mo expenses, ₹2,10,000 tagged, 9 months wanted) and one unrelated Retirement goal —
+confirmed the coverage line reads exactly "Emergency fund: 4.2 of 9 months covered" and appears
+exactly once (not duplicated onto the other goal).
+
+**Found, not fixed, flagged for a future session**: this file's own `projectGoal()` (line ~276)
+is a verbatim-at-the-time copy of `goals/index.html`'s function, but `goals/index.html` switched
+its SIP math to the annuity-due convention on 2026-08-10 (earlier the same day) and this copy
+was not updated to match — so Synthesis's per-goal "projected value"/on-track verdict can now
+disagree slightly with what Goals itself shows for goals with a monthly contribution. The
+months-covered figure added here is unaffected (it only uses `currentValue`, which didn't
+change), but the drift is real and worth a dedicated small fix in a future session — out of
+scope for this task since it's unrelated to the emergency fund work and the task's own
+instruction was not to restructure this card wholesale.
+
 ## Known gaps
 - This page reads `localStorage` once at load time, not reactively — if you
   add data in another module in a different tab, use the "↻ Refresh"

@@ -157,6 +157,26 @@ const RISK_PROFILES = [
   {rate:11.5, label:'Aggressive/Equity', sub:'~11-12%'},
 ];
 
+// Emergency fund calculator — only shown for goals in the "Emergency fund" category. Both
+// inputs (monthly expenses, months wanted) are genuinely new data this app has no other source
+// for; nothing here is derived/pulled from Net Worth or Portfolio. Default months-wanted leans
+// to the higher end of the standard 6-12 range (not the bare minimum) because this app's own
+// context is irregular/contract-based income — see MASTER_ROADMAP.md's Life Confidence pillar.
+const EF_DEFAULT_MONTHS = 9;
+const EF_MONTHS_PRESETS = [
+  {months:6,  label:'6 (minimum)'},
+  {months:9,  label:'9 (suggested)'},
+  {months:12, label:'12 (irregular income)'},
+];
+// Three-tier framing for "months currently covered" — calm/factual, not alarmist. Below ~3
+// months is treated as low regardless of the goal's own target, since even a partial buffer is
+// worth flagging; between 3 and the chosen target is "building"; at/above target is "adequate".
+function efTier(monthsCovered, monthsWanted){
+  if(monthsCovered < 3) return {color:'var(--rust)', label:'Low coverage'};
+  if(monthsCovered < monthsWanted) return {color:'var(--gold)', label:'Building coverage'};
+  return {color:'var(--green)', label:'Adequate coverage'};
+}
+
 function monthsUntil(dateStr){
   if(!dateStr) return null;
   const d = new Date(dateStr);
@@ -276,6 +296,16 @@ function renderGoalBody(container, goal){
   const monthsForCalc = monthsUntil(goal.targetDate);
   const yearsForCalc = monthsForCalc!==null ? monthsForCalc/12 : null;
   const inflatedTarget = costMode==='inflate' ? effectiveTarget(goal) : null;
+  const isEmergencyFund = goal.category === 'Emergency fund';
+
+  // Emergency fund calculator figures — computed fresh every render from goal.efMonthlyExpenses /
+  // goal.efMonthsWanted (both plain manual fields, no fallback to any other module's data).
+  const efExpenses = +goal.efMonthlyExpenses || 0;
+  const efMonthsWanted = +goal.efMonthsWanted || EF_DEFAULT_MONTHS;
+  const efRecommendedTarget = efExpenses * efMonthsWanted;
+  const efCurrentTagged = (goal.investments||[]).reduce((s,r)=>s+(+r.value||0),0);
+  const efMonthsCovered = efExpenses>0 ? efCurrentTagged/efExpenses : null;
+  const efTierInfo = efMonthsCovered!==null ? efTier(efMonthsCovered, efMonthsWanted) : null;
 
   const inflPresetBtns = INFLATION_PRESET_LIST.map(p=>{
     const suggested = invPreset.rate === p.rate;
@@ -295,6 +325,50 @@ function renderGoalBody(container, goal){
         </select>
       </div>
     </div>
+
+    ${isEmergencyFund ? `
+    <div class="result-box" style="margin-bottom:14px;">
+      <div class="verdict" style="font-size:16px;">Emergency fund calculator</div>
+      <div class="verdict-detail" style="margin-bottom:10px;">Two numbers only you can supply — neither is pulled from Net Worth or Portfolio, since this app has no dedicated "liquid cash" figure anywhere else.</div>
+
+      <div class="field-row">
+        <div class="field"><label>Monthly essential expenses (₹)</label>
+          <input id="g_efexp" type="number" value="${goal.efMonthlyExpenses||''}" placeholder="e.g. 60000">
+        </div>
+      </div>
+      <div class="helptext" style="margin-bottom:10px;">Your own estimate of essential monthly spend — rent/EMI, food, utilities, insurance premiums. Not discretionary spending (travel, eating out, etc).</div>
+
+      <div class="field-row">
+        <div class="field" style="flex-basis:100%;">
+          <label>Months of coverage wanted: <strong id="ef_months_display">${efMonthsWanted}</strong></label>
+          <input id="g_efmonths" type="range" min="6" max="12" step="1" value="${efMonthsWanted}">
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            ${EF_MONTHS_PRESETS.map(p=>`<button type="button" class="btn small ${efMonthsWanted===p.months?'primary':'ghost'}" data-ef-months="${p.months}">${p.label}</button>`).join('')}
+          </div>
+          <div class="helptext" style="margin-top:6px;">Standard guidance is 6-12 months. With irregular or contract-based income, leaning toward the higher end is usually the safer call, not the generic minimum — but it's your call, adjust freely.</div>
+        </div>
+      </div>
+
+      ${efExpenses>0 ? `
+      <div class="helptext" style="margin-top:10px;">Recommended target: ₹${efExpenses.toLocaleString('en-IN')}/mo × ${efMonthsWanted} months = <strong>₹${Math.round(efRecommendedTarget).toLocaleString('en-IN')}</strong></div>
+      <button type="button" class="btn small" id="ef_use_target" style="margin-top:6px;">Use ₹${Math.round(efRecommendedTarget).toLocaleString('en-IN')} as target amount</button>
+      ${costMode==='inflate' ? `<div class="helptext" style="margin-top:4px;">This switches the target-amount mode above to "Enter amount directly" — it won't touch the inflation mode's own inputs.</div>` : ''}
+      ` : `
+      <div class="helptext" style="margin-top:10px;">Enter monthly expenses above to see a recommended target.</div>
+      `}
+
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line);">
+        <div class="helptext" style="text-transform:uppercase; letter-spacing:0.6px; margin-bottom:4px;">Months of expenses currently covered</div>
+        ${efMonthsCovered!==null ? `
+        <div style="font-family:var(--serif); font-size:26px; color:${efTierInfo.color};">${efMonthsCovered.toFixed(1)} of ${efMonthsWanted} months</div>
+        <div class="helptext">${efTierInfo.label} — based on ₹${efCurrentTagged.toLocaleString('en-IN')} tagged to this goal below, against ₹${efExpenses.toLocaleString('en-IN')}/mo.</div>
+        ` : `
+        <div class="helptext">Enter monthly expenses above to see this figure.</div>
+        `}
+        <div class="helptext" style="margin-top:8px;">This is only as good as what's actually tagged below. Retirement-locked money (EPF/PPF) or anything not genuinely accessible on short notice shouldn't be tagged here even if it shows up in Net Worth or Portfolio — the point is true liquid coverage, not "some savings somewhere."</div>
+      </div>
+    </div>
+    ` : ''}
 
     <div class="field-row">
       <div class="field" style="flex-basis:100%;">
@@ -344,7 +418,7 @@ function renderGoalBody(container, goal){
   `;
   container.appendChild(paramsCard);
 
-  const fieldMap = {g_name:'name', g_cat:'category', g_target:'targetAmount', g_date:'targetDate', g_pmt:'monthlyContribution', g_ret:'assumedReturn', g_present:'presentCost', g_infl:'inflationRate'};
+  const fieldMap = {g_name:'name', g_cat:'category', g_target:'targetAmount', g_date:'targetDate', g_pmt:'monthlyContribution', g_ret:'assumedReturn', g_present:'presentCost', g_infl:'inflationRate', g_efexp:'efMonthlyExpenses', g_efmonths:'efMonthsWanted'};
   // Commits whatever is currently typed in any params field into `goal` right now, without
   // waiting for that field's own blur/change event — used by bindSyncedButton() below (see its
   // comment for why fields near preset buttons need this).
@@ -385,6 +459,32 @@ function renderGoalBody(container, goal){
   paramsCard.querySelectorAll('[data-risk-preset]').forEach(btn=>{
     bindSyncedButton(btn, ()=>{ goal.assumedReturn = btn.dataset.riskPreset; });
   });
+  paramsCard.querySelectorAll('[data-ef-months]').forEach(btn=>{
+    bindSyncedButton(btn, ()=>{ goal.efMonthsWanted = btn.dataset.efMonths; });
+  });
+  // "Use as target amount" — fills the goal's real targetAmount + switches to direct mode. Only
+  // ever happens on this explicit click; the recommended figure is never written automatically.
+  // Recomputed from `goal` fresh inside applyFn (not the efExpenses/efRecommendedTarget render-
+  // time closure vars above) since syncParamsFields() runs first and may have just updated
+  // goal.efMonthlyExpenses/efMonthsWanted from an in-flight, not-yet-blurred edit.
+  const efUseTargetBtn = paramsCard.querySelector('#ef_use_target');
+  if(efUseTargetBtn){
+    bindSyncedButton(efUseTargetBtn, ()=>{
+      const exp = +goal.efMonthlyExpenses || 0;
+      const months = +goal.efMonthsWanted || EF_DEFAULT_MONTHS;
+      goal.targetAmount = String(Math.round(exp*months));
+      goal.costMode = 'direct';
+    });
+  }
+  // Live slider label while dragging — cosmetic only, doesn't persist until the range input's own
+  // onchange (below, via fieldMap) commits the value and triggers the real render.
+  const efMonthsSlider = paramsCard.querySelector('#g_efmonths');
+  if(efMonthsSlider){
+    efMonthsSlider.addEventListener('input', ()=>{
+      const disp = paramsCard.querySelector('#ef_months_display');
+      if(disp) disp.textContent = efMonthsSlider.value;
+    });
+  }
   Object.keys(fieldMap).forEach(id=>{
     const el = paramsCard.querySelector('#'+id);
     if(!el) return;

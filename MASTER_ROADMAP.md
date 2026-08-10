@@ -190,6 +190,39 @@ data before designing the Portfolio module's data model.
    simulator's output yet, which is a distinct future piece of work, not a
    blocked prerequisite anymore. See `synthesis/PROGRESS.md` for full scope
    and the income-figure design decision.
+- 2026-08-10: Built the Life Confidence pillar's item 1, **Emergency fund
+  adequacy check**, in `goals/index.html` -- the first item built from this
+  pillar, now that Portfolio, Synthesis, and item 4 (what-if tax modeling)
+  all exist per this section's own sequencing note. Deliberately scoped as
+  a sub-flow inside the existing "Emergency fund" goal category rather than
+  an auto-computed figure, after confirming Net Worth's data model has no
+  monthly-expenses field and no liquidity classification (its "Investments"
+  category bundles genuinely liquid FDs/liquid funds with retirement-locked
+  EPF/PPF) -- an auto-derived number would have silently misrepresented
+  locked money as available cash, exactly the "fabricated confidence"
+  failure mode this app exists to avoid. Two new manual inputs (monthly
+  essential expenses, months-of-coverage-wanted -- 6-12 range, defaulting
+  to 9 given this app's own seafarer/contract-income context rather than
+  the generic 6-month minimum) produce a recommended target
+  (expenses × months, "Use as target" button fills the goal's real target
+  field only on explicit click) and the actual adequacy number -- months of
+  expenses currently covered, computed from the goal's own existing
+  tagged-investments total (no new liquidity classification invented) --
+  shown prominently with red/amber/green tiering and an explicit warning
+  against tagging retirement-locked money (EPF/PPF) here even if it appears
+  elsewhere in Net Worth/Portfolio. Small additive touch to Synthesis's
+  Goals card surfaces the same months-covered figure for Emergency-fund
+  goals specifically. Verified with 30 real headless-Chromium (Playwright)
+  checks including a hand-traced example (₹50,000/mo expenses, ₹2,10,000
+  tagged → 4.2 of 9 months covered, gold/"Building" tier; recommended
+  target ₹4,50,000) and full regression of the module's existing
+  inflation/risk-profile calculator and Synthesis's Goals card for other
+  goal categories. Found and flagged, not fixed (out of scope for this
+  task): Synthesis's own `projectGoal()` copy still uses the pre-2026-08-10
+  ordinary-annuity SIP formula, not the annuity-due fix Goals switched to
+  earlier the same day -- a real drift between the two modules' projected
+  (not current) values, worth a dedicated future fix. See
+  `goals/PROGRESS.md` and `synthesis/PROGRESS.md`'s 2026-08-10 entries.
 
 ## Life Confidence — a 9th pillar (added 2026-08-07)
 Everything so far tracks and computes. This pillar exists for a different
@@ -197,8 +230,21 @@ purpose: answering "will I actually be okay," which is what turns a pile of
 correct numbers into peace of mind. Ranked by leverage, same convention as
 the original 8-pillar list.
 
-1. **Emergency fund adequacy check** — 6-12 months of true liquid expenses,
-   not "some savings somewhere." Simple, high-confidence-per-effort.
+1. **Emergency fund adequacy check — DONE (2026-08-10, `/goals/`).** Built as
+   a guided sub-flow inside the existing "Emergency fund" goal category
+   (not a new auto-computed figure — Net Worth has no liquidity
+   classification, so deriving one automatically would have silently
+   counted retirement-locked EPF/PPF as available cash). Two new manual
+   inputs (monthly essential expenses, months of coverage wanted — a
+   6-12 slider/presets defaulting to 9, not the generic 6-month minimum,
+   given this app's own seafarer/contract-income context) produce a
+   recommended target (expenses × months, fill-on-click only, never
+   silent) and the real adequacy number — months of expenses currently
+   covered, from the goal's own tagged-investments total — shown with a
+   calm red/amber/green tiering. Explicit in-UI warning against tagging
+   retirement-locked money here. Surfaced additively on Synthesis's Goals
+   card too. See `goals/PROGRESS.md` and `synthesis/PROGRESS.md`'s
+   2026-08-10 entries for full detail and hand-traced verification.
 2. **Financial independence date** — one combined projection across debts,
    investments, and goals: the date work becomes optional. The single number
    most likely to change how someone feels about their plan, not just informs it.

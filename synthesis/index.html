@@ -311,6 +311,21 @@ function renderGoalsCard(container){
   const onTrack = withDate.filter(x=>x.proj.onTrack).length;
   const behind = withDate.length - onTrack;
   const totalTagged = goals.reduce((s,x)=>s+x.proj.currentValue,0);
+  // Emergency-fund-category goals carry a second, more specific "peace of mind" figure — months
+  // of essential expenses currently covered — computed here the same way goals/index.html's own
+  // calculator does (currentValue / monthly expenses), reusing this goal's own tagged-investments
+  // total (proj.currentValue) rather than inventing a separate liquidity classification. Only
+  // shows once the user has actually entered efMonthlyExpenses there; otherwise silent (no
+  // fabricated figure).
+  function efCoverageLine(g, proj){
+    if(g.category!=='Emergency fund') return '';
+    const exp = +g.efMonthlyExpenses || 0;
+    if(exp<=0) return '';
+    const months = +g.efMonthsWanted || 9;
+    const covered = proj.currentValue/exp;
+    const color = covered<3 ? 'var(--rust)' : covered<months ? 'var(--gold)' : 'var(--green)';
+    return `<div class="item-row-sub" style="color:${color}; margin-top:2px;">Emergency fund: ${covered.toFixed(1)} of ${months} months covered</div>`;
+  }
   const rows = goals.map(({g,proj})=>{
     const statusTag = (g.targetDate && g.targetAmount)
       ? (proj.onTrack ? `<span class="tag green">On track</span>` : `<span class="tag rust">Behind</span>`)
@@ -323,6 +338,7 @@ function renderGoalsCard(container){
         </div>
         <div class="progress-track"><div class="progress-fill ${g.targetDate ? (proj.onTrack?'ontrack':'behind') : ''}" style="width:${proj.progressPct.toFixed(1)}%;"></div></div>
         <div class="item-row-sub">${g.category||'General'}${g.targetDate ? ` · target ${fmtDate(g.targetDate)}` : ' · no target date set'}</div>
+        ${efCoverageLine(g, proj)}
       </div>`;
   }).join('');
   card.innerHTML = `

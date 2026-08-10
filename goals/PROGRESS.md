@@ -194,6 +194,88 @@ pass still passing, zero regressions):**
   declining correctly as return rises) all unchanged; a goal with no `costMode`/`presentCost`/
   `inflationRate` fields at all still computes and displays correctly (backward compatibility intact).
 
+## Built (2026-08-10) — Emergency fund adequacy calculator (Life Confidence pillar item 1)
+Built the highest-ranked item from `MASTER_ROADMAP.md`'s Life Confidence pillar: "6-12 months
+of true liquid expenses, not 'some savings somewhere'." Scoped deliberately as a sub-flow inside
+the existing `Emergency fund` goal category (already one of `GOAL_CATEGORIES`), not a new
+auto-computed figure — checked Net Worth's actual data model first and confirmed it has no
+monthly-expenses field and no liquidity classification (its "Investments" category bundles
+genuinely liquid FDs/liquid funds together with retirement-locked EPF/PPF), so an auto-derived
+number would have silently misrepresented locked money as available cash. The existing per-goal
+tagged-investments mechanism already represents "what the user has explicitly earmarked" — the
+right model here, since deciding what counts as "liquid enough for an emergency" is the user's
+own judgment call, not something to auto-derive.
+
+**What was built**, only shown when a goal's `category === 'Emergency fund'`, positioned right
+above the existing "Target amount — how do you know it?" section (a normal goal in every other
+respect — target/date, tagged investments, projection all still apply):
+- **Two new manual inputs**, both explicitly labeled as unconnected to any other module's data:
+  `efMonthlyExpenses` (₹, plain number field, no pre-fill — "your own estimate of essential
+  monthly spend — rent/EMI, food, utilities, insurance premiums... not discretionary spending")
+  and `efMonthsWanted` (range slider 6-12 plus three tap presets — 6/9/12 — defaulting to **9**,
+  not the generic 6-month minimum, since this app's own seafarer/contract-income context is
+  exactly the profile personal-finance guidance says should lean toward the higher end).
+- **Recommended target** = `efMonthlyExpenses × efMonthsWanted`, shown as a suggestion with a
+  "Use ₹X as target amount" button that fills the goal's real `targetAmount` field and switches
+  `costMode` to `'direct'` — only on explicit click, never automatically; the target field stays
+  untouched (verified empty) until that button is pressed.
+- **Months-covered figure** — the actual peace-of-mind number: `currentTaggedValue /
+  efMonthlyExpenses`, reusing the goal's own existing tagged-investments total (no new liquidity
+  classification invented — tagging an investment to an Emergency fund goal already *is* the
+  user's own liquidity judgment). Shown prominently as a large stat ("4.2 of 9 months") with a
+  calm three-tier color: red/rust under 3 months, gold/amber from 3 up to the chosen months-
+  wanted, green at or above it.
+- **Explicit warning copy**, matching the roadmap's own framing near-verbatim: "This is only as
+  good as what's actually tagged below. Retirement-locked money (EPF/PPF) or anything not
+  genuinely accessible on short notice shouldn't be tagged here even if it shows up in Net Worth
+  or Portfolio — the point is true liquid coverage, not 'some savings somewhere.'"
+
+Data model additions to each goal object: `efMonthlyExpenses`, `efMonthsWanted` — both optional,
+backward-compatible (fallback `efMonthsWanted||9` used for display when unset, never persisted
+until the user actually touches the slider/preset/field).
+
+**Implementation notes**: reused the existing `bindSyncedButton()` pattern (mousedown syncs
+in-flight field edits + blocks focus-loss, click commits + re-renders, works for both pointer
+and keyboard activation) for the new months-wanted preset buttons and the "Use as target" button,
+so this doesn't reopen the dropped-click/keyboard-inaccessible bugs fixed earlier the same day.
+The "Use as target" button's apply function recomputes the recommended figure fresh from `goal`
+at click time (not the render-time closure variable) since `syncParamsFields()` runs first and
+may have just committed an unblurred edit — verified by test that typing into the expense field
+then immediately clicking works correctly.
+
+**Verification (headless Chromium/Playwright, 30/30 checks)**: calculator appears only for
+Emergency-fund-category goals and disappears immediately on switching category away (and back);
+zero-expense state shows a plain "enter monthly expenses" hint, never `NaN`; zero-tagged-
+investments state shows "0.0 of 9 months" (not `NaN`/`Infinity`), correctly tiered red; hand-
+traced example — ₹50,000/mo expenses, ₹2,10,000 tagged (one "Savings account" investment) →
+**4.2 of 9 months covered**, tiered gold/"Building coverage" (matches `210000/50000 = 4.2`
+exactly, and matches the worked example in the roadmap task itself); recommended target
+₹50,000 × 9 = **₹4,50,000** shown correctly, target field confirmed empty until the "Use as
+target" button is explicitly clicked, then confirmed filled to exactly `450000` and `costMode`
+switched to `direct`; low-tier (2.1 months, ₹1,00,000/mo expenses) and adequate-tier (10.5
+months, ₹20,000/mo expenses) boundaries both verified against the same ₹2,10,000 tagged total;
+months-preset buttons (6/9/12) and keyboard Tab+Enter activation both verified; an in-flight,
+unblurred edit to the expenses field survives clicking an unrelated risk-profile preset button
+elsewhere on the same card (no data loss, matching the race-condition fix pattern already
+established for this module); regression — a non-Emergency-fund goal (tested: default "Other"
+and "Child education" with inflation mode active) never shows the calculator, and existing
+inflation/risk-profile functionality is unaffected; mobile (375×812) — no horizontal overflow,
+no text below 11px; both themes render correctly.
+
+**Small Synthesis Layer touch** (see `synthesis/PROGRESS.md`): Synthesis's existing Goals card
+now surfaces this same months-covered figure for Emergency-fund-category goals specifically
+("Emergency fund: 4.2 of 9 months covered", same tier coloring), additive to the existing
+progress-bar treatment every other goal category still gets unchanged.
+
+**Deliberately not fixed here, flagged for a future session**: while building the Synthesis
+touch, found that `synthesis/index.html`'s own copy of `projectGoal()` still uses the *old*
+ordinary-annuity SIP formula, not the annuity-due fix this module (`goals/index.html`) switched
+to on 2026-08-10 earlier the same day — the two modules' "current tagged value" figures (used
+here) agree, since that math didn't change, but their *projected future value* / on-track
+figures can now disagree slightly. Out of scope for this task (unrelated to the emergency fund
+feature) and touching it risks the "don't restructure Synthesis's Goals card wholesale"
+instruction — noted here as a real, found gap rather than silently left for someone to discover.
+
 ## Design invariants (same as ITRGenie/Net Worth)
 - Zero external dependencies, works offline once loaded.
 - Paste-and-file-upload dual input mode (CSV/TXT via FileReader, same parser
