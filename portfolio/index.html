@@ -286,9 +286,14 @@ async function ensurePdfJsLoaded(){
 // import (update-in-place refresh, see renderCasBody), Excel import and bulk paste (skip-duplicates,
 // default on) commit paths -- so importing the same document twice doesn't silently double the
 // portfolio's value/gain totals.
+function normalizeSymbolForMatch(s){
+  // .trim() alone still leaves "RELIANCE  INDUSTRIES" (double space) failing to match
+  // "RELIANCE INDUSTRIES" (single space) -- collapse internal whitespace runs too.
+  return (s || '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
 function findDuplicateHoldingIndex(candidate){
   const candIsin = (candidate.isin || '').trim().toUpperCase();
-  const candSymbol = (candidate.symbol || '').trim().toUpperCase();
+  const candSymbol = normalizeSymbolForMatch(candidate.symbol);
   for(let i=0;i<data.holdings.length;i++){
     const h = data.holdings[i];
     const hIsin = (h.isin || '').trim().toUpperCase();
@@ -296,7 +301,7 @@ function findDuplicateHoldingIndex(candidate){
       if(candIsin === hIsin) return i;
       continue; // both sides have an ISIN and they differ -- definitely not the same holding
     }
-    if(h.broker === candidate.broker && (h.symbol||'').trim().toUpperCase() === candSymbol) return i;
+    if(h.broker === candidate.broker && normalizeSymbolForMatch(h.symbol) === candSymbol) return i;
   }
   return -1;
 }
@@ -1350,7 +1355,16 @@ function renderCasImportCard(container){
   el.className = 'collapsible';
   el.id = 'cas-import-panel';
   if(casImportOpen) el.open = true;
-  el.ontoggle = ()=>{ casImportOpen = el.open; if(el.open) ensurePdfJsLoaded(); };
+  // Only auto-load on the panel's first-ever open (state 'idle'). render() rebuilds this whole
+  // <details> node on every state change, so `el.open = true` above fires a synthetic 'toggle'
+  // event on the brand-new node even when no user interaction happened -- if this handler kept
+  // calling ensurePdfJsLoaded() unconditionally, a load failure (state 'error') would get retried
+  // by that synthetic toggle, whose render() recreates the node, whose open=true fires another
+  // synthetic toggle... an unbounded retry loop with no user action involved. Once state is
+  // 'error' or 'loading' or 'ready', this handler does nothing further; the real retry-on-error
+  // path is the user picking a file, which calls ensurePdfJsLoaded() directly (see
+  // handleCasFileSelected) and is allowed to retry because that call is genuinely user-triggered.
+  el.ontoggle = ()=>{ casImportOpen = el.open; if(el.open && pdfjsLoadState==='idle') ensurePdfJsLoaded(); };
   const body = document.createElement('div');
   body.className = 'details-body';
   body.innerHTML = `
@@ -1537,7 +1551,12 @@ function renderHoldingsEntryCard(container){
   const el = document.createElement('details');
   el.className = 'collapsible';
   if(bulkAddOpen) el.open = true;
-  el.ontoggle = ()=>{ bulkAddOpen = el.open; if(el.open) ensureXlsxLoaded(); };
+  // Same reasoning as the CAS panel's ontoggle above: only auto-load on the panel's first-ever
+  // open (state 'idle'), not on every synthetic 'toggle' a re-render's `el.open = true` fires on
+  // the freshly-rebuilt <details> node -- otherwise a load failure retries forever with no user
+  // action involved. Real retry-on-error happens when the user picks a file (handleExcelFileSelected
+  // calls ensureXlsxLoaded() directly).
+  el.ontoggle = ()=>{ bulkAddOpen = el.open; if(el.open && xlsxLoadState==='idle') ensureXlsxLoaded(); };
   el.innerHTML = `
     <summary>Bulk add / advanced <span class="summary-hint">— paste multiple holdings, or upload a CSV/TXT file</span></summary>
     <div class="details-body">

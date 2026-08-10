@@ -485,6 +485,75 @@ viewport (375×812), both themes — the new duplicate-notice boxes and checkbox
 confirmed to render cleanly with zero horizontal overflow (`scrollWidth` stayed at 375px in every
 case tested).
 
+## Updated 2026-08-10 — Second-pass reviewer fix: unbounded retry loop in the lazy-load error path
+The `financial-os-reviewer` subagent independently re-verified the 2026-08-10 dedup/lazy-load fix
+above (confirmed the dedup/refresh logic and the lazy-load speed win both correct), but found a
+real, reproducible reliability bug in the lazy-load *error path* specifically. Fixed same-day, no
+scope changes beyond this.
+
+**The bug.** `render()` does `content.innerHTML=''` and rebuilds the whole subtree on every state
+change, so the `<details class="collapsible">` panel for Bulk-add/CAS-import was a brand-new DOM
+node on every render. `if(casImportOpen) el.open = true` (and the equivalent for `bulkAddOpen`) ran
+on every single render of that panel — and Chromium fires a synthetic `toggle` event when `.open`
+is set programmatically on a `<details>` element, even with no user interaction. The `ontoggle`
+handlers called `ensurePdfJsLoaded()`/`ensureXlsxLoaded()` unconditionally on every such toggle.
+Those two functions' state guard resets an `'error'` state straight back to `'loading'` and retries
+automatically (`if(state !== 'loading' && state !== 'ready'){ state='loading'; ...; render(); }` —
+true for `'error'` too) — so: toggle fires → retry starts → `render()` rebuilds the `<details>` →
+`el.open = true` fires another synthetic toggle → retry starts again, forever. Reviewer measured
+~15-23 requests/second in an unbounded loop that did NOT stop when the panel was closed, and
+confirmed the "Couldn't preload…" error message was never actually visible during this (sampled
+30 times over 3 seconds, visible 0/30) — a silent hang from the user's perspective while actually
+hammering the network and CPU.
+
+**The fix.** Both `ontoggle` handlers now only call `ensurePdfJsLoaded()`/`ensureXlsxLoaded()` when
+the corresponding load state is `'idle'` (i.e. only on the panel's genuine first-ever open):
+`el.ontoggle = ()=>{ casImportOpen = el.open; if(el.open && pdfjsLoadState==='idle')
+ensurePdfJsLoaded(); }` (and the `xlsxLoadState`/`ensureXlsxLoaded()` equivalent for the bulk-add
+panel). Once state is `'error'` (or `'loading'`/`'ready'`), a synthetic toggle from a re-render is a
+no-op — it no longer retries. The real retry-on-error path is now genuinely what the UI text already
+claimed: `handleExcelFileSelected`/`handleCasFileSelected` already `await ensure...Loaded()`
+themselves when the user actually picks a file, and that call is allowed to retry (it's a real user
+action, not a synthetic re-render side effect) since the guard inside `ensureXlsxLoaded`/
+`ensurePdfJsLoaded` is unchanged. `findDuplicateHoldingIndex` and the rest of the dedup/refresh
+logic — confirmed correct by the reviewer — were not touched.
+
+**Testing.** Real headless Chromium (Playwright), the lazy-loaded script URL routed to fail
+(`route.abort('failed')`) to reproduce the reviewer's exact scenario, both before and after the fix
+for contrast:
+- **Before the fix (confirmed the bug for real, not just from the report):** opening the CAS panel
+  with `pdf.min.js` routed to fail produced a request count climbing from 15 to 54 over 2.5 seconds
+  (~15-16 req/sec) with zero growth-stopping, and the "Couldn't preload PDF support" message was
+  visible 0/10 times sampled.
+- **After the fix:** the exact same scenario (CAS panel, `pdf.min.js` failing) produces exactly 1
+  request total, stable across 2.5 seconds of sampling (no growth); the same test against the
+  bulk-add/Excel panel (`xlsx.core.min.js` failing) also produces exactly 1 request, stable. The
+  error message is visible 20/20 and 20/20 times sampled (CAS and Excel panels respectively) over 3
+  seconds. Closing the panel after a failure produces zero additional requests over the following 3
+  seconds (nothing left spinning). The documented real retry path was verified to actually work:
+  routing `pdf.min.js` to fail once then succeed, the panel-open call fails and shows the error
+  message, and a second call to `ensurePdfJsLoaded()` (the same call `handleCasFileSelected` makes
+  when a file is picked) succeeds, sets `pdfjsLib` and `GlobalWorkerOptions.workerSrc` correctly, and
+  only issues one additional network request (2 total) — a real single retry, not a loop.
+- **Regression, re-confirming the two things the reviewer verified as already correct, since this
+  fix touches the same functions' guard condition:** the dedup/update-in-place logic (pasting the
+  same holding twice via bulk-add skips the duplicate by default, unchecking "skip duplicates" still
+  allows a genuine second lot) and the race-condition-safe path (a second caller invoking
+  `ensurePdfJsLoaded()` while the panel-open call is still in flight — simulating a file picked
+  before the library finishes loading — resolves correctly, sets `pdfjsLib`/`workerSrc` once, and
+  `loadScriptOnce`'s caching means only one network request fires even though two callers raced) both
+  still pass after this change.
+
+**Two smaller items from the reviewer's report, also done in this pass:**
+1. **Whitespace normalization in symbol matching.** `findDuplicateHoldingIndex`'s symbol comparison
+   now runs through a small `normalizeSymbolForMatch()` helper that collapses internal whitespace
+   runs (`.replace(/\s+/g,' ')`) in addition to the existing `.trim()`/`.toUpperCase()`, so
+   "RELIANCE  INDUSTRIES" (double space, e.g. from an inconsistently-formatted export) now correctly
+   matches "RELIANCE INDUSTRIES" (single space) instead of being treated as a different holding.
+2. **The cross-import-path dedup gap is now documented** — see Known gaps #5 below. Deliberately
+   NOT fixed in this pass (it needs a real decision about symbol/name matching across sources, not a
+   quick patch) — flagged, not silently resolved.
+
 ## Known gaps — flagged deliberately, not resolved by guessing
 Per explicit instruction not to silently resolve these, and not to fabricate
 functionality to paper over them:
@@ -543,6 +612,26 @@ functionality to paper over them:
    clearly-commented function specifically so it's fast to revise once a
    real CAS is available — that's the next natural verification step, not a
    guess to be resolved by assumption.
+
+5. **Dedup only catches duplicates *within* the same import path, not
+   *across* different import paths for the same real-world holding
+   (found by `financial-os-reviewer`'s second-pass review, 2026-08-10).**
+   `findDuplicateHoldingIndex` matches by ISIN when both sides have one,
+   else by broker+symbol. A holding imported via CAS gets `symbol` set to
+   a full company name (e.g. "INFOSYS LTD") plus an `isin`; the same
+   holding imported later via Excel/paste typically has a ticker
+   ("INFY") and no ISIN at all. Neither side of the match condition fires:
+   there's no ISIN on the Excel/paste side to compare, and "INFY" vs.
+   "INFOSYS LTD" don't match as symbol text either — so a genuine
+   duplicate can still be created if the same real holding is imported via
+   two different paths (e.g. CAS first, then later an Excel export from
+   the same broker). Within a single import path (CAS re-imported, or the
+   same Excel file re-imported, or the same row pasted twice) dedup works
+   correctly — this gap is specifically cross-path. Not fixed in this
+   pass: it needs a real decision (e.g. a maintained ticker↔ISIN or
+   ticker↔company-name mapping) rather than a quick patch that could
+   silently merge two genuinely different holdings that happen to share a
+   loosely similar name.
 
 ## Deliberately NOT done yet
 - No capital-gains export (`{symbol, buydate, selldate, buyprice, sellprice,
@@ -624,3 +713,14 @@ functionality to paper over them:
   (or a change to any of the three existing ones) that pushes to `data.holdings` without this check
   reintroduces the exact "importing the same document twice doubles your portfolio" bug this fix
   closed.
+- The CAS and bulk-add `<details>` panels' `ontoggle` handlers must only call
+  `ensurePdfJsLoaded()`/`ensureXlsxLoaded()` when the corresponding load state is `'idle'`
+  (fixed 2026-08-10, second-pass reviewer fix) — never unconditionally on every `open`-toggle.
+  Because `render()` rebuilds these `<details>` nodes from scratch on every state change, and
+  `el.open = true` on a fresh node fires a synthetic Chromium `toggle` event with no user
+  interaction involved, an unconditional call here retries a failed (`'error'`-state) load forever
+  in a tight loop (measured ~15-23 req/sec before the fix). The real retry-on-error path is the
+  user picking a file — `handleExcelFileSelected`/`handleCasFileSelected` already call
+  `ensure...Loaded()` directly, and that call is allowed to retry since it's genuinely
+  user-triggered. Don't remove the `pdfjsLoadState==='idle'`/`xlsxLoadState==='idle'` guard from
+  either `ontoggle` handler.
