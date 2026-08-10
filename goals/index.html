@@ -114,6 +114,27 @@ function wireFileUpload(fileInputEl, textareaEl, parseBtnEl){
   };
 }
 function newId(){ return 'g_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// In-progress paste text for each goal's "tagged investments" textarea, kept in memory (not
+// persisted to storage) so a full-card re-render triggered by an unrelated field elsewhere never
+// silently wipes out text the user is mid-typing into this textarea. Keyed by goal.id.
+const pasteDrafts = {};
+// One-shot feedback message ("N added, M skipped") for the "Parse & add" action, keyed by
+// goal.id. Set right before a render() call, consumed (read + cleared) the next time that goal's
+// investments card is built, so it shows exactly once rather than persisting on later renders.
+const invFeedback = {};
+function buildInvFeedbackMsg(added, skipped){
+  if(added===0 && skipped===0) return 'Nothing to add — paste one row per line as "Label, Value".';
+  const parts = [];
+  if(added>0) parts.push(`${added} investment${added===1?'':'s'} added`);
+  if(skipped>0) parts.push(`${skipped} row${skipped===1?'':'s'} skipped — expected "Label, Value"`);
+  return parts.join(', ') + '.';
+}
+
+// One-time note about the annuity-due SIP formula change (2026-08-10) — dismissible, not tied to
+// exported goal data, so it doesn't show up in Export/Import JSON.
+const ANNUITY_NOTE_KEY = 'goals_annuity_note_dismissed_v1';
 
 const GOAL_CATEGORIES = ['Retirement','Child education','House/property','Healthcare/Medical','Emergency fund','Travel','Vehicle','Other'];
 
@@ -237,6 +258,8 @@ function renderGoalCard(container, goal){
     e.stopPropagation();
     if(!confirm(`Delete goal "${goal.name}"? This can't be undone.`)) return;
     data.goals = data.goals.filter(g=>g.id!==goal.id);
+    delete pasteDrafts[goal.id];
+    delete invFeedback[goal.id];
     saveData(); render();
   };
 
@@ -303,7 +326,8 @@ function renderGoalBody(container, goal){
     </div>
     <div class="helptext" style="margin-bottom:4px;">
       ${yearsForCalc===null ? 'Set a target date to calculate the future cost.' :
-        `Over ${yearsForCalc.toFixed(1)} years: today's cost ₹${(+goal.presentCost||0).toLocaleString('en-IN')} → est. future cost <strong>₹${Math.round(inflatedTarget||0).toLocaleString('en-IN')}</strong> at the target date, at ${goal.inflationRate||invPreset.rate}%/yr.`}
+        !goal.inflationRate ? `Enter an inflation rate above to include inflation. Until then, the target used everywhere on this card is today's cost as-is — ₹${(+goal.presentCost||0).toLocaleString('en-IN')}, at 0% inflation — which understates what this will actually cost by the target date.` :
+        `Over ${yearsForCalc.toFixed(1)} years: today's cost ₹${(+goal.presentCost||0).toLocaleString('en-IN')} → est. future cost <strong>₹${Math.round(inflatedTarget||0).toLocaleString('en-IN')}</strong> at the target date, at ${goal.inflationRate}%/yr.`}
     </div>
     `}
 
@@ -322,33 +346,44 @@ function renderGoalBody(container, goal){
 
   const fieldMap = {g_name:'name', g_cat:'category', g_target:'targetAmount', g_date:'targetDate', g_pmt:'monthlyContribution', g_ret:'assumedReturn', g_present:'presentCost', g_infl:'inflationRate'};
   // Commits whatever is currently typed in any params field into `goal` right now, without
-  // waiting for that field's own blur/change event. Needed because a preset button sits right
-  // next to a field a user just typed into — a full re-render on that field's blur can otherwise
-  // detach the button mid-click (the click event gets silently dropped by the browser since its
-  // mousedown/mouseup targets no longer match). Reading values directly off the still-attached
-  // DOM nodes here, and reacting on 'mousedown' (which fires *before* the blur-triggered
-  // re-render), keeps the click reliable regardless of ordering.
+  // waiting for that field's own blur/change event — used by bindSyncedButton() below (see its
+  // comment for why fields near preset buttons need this).
   function syncParamsFields(){
     Object.keys(fieldMap).forEach(id=>{
       const el = paramsCard.querySelector('#'+id);
       if(el) goal[fieldMap[id]] = el.value;
     });
   }
+  // Binds a "preset" button (cost-mode toggle, inflation preset, risk preset, Parse & add, ...)
+  // so it's reliable for BOTH pointer and keyboard activation, with no data loss and no dropped
+  // clicks:
+  //  - mousedown: e.preventDefault() blocks the browser's default focus-shift, which is what
+  //    would otherwise blur whatever field the user just typed into and fire ITS onchange (a
+  //    full saveData()+render() that replaces the whole card DOM, detaching this button before
+  //    its own click event can fire — confirmed via Playwright as a real dropped-click bug).
+  //    We still sync any in-flight field edits here as a safety net.
+  //  - click: does the actual state change + saveData()+render(). 'click' fires reliably for
+  //    pointer activation now that mousedown no longer lets an unrelated re-render detach the
+  //    button, AND fires natively for keyboard activation (Enter/Space on a focused button) —
+  //    unlike 'mousedown', which never fires for keyboard. This is what makes these buttons
+  //    keyboard-operable, not just click-operable.
+  function bindSyncedButton(btn, applyFn){
+    btn.addEventListener('mousedown', (e)=>{ e.preventDefault(); syncParamsFields(); });
+    btn.addEventListener('click', ()=>{ syncParamsFields(); applyFn(); saveData(); render(); });
+  }
   paramsCard.querySelectorAll('[data-cost-mode]').forEach(btn=>{
-    btn.onmousedown = ()=>{
-      syncParamsFields();
+    bindSyncedButton(btn, ()=>{
       goal.costMode = btn.dataset.costMode;
       if(goal.costMode==='inflate' && !goal.inflationRate){
         goal.inflationRate = String(inflationPresetForCategory(goal.category).rate);
       }
-      saveData(); render();
-    };
+    });
   });
   paramsCard.querySelectorAll('[data-infl-preset]').forEach(btn=>{
-    btn.onmousedown = ()=>{ syncParamsFields(); goal.inflationRate = btn.dataset.inflPreset; saveData(); render(); };
+    bindSyncedButton(btn, ()=>{ goal.inflationRate = btn.dataset.inflPreset; });
   });
   paramsCard.querySelectorAll('[data-risk-preset]').forEach(btn=>{
-    btn.onmousedown = ()=>{ syncParamsFields(); goal.assumedReturn = btn.dataset.riskPreset; saveData(); render(); };
+    bindSyncedButton(btn, ()=>{ goal.assumedReturn = btn.dataset.riskPreset; });
   });
   Object.keys(fieldMap).forEach(id=>{
     const el = paramsCard.querySelector('#'+id);
@@ -360,21 +395,43 @@ function renderGoalBody(container, goal){
   const investCard = document.createElement('div');
   investCard.className = 'card';
   investCard.style.marginTop = '14px';
+  // Read this goal's one-shot "Parse & add" feedback (if any). NOT deleted synchronously here —
+  // removing a currently-focused, edited field elsewhere on the page (e.g. via this very render's
+  // own innerHTML replacement) can fire that field's blur/change *reentrantly*, triggering a
+  // *nested* render() before this outer one finishes. If we deleted the feedback the moment it's
+  // read, the nested pass would consume it and the real, final render (the one actually left on
+  // screen once everything settles) would find it already gone — message flashes then vanishes.
+  // Deferring the delete to a fresh task (setTimeout 0) lets every render pass within the same
+  // synchronous burst see it, and only clears it once the dust has settled — still exactly once
+  // from the user's point of view, never lost, never stuck forever.
+  const invFb = invFeedback[goal.id];
+  if(invFb !== undefined) setTimeout(()=>{ delete invFeedback[goal.id]; }, 0);
   investCard.innerHTML = `
     <h3>Existing investments tagged to this goal</h3>
     <p class="helptext" style="margin-bottom:8px;">Only count holdings you've actually earmarked for this goal — the same fund can only be tagged to one goal at a time if you want the numbers to stay honest. One per line: <code>Label, Current Value</code></p>
-    <textarea id="inv_paste" rows="2" placeholder="PPF account, 450000"></textarea>
+    <textarea id="inv_paste" rows="2" placeholder="PPF account, 450000">${escapeHtml(pasteDrafts[goal.id]||'')}</textarea>
     <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
       <button class="btn small" id="inv_btn">Parse &amp; add</button>
       <span class="helptext" style="margin:0;">or</span>
       <button class="btn small ghost" id="inv_file_btn">Choose CSV/TXT file</button>
       <input type="file" id="inv_file" accept=".csv,.txt" style="display:none">
     </div>
-    <div id="inv_fb" class="helptext" style="margin:6px 0;"></div>
+    <div id="inv_fb" class="helptext" style="margin:6px 0;">${invFb ? escapeHtml(invFb) : ''}</div>
     <div id="inv_rows"></div>
   `;
   container.appendChild(investCard);
-  investCard.querySelector('#inv_file_btn').onclick = ()=> investCard.querySelector('#inv_file').click();
+
+  const pasteEl = investCard.querySelector('#inv_paste');
+  // Track the textarea's live content as the user types (not just at blur), stashed outside the
+  // persisted goal object, so a full-card re-render triggered by ANY other field elsewhere on
+  // this card (an onchange field, a preset button) rebuilds this textarea pre-filled with
+  // whatever was last typed instead of silently dropping it — confirmed via Playwright as a real
+  // data-loss bug (type into an onchange field, then move straight into this textarea).
+  pasteEl.oninput = ()=>{ pasteDrafts[goal.id] = pasteEl.value; };
+
+  const fileBtn = investCard.querySelector('#inv_file_btn');
+  fileBtn.addEventListener('mousedown', (e)=>{ e.preventDefault(); syncParamsFields(); });
+  fileBtn.addEventListener('click', ()=> investCard.querySelector('#inv_file').click());
   wireFileUpload(investCard.querySelector('#inv_file'), investCard.querySelector('#inv_paste'), investCard.querySelector('#inv_btn'));
 
   goal.investments = goal.investments || [];
@@ -399,7 +456,7 @@ function renderGoalBody(container, goal){
     });
   }
   renderInvRows();
-  investCard.querySelector('#inv_btn').onclick = ()=>{
+  bindSyncedButton(investCard.querySelector('#inv_btn'), ()=>{
     const raw = investCard.querySelector('#inv_paste').value;
     const rows = parsePastedRows(raw);
     let added=0, skipped=0;
@@ -410,8 +467,9 @@ function renderGoalBody(container, goal){
       goal.investments.push({label: label.trim(), value:+value});
       added++;
     });
-    saveData(); render();
-  };
+    invFeedback[goal.id] = buildInvFeedbackMsg(added, skipped);
+    delete pasteDrafts[goal.id];
+  });
 
   // ---- Projection ----
   const proj = projectGoal(goal);
@@ -422,7 +480,9 @@ function renderGoalBody(container, goal){
     projCard.innerHTML = `<div class="verdict">Set a target</div><div class="verdict-detail">${hint} — needed to project whether you're on track.</div>`;
   } else {
     const targetLine = goal.costMode==='inflate'
-      ? `Target (inflation-adjusted): ₹${Math.round(proj.target).toLocaleString('en-IN')} — today's cost ₹${(+goal.presentCost||0).toLocaleString('en-IN')} inflated at ${goal.inflationRate||0}%/yr over ${(proj.monthsLeft/12).toFixed(1)} years`
+      ? (goal.inflationRate
+          ? `Target (inflation-adjusted): ₹${Math.round(proj.target).toLocaleString('en-IN')} — today's cost ₹${(+goal.presentCost||0).toLocaleString('en-IN')} inflated at ${goal.inflationRate}%/yr over ${(proj.monthsLeft/12).toFixed(1)} years`
+          : `Target: ₹${Math.round(proj.target).toLocaleString('en-IN')} — today's cost, no inflation rate entered yet (add one above so this reflects future prices, not today's)`)
       : `Target: ₹${Math.round(proj.target).toLocaleString('en-IN')}`;
     projCard.innerHTML = `
       <div class="verdict">${proj.onTrack ? 'On track' : 'Behind — needs attention'}</div>
@@ -432,6 +492,12 @@ function renderGoalBody(container, goal){
         (${proj.monthsLeft} months left, assuming ${goal.assumedReturn||0}% annual return and ₹${(+goal.monthlyContribution||0).toLocaleString('en-IN')}/month contribution)
       </div>
       ${!proj.onTrack ? `<div class="verdict-detail" style="color:var(--rust); margin-top:8px;">To hit this target on time at ${goal.assumedReturn||0}% return, you'd need roughly ₹${Math.round(proj.requiredMonthly).toLocaleString('en-IN')}/month instead — ₹${Math.round(proj.requiredMonthly-(+goal.monthlyContribution||0)).toLocaleString('en-IN')} more than currently planned.</div>` : ''}
+      ${!localStorage.getItem(ANNUITY_NOTE_KEY) ? `
+      <div class="helptext" id="annuity_note" style="margin-top:10px; padding:8px 10px; border:1px solid var(--line); border-radius:4px; display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+        <span>We updated how monthly SIP figures are calculated to match industry-standard calculators (Groww/ET Money-style annuity-due) — projected numbers may look slightly different than before.</span>
+        <button type="button" class="btn small ghost" id="dismiss_annuity_note" style="flex-shrink:0;">Got it</button>
+      </div>
+      ` : ''}
       <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line);">
         <div class="helptext" style="text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">Required monthly contribution by risk profile</div>
         <table class="day-table">
@@ -446,6 +512,10 @@ function renderGoalBody(container, goal){
     `;
   }
   container.appendChild(projCard);
+  const dismissNoteBtn = projCard.querySelector('#dismiss_annuity_note');
+  if(dismissNoteBtn){
+    dismissNoteBtn.onclick = ()=>{ localStorage.setItem(ANNUITY_NOTE_KEY, '1'); render(); };
+  }
 
   const disclaimer = document.createElement('div');
   disclaimer.className = 'helptext';

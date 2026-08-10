@@ -93,7 +93,7 @@ clicks a preset button with no explicit blur in between.
 - Inflation FV: ₹15,00,000 today, 6.5%/yr, 10 years → app shows
   ₹28,15,706, matches hand-computed `1500000 * 1.065^10 = 2,815,706.20`.
 - Risk-profile table for one goal (target ₹20,00,000, 60 months, ₹0
-  current): Conservative 6.5% → ₹28,146/mo required, Balanced 8.5% →
+  current): Conservative 6.5% → ₹28,147/mo required, Balanced 8.5% →
   ₹26,677/mo, Aggressive 11.5% → ₹24,583/mo (declining as assumed return
   rises, correctly ordered).
 - Annuity-due: ₹10,000/mo, 12%, 12 months → app shows ₹1,28,093 (matches
@@ -111,6 +111,79 @@ backward-compatible (goals saved before this change have no `costMode` and
 are treated as `'direct'`). New goal default `assumedReturn` changed from
 `'10'` to `'8.5'` (Balanced preset) to match the new risk-profile framing —
 existing goals' stored `assumedReturn` values are untouched.
+
+## Updated 2026-08-10 — Second-pass reviewer fix: display/calc mismatch, dropped-click race, keyboard access
+The `financial-os-reviewer` subagent independently audited the inflation/SIP-preset build above
+(commit `cd11be9`) — confirmed the core math (inflation FV, annuity-due SIP, risk-profile table) is
+correct — but found four real issues in how it's wired up. All four fixed same-day.
+
+**1. Inflation-rate display disagreed with what was actually calculated.** With the inflation-rate
+field empty (a realistic state — clear it to retype, click away), the helptext near the field fell
+back to the *category preset rate* for display (e.g. "6.5%/yr"), while `effectiveTarget()` and the
+projection card both fell back to **0%** for the actual math — the future-cost figure shown was
+computed unchanged from today's cost, but the label next to it confidently claimed a nonzero rate.
+Fixed: the display fallback now matches the calculation fallback (`||0`, not `||invPreset.rate`) in
+both places (the inline future-cost helptext and the projection card's target line), and when the
+rate is empty the copy explicitly says so — "Enter an inflation rate above to include inflation...
+which understates what this will actually cost by the target date" — instead of silently showing a
+number that isn't what's being used. Never auto-fills the field with the preset (that would violate
+the "assumptions are never applied silently" invariant below); it just stops misdescribing 0%.
+
+**2. Race-condition fix from the previous pass was real but incomplete, and the gap caused actual
+data loss.** Two gaps confirmed via Playwright: (a) typing into any `onchange` field then clicking
+the pre-existing "Parse & add" button without an intervening blur silently dropped the click — and
+separately, `#inv_fb` was never actually rendered with the added/skipped result (dead code, always
+empty); (b) typing into an `onchange` field then moving straight into the tagged-investments paste
+textarea — a completely normal flow — silently lost whatever was typed into that textarea, because
+the intervening full-card re-render recreated it from scratch before "Parse & add" was ever clicked.
+Fixed with two changes: a `pasteDrafts` map (goal.id → in-progress paste text, updated on every
+keystroke via `oninput`, never persisted to storage) rehydrates the textarea across *any* re-render
+triggered elsewhere on the card, so nothing typed into it is ever silently dropped regardless of what
+else changes first. "Parse & add" (and "Choose CSV/TXT file") now use the same reliable-button
+pattern as the preset buttons (see #3) instead of a plain `onclick`, so the click itself is no longer
+race-prone. Getting `#inv_fb` to actually render surfaced a second, subtler bug: removing a
+currently-focused, edited field via the render's `innerHTML=''` fires that field's own blur→change
+*reentrantly*, nesting a second `render()` inside the first — and since the one-shot `invFeedback`
+message was being deleted the instant it was read, the nested (ultimately-discarded) pass consumed
+it before the real, final pass ever got to show it. Fixed by deferring the delete to `setTimeout(fn,
+0)` so every render pass within the same synchronous burst can see the message, and only the next
+tick clears it — still shown exactly once, never lost, never stuck.
+
+**3. The 8 new preset buttons were keyboard-inoperable.** Binding them to `mousedown` (the previous
+pass's race fix) meant Enter/Space on a focused button did nothing, since `mousedown` never fires for
+keyboard activation. Fixed by splitting the two concerns: `mousedown` now calls `e.preventDefault()`
+(which blocks the browser's default focus-shift, so the currently-focused field never blurs and never
+fires an unrelated re-render that would detach the button before its own `click` can fire) plus syncs
+any in-flight field edits as a safety net; the actual state change (cost mode / inflation preset /
+risk preset / parse-and-add / choose-file) now happens in a `click` handler, which fires reliably for
+*both* pointer and keyboard activation. Verified with real keyboard-only interaction (Tab to each of
+the 8 buttons, press Enter or Space, confirm state actually changes) — not just that the code compiles.
+
+**4. One-time note about the annuity-due formula change.** The 2026-08-10 SIP formula switch (see
+above) can silently flip an existing goal's status from "Behind" to "On track" purely from the
+formula change — previously undisclosed anywhere in-app (only in this file, which no end user reads).
+Added a small, dismissible note right under the projection, shown until the user clicks "Got it"
+(flag in `localStorage['goals_annuity_note_dismissed_v1']`, not part of exported/imported goal data):
+"We updated how monthly SIP figures are calculated to match industry-standard calculators (Groww/ET
+Money-style annuity-due) — projected numbers may look slightly different than before."
+
+**Verification (headless Chromium/Playwright, 33/33 new checks + all 15/15 checks from the prior
+pass still passing, zero regressions):**
+- Inflation display/calc agreement: empty rate → `effectiveTarget()` returns exactly `presentCost`
+  (0% applied) and the on-page text neither claims a nonzero rate nor omits the "enter a rate" note;
+  non-empty rate (6.5%/10yr) → display and calc both show the same ₹28,15,706 figure.
+- Dropped-click/data-loss repro, now fixed: typing into `g_name` (unblurred) then clicking "Parse &
+  add" adds the investment, commits the in-flight name edit, *and* renders "1 investment added." in
+  `#inv_fb`; typing into `g_infl` then moving straight into the paste textarea and typing there
+  preserves that text, the earlier `g_infl` edit, and parses correctly once submitted.
+- Keyboard-only: Tab+Enter and Tab+Space independently verified on all 8 preset buttons (2 cost-mode,
+  3 inflation-preset, 3 risk-preset) — each actually changes goal state; a plain mouse click on the
+  same buttons still works and does not double-fire/double-add.
+- Annuity-due note: appears once near the projection, dismiss button hides it and persists the flag.
+- Regression: inflation FV, annuity-due SIP (₹1,28,093 for the ₹10,000/mo·12%·12mo example), and the
+  risk-profile table (Conservative 6.5% → ₹28,147/mo, matches the corrected worked example below,
+  declining correctly as return rises) all unchanged; a goal with no `costMode`/`presentCost`/
+  `inflationRate` fields at all still computes and displays correctly (backward compatibility intact).
 
 ## Design invariants (same as ITRGenie/Net Worth)
 - Zero external dependencies, works offline once loaded.
