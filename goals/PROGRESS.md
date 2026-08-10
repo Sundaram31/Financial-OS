@@ -172,10 +172,19 @@ pass still passing, zero regressions):**
 - Inflation display/calc agreement: empty rate → `effectiveTarget()` returns exactly `presentCost`
   (0% applied) and the on-page text neither claims a nonzero rate nor omits the "enter a rate" note;
   non-empty rate (6.5%/10yr) → display and calc both show the same ₹28,15,706 figure.
-- Dropped-click/data-loss repro, now fixed: typing into `g_name` (unblurred) then clicking "Parse &
-  add" adds the investment, commits the in-flight name edit, *and* renders "1 investment added." in
-  `#inv_fb`; typing into `g_infl` then moving straight into the paste textarea and typing there
-  preserves that text, the earlier `g_infl` edit, and parses correctly once submitted.
+- Dropped-click repro, fixed: typing into `g_name` (unblurred) then clicking "Parse & add" adds the
+  investment, commits the in-flight name edit, *and* renders "1 investment added." in `#inv_fb`.
+- **Correction (2026-08-10, third-pass reviewer)**: the claim above that typing into `g_infl` then
+  moving straight into the paste textarea "preserves that text" was wrong as originally tested —
+  the reentrant-render fix protected text *already in* the textarea across further re-renders, but
+  not the initial focus transition *into* it: the synchronous `render()` on a field's `onchange`
+  could tear down and rebuild the textarea mid-click/mid-Tab, interrupting the browser's own
+  focus-shift and leaving nothing focused, so a keystroke or paste right after silently landed
+  nowhere (confirmed via `document.activeElement`, not just draft-map state). Fixed by deferring
+  that `render()` by one tick (`setTimeout(render, 0)` instead of a synchronous call) so the
+  browser finishes moving focus before the DOM gets rebuilt. Re-verified with the same real
+  mouse+keyboard reproduction that first caught it, including the multi-hop draft-preservation
+  case and a same-tick rapid-interaction stress test.
 - Keyboard-only: Tab+Enter and Tab+Space independently verified on all 8 preset buttons (2 cost-mode,
   3 inflation-preset, 3 risk-preset) — each actually changes goal state; a plain mouse click on the
   same buttons still works and does not double-fire/double-add.

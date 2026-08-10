@@ -388,7 +388,14 @@ function renderGoalBody(container, goal){
   Object.keys(fieldMap).forEach(id=>{
     const el = paramsCard.querySelector('#'+id);
     if(!el) return;
-    el.onchange = (e)=>{ goal[fieldMap[id]] = e.target.value; saveData(); render(); };
+    // Deferred by one tick: calling render() synchronously here tears down the DOM
+    // (content.innerHTML='') while the browser is still mid-focus-shift toward whatever
+    // the user clicked/tabbed into next (e.g. the paste textarea) -- that in-flight focus
+    // transition gets interrupted, leaving nothing focused, so a click or keystroke right
+    // after this field's change can silently land nowhere. Deferring lets the browser finish
+    // moving focus first, then we rebuild -- confirmed via document.activeElement checks,
+    // not just draft-state, that this actually fixes the swallowed-focus-transition bug.
+    el.onchange = (e)=>{ goal[fieldMap[id]] = e.target.value; saveData(); setTimeout(render, 0); };
   });
 
   // ---- Tagged investments ----
@@ -525,6 +532,20 @@ function renderGoalBody(container, goal){
 }
 
 function render(){
+  // Capture focus before the DOM gets torn down below -- content.innerHTML='' always blurs
+  // whatever's focused (removing a focused element from the document does that unconditionally,
+  // regardless of *when* the removal happens), so a re-render triggered by one field's onchange
+  // silently steals focus from wherever the user has since clicked/tabbed to (e.g. straight into
+  // the paste textarea). Restored by id at the end of this function, once the equivalent new
+  // element exists again. Confirmed necessary even with the onchange handlers' one-tick defer
+  // (see the fieldMap loop below) -- deferring lets the browser finish its own focus-shift before
+  // this runs, but doesn't stop this rebuild from then blurring it again; only explicit
+  // save-and-restore actually keeps focus where the user put it.
+  const prevActive = document.activeElement;
+  const prevActiveId = (prevActive && prevActive.id) ? prevActive.id : null;
+  const prevSelStart = (prevActive && typeof prevActive.selectionStart === 'number') ? prevActive.selectionStart : null;
+  const prevSelEnd = (prevActive && typeof prevActive.selectionEnd === 'number') ? prevActive.selectionEnd : null;
+
   const content = document.getElementById('content');
   content.innerHTML = '';
 
@@ -555,6 +576,16 @@ function render(){
     content.appendChild(empty);
   } else {
     data.goals.forEach(g=>renderGoalCard(content, g));
+  }
+
+  if(prevActiveId){
+    const restored = document.getElementById(prevActiveId);
+    if(restored){
+      restored.focus();
+      if(prevSelStart !== null && typeof restored.setSelectionRange === 'function'){
+        try{ restored.setSelectionRange(prevSelStart, prevSelEnd); }catch(e){}
+      }
+    }
   }
 }
 
