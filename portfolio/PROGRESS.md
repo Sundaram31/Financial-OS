@@ -554,6 +554,123 @@ for contrast:
    NOT fixed in this pass (it needs a real decision about symbol/name matching across sources, not a
    quick patch) — flagged, not silently resolved.
 
+## Updated 2026-08-10 — Sold/realized capital-gains tracking built (roadmap item 4's stated prerequisite)
+`MASTER_ROADMAP.md`'s "Updated module sequence" item 4 ("What-if fund-switch tax modeling")
+explicitly states this module "currently has no sell/capital-gains workflow (only open holdings)
+-- that would need to be built as part of this item, not assumed to already exist." This session
+built exactly that prerequisite — sold-position tracking, ST/LT classification, and a capital-gains
+feed export — and nothing more; the actual what-if fund-switch simulation UI itself remains
+unbuilt (see "Deliberately NOT done yet" below and `MASTER_ROADMAP.md`'s updated item 4).
+
+**Recording a sale.** A new "Record a sale" guided form sits right after the Holdings table (also
+reachable via a "Sell" button on each holdings-table row, which scrolls/focuses the form) — select
+an open holding from a dropdown (`SYMBOL — Broker (N available)`), enter Qty to sell (defaults to
+the holding's full remaining qty, capped at it), Sell date, Sell price. This is a guided-form-only
+flow, deliberately not paste/bulk — recording a sale is inherently relational (it must reference
+one specific existing holding by id, a small closed set), unlike adding a fresh holding, so a
+dropdown-driven form is the right shape here, not a shortcut around this repo's paste+form
+convention. Validates: qty > 0, qty ≤ the holding's current open qty (real error message naming
+the actual available qty, not a silent clamp), sell date required and not before the holding's buy
+date, sell price ≥ 0.
+- **Full sale** (qty sold ≥ holding's qty): the holding is removed from `data.holdings` entirely; a
+  sold lot is created carrying the holding's full original qty.
+- **Partial sale**: the holding's `qty` is reduced by the sold amount in place; a separate sold-lot
+  record is created for just the sold portion, copying the holding's `buyPrice`/`buyDate` (cost
+  basis for the sold lot is the holding's single Avg Price — this module doesn't track multiple
+  buy-lots per holding, the same limitation the holdings table's "Avg Price" naming already
+  documents, so this is not a true per-lot FIFO cost basis; stated directly in the form's helptext).
+
+**ST/LT classification — ported, not re-derived, from ITRGenie.** Per explicit instruction,
+`holdingPeriodDays()` and the classification logic inside `computeSoldLotGain()` are copied from
+`itrgenie/index.html`'s `holdingPeriodDays()` (~line 1556) and `computeRowGain()` (~line
+2485-2496) verbatim, not referenced cross-module (this module's existing self-containment
+convention — same reasoning as the self-hosted `lib/` copies). **The exact boundary behavior
+matches ITRGenie's real-world Sec 2(42A) correction**: holding period is a raw calendar-day
+difference with no `+1`, and the classification is `days > 365 ? LongTerm : ShortTerm` — so a
+holding sold on **exactly 365 days** is Short-Term, not Long-Term. Verified by test at all three
+boundary points: 364 days → ShortTerm, exactly 365 days → ShortTerm, 366 days → LongTerm.
+
+**The missing-cost-basis case — handled the same honest way as the rest of this module.** A sold
+lot whose source holding never had a Buy Price (a CAS-imported holding sold before its Buy Price
+was ever filled in) gets `buyPrice: null` copied onto the sold lot, and `computeSoldLotGain()`
+returns `{gain: null, term: null}` for it — matching ITRGenie's own `computeRowGain()` exactly,
+which withholds BOTH gain and term (not just gain) when cost basis is unknown, since classifying a
+term without a trustworthy gain figure would be a half-honest result. The Record-a-sale form
+surfaces this *before* the user even submits ("No Buy Price on file for this holding... gain will
+show as unknown"), and the Realized Gains table shows "— unknown" (gold-colored, not a fabricated
+number) for that lot's Gain/Loss cell and an "unclassified" tag for Term. **Closing the loop**:
+unlike the holdings table (which was already inline-editable for this), the sold lot's Buy Price
+and Buy Date are now *also* inline-editable directly in the Realized Gains table — the natural
+place to fix a missing cost basis after the fact, since the source holding itself may no longer
+exist (full sale). Filling either in immediately recalculates the lot's gain/term on the next
+render.
+
+**Realized gains view.** A new page section (`renderRealizedGainsSection`) right after "Record a
+sale": three stat tiles (Short-term/STCG, Long-term/LTCG, Total realized), each summed in INR via
+the same `toINR()`/unconverted-USD-lot handling `computePortfolio()` already uses (a sold lot's
+gain is in its account's native currency — summing raw numbers across INR and USD lots without
+converting would silently mix currencies), plus a sold-lots table (Symbol, Broker, Qty, Buy,
+Sell, Term tag, Gain/Loss). Explicit gold-colored notes appear when relevant: N lot(s) with unknown
+gain (no Buy Price), N lot(s) with a known gain but no Buy Date (excluded from the ST/LT split,
+folded into "Total realized" but not guessed as short-term — same "flag it, don't fabricate it"
+pattern as ITRGenie's own equity module's `incompleteDateRows`), N unconverted USD lot(s). **This
+view is explicit that it is not a tax computation** — the section header states directly: "no
+Section 112A ₹1,25,000 exemption, no slab-rate tax, no loss carry-forward applied here. Full tax
+treatment happens in ITRGenie" — per the instruction that ITRGenie remains the single source of
+tax-computation authority; Portfolio's job here is correct raw transaction facts only.
+
+**Capital gains feed export — checked against ITRGenie's actual paste-input format, not assumed.**
+Before building this, `itrgenie/index.html`'s `CapitalGainsEquityModule` and `CapitalGainsMFModule`
+were read directly (their `render()` paste-card markup and paste-button `onclick` parsing logic) to
+confirm the real format rather than guess at one:
+- **Capital Gains — Equity module** takes `Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice` per
+  line (6 comma/tab-separated fields; BuyDate/BuyPrice may be left blank when unknown, `cols.length
+  >= 6` still required), parsed via the shared `parseFlexDate()` which accepts ISO (`YYYY-MM-DD`)
+  dates as-is.
+- **Capital Gains — Mutual Funds module** takes a fundamentally different shape:
+  `Scheme, 112A-or-112, RedemptionDate, Cost, Gain, TDS` — it needs a pre-computed Gain figure and a
+  Sec 112A (equity-oriented, STT paid) vs Sec 112 (debt-oriented) classification that Portfolio has
+  no basis to know (this module doesn't track STT/fund-category data), so this session did not try
+  to auto-map Mutual Fund sold lots into that shape — that would be guessing at a tax classification,
+  exactly what this project's conventions warn against.
+
+Given that, `buildCapitalGainsFeed()` produces the exact `{symbol, buydate, selldate, buyprice,
+sellprice, qty, assetType}[]` contract from `MASTER_ROADMAP.md` (JSON download button, same pattern
+as the existing Net Worth feed), and the "copy paste-ready lines" button formats each row as
+`Symbol, Qty, BuyDate, BuyPrice, SellDate, SellPrice` (ISO dates, blank BuyDate/BuyPrice preserved
+as empty fields, not omitted) — matching ITRGenie's Capital Gains — Equity module's paste format
+field-for-field, verified against its actual parser rather than assumed. The card's helptext states
+plainly that Mutual Fund sold lots need to be tagged Sec 112A/112 by hand once pasted into
+ITRGenie's separate MF module, since Portfolio doesn't track that classification — an honest
+limitation stated in-UI, not silently papered over.
+
+**Testing.** Real headless Chromium (Playwright), 40 checks, all pass: full sale (holding removed
+from open holdings, exactly one sold lot created carrying the full original qty, correct gain and
+LongTerm classification for a >365-day sale); the ST/LT boundary at all three points described
+above (364/365/366 days); partial sale (open holding's qty correctly reduced, sold lot correctly
+created for just the sold portion, buyPrice/buyDate correctly copied); a sale against a CAS-imported
+(no Buy Price) holding shows the "unknown gain, fix the Buy Price" state in both the sale form and
+the Realized Gains table rather than a fabricated number (`buyPrice: null`, `computeSoldLotGain`
+returns `{gain: null, term: null}`); oversell validation (selling more than the holding's current
+open qty is rejected with a real error message, no sold lot created, holding qty unchanged); the
+capital-gains feed's exact contract shape and values (including the `null` buyprice/buydate case for
+an unknown-cost lot) and the paste-ready line's 6-field format; mobile viewport (375×812) — zero
+horizontal overflow after the sale form and Realized Gains table render, helptext/table-cell fonts
+read back ≥13px via computed-style; full regression of existing open-holdings functionality (guided
+Add-a-holding form, bulk CSV paste, Net Worth feed export, and `computeHoldingMetrics`'
+null-vs-zero handling for a holding missing a Buy Price) all still pass unchanged; STCG/LTCG totals
+aggregate correctly in INR across multiple sold lots. Screenshots taken in both themes, desktop and
+375px mobile, for visual review (not committed — see this entry for the description instead).
+
+**What's still explicitly out of scope — the actual next step.** This session built the
+prerequisite roadmap item 4 named ("Portfolio currently has no sell/capital-gains workflow...that
+would need to be built as part of this item"). The what-if fund-switch simulation itself — "if I
+sold Fund A and bought Fund B today, what would the tax cost of that specific switch be" — is
+genuinely not attempted here: it needs this sold-lot/cost-basis data joined with ITRGenie's actual
+tax-rate/exemption logic in a dedicated simulation UI, which is a distinct, sizeable piece of work
+in its own right (not something to bundle into the same pass as building the underlying data model).
+See `MASTER_ROADMAP.md`'s updated item 4 entry.
+
 ## Known gaps — flagged deliberately, not resolved by guessing
 Per explicit instruction not to silently resolve these, and not to fabricate
 functionality to paper over them:
@@ -634,16 +751,28 @@ functionality to paper over them:
    loosely similar name.
 
 ## Deliberately NOT done yet
-- No capital-gains export (`{symbol, buydate, selldate, buyprice, sellprice,
-  qty, assetType}[]` contract, Portfolio → ITRGenie) — that's for *sold*
-  positions, and this module only tracks current holdings. Roadmap item 4
-  (what-if fund-switch tax modeling) is the natural place to build a sell
-  workflow that would produce this; not attempted here to avoid guessing at
-  a shape that isn't needed by anything yet.
-- No long-term/short-term holding-period classification or any tax
-  characterization of gains — that's ITRGenie's domain (capital gains
-  logic), deliberately kept separate per the roadmap's synthesis-layer
-  framing ("Portfolio + ITRGenie's capital gains logic" is future work).
+- **The what-if fund-switch tax-modeling UI itself** ("simulate switching Fund
+  A to Fund B and show the tax cost of that switch") — `MASTER_ROADMAP.md`'s
+  item 4 is explicit that this needs the sold-lot/cost-basis data (built
+  2026-08-10, see above) joined with ITRGenie's actual tax-rate/exemption
+  logic in a dedicated simulation UI, which is a distinct, sizeable piece of
+  work, not something to bundle into the same pass as the underlying data
+  model. This is now the actual next step for item 4, not the sell/capital-
+  gains tracking that used to block it.
+- Sold-lot cost basis is this module's single per-holding Avg Price, not a
+  true per-lot FIFO cost basis — if a holding was built up from multiple buys
+  at different prices (this module only ever stores one buy price per
+  holding), a partial sale's cost basis is that one average price, not the
+  actual lot(s) sold. Real historical data (gap #3 below) would clarify
+  whether per-lot buy tracking is ever actually needed here.
+- Mutual Fund sold lots aren't auto-mapped into ITRGenie's Capital Gains —
+  Mutual Funds module's paste format (`Scheme, 112A-or-112, RedemptionDate,
+  Cost, Gain, TDS`) — that format needs a Sec 112A vs 112 classification this
+  module has no basis to know (no STT/fund-category tracking). The capital
+  gains feed's paste-ready-lines button matches the Capital Gains — Equity
+  module's format instead, which works for any assetType's raw transaction
+  facts; the UI states plainly that MF sales need manual 112A/112 tagging
+  once pasted into ITRGenie's MF module.
 - No corporate-actions handling (splits, bonuses, dividends, mergers) — buy
   price/qty are taken as entered; adjusting historical cost basis for these
   events is out of scope until real historical data (gap #3) shows it's
@@ -724,3 +853,25 @@ functionality to paper over them:
   `ensure...Loaded()` directly, and that call is allowed to retry since it's genuinely
   user-triggered. Don't remove the `pdfjsLoadState==='idle'`/`xlsxLoadState==='idle'` guard from
   either `ontoggle` handler.
+- **Sold-lot tracking (added 2026-08-10) lives in `data.soldLots`, same storage key
+  (`portfolio_data_v1`), not a separate one** — it's this module's own data, per this repo's "own
+  data storage key" convention meaning *one key per module*, not one key per feature. A full sale
+  removes the source holding from `data.holdings`; a partial sale reduces its `qty` in place and
+  pushes one `soldLots` entry for the sold portion — any future change to the sale-recording path
+  must preserve both halves of that transaction (never leave a sold lot without correspondingly
+  updating/removing the source holding, or vice versa).
+- **`holdingPeriodDays()`/`computeSoldLotGain()`'s ST/LT boundary is copied verbatim from
+  `itrgenie/index.html`'s `holdingPeriodDays()`/`computeRowGain()`, not referenced cross-module or
+  re-derived.** The rule is `days > 365 ? LongTerm : ShortTerm` computed via a raw (`no +1`)
+  calendar-day difference — exactly 365 days held is Short-Term per the real Sec 2(42A) correction
+  already baked into ITRGenie. Do not "simplify" this to `>= 365` or reuse the inclusive
+  `daysBetween()`-style day counting used elsewhere for travel/presence-day counts — those are a
+  different, deliberately inclusive calculation for a different purpose. If ITRGenie's own
+  `holdingPeriodDays()`/`computeRowGain()` boundary logic ever changes, this module's copy needs the
+  matching update, since there's no shared reference between the two files by design.
+- A sold lot's `buyPrice`/`buyDate` can genuinely be unset (copied from a CAS-imported holding that
+  was sold before its Buy Price was ever filled in) — `computeSoldLotGain()` returns `{gain: null,
+  term: null}` for these, matching ITRGenie's `computeRowGain()`'s exact behavior of withholding
+  BOTH fields (not just gain) when cost basis is unknown. Any future change to
+  `computeSoldLotGain()`/`computeRealizedGains()` must preserve this `null`-vs-fabricated-zero
+  handling, same as the existing `hasBuyPrice` convention for open holdings above.

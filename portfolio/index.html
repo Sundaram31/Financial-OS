@@ -185,6 +185,16 @@ function defaultData(){
     ],
     holdings: [], // {id, symbol, broker(account id), assetType, qty, buyPrice, buyDate, currentPrice, asOf}
     fx: { usdInr: '', asOf: '' }, // manual USD->INR rate, entered by user -- no live feed (see Known gaps)
+    // Realized/sold-position records (added 2026-08-10, roadmap item 4's stated prerequisite).
+    // {id, symbol, broker(account id), assetType, isin, qty, buyPrice(|null -- unknown cost basis,
+    // e.g. a CAS-imported holding that was sold before its Buy Price was ever filled in), buyDate(|''),
+    // sellDate, sellPrice, soldAt}. A partial sale reduces the source holding's qty and pushes one of
+    // these; a full sale removes the holding from data.holdings entirely and pushes one of these
+    // carrying the holding's full original qty. Cost basis is always the source holding's single
+    // Avg Price at the moment of sale (this module doesn't track multiple buy-lots per holding --
+    // same limitation the holdings table's "Avg Price" naming already documents), not a true FIFO
+    // per-lot cost basis.
+    soldLots: [],
   };
 }
 function loadData(){
@@ -196,6 +206,7 @@ let data = loadData();
 if(!Array.isArray(data.accounts) || data.accounts.length===0) data.accounts = defaultData().accounts;
 if(!Array.isArray(data.holdings)) data.holdings = [];
 if(!data.fx) data.fx = { usdInr:'', asOf:'' };
+if(!Array.isArray(data.soldLots)) data.soldLots = [];
 function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 function newId(prefix){ return prefix + '_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
 
@@ -213,6 +224,13 @@ let addFormLastBroker = null;
 let addFormLastType = 'Stock';
 let addFormFeedbackMsg = { text: '', isError: false };
 let bulkAddFeedbackMsg = ''; // same fix applied to the bulk-paste entry panel below
+
+// "Record a sale" guided form's transient state -- which holding is currently selected (module
+// var, not persisted) and the feedback message, same fix pattern as addFormFeedbackMsg above
+// (set on a module-level var, read back in on the next render(), never written onto a DOM node
+// that render()'s content.innerHTML='' is about to detach).
+let saleFormHoldingId = null;
+let saleFormFeedbackMsg = { text: '', isError: false };
 
 // Excel (.xlsx/.xls) import: transient, in-memory only -- holds the detected column mapping and
 // parsed rows for a chosen file, awaiting user confirmation before anything is committed to
@@ -640,6 +658,77 @@ function computePortfolio(){
   return { totalCostINR: costForGainINR, totalValueINR, gainINR, gainPct, byBroker, byAssetType, unconvertedCount, unknownCostCount };
 }
 
+// ---------- realized gains (sold lots) ----------
+// Ported/copied deliberately, not referenced cross-module, from itrgenie/index.html's
+// holdingPeriodDays() (~line 1556) and computeRowGain() (~line 2485-2496) -- per this repo's
+// per-module self-containment convention, and per explicit instruction to match the exact
+// boundary behavior rather than re-derive it from general knowledge.
+//
+// Sec 2(42A) requires an asset be held for MORE than 365 days to qualify long-term -- exactly 365
+// days is still short-term. This must be a raw calendar-day difference with NO +1 (unlike the
+// inclusive day-counting some other modules use for travel/presence-day counts): a purchase on
+// 13-Mar-2025 sold on 13-Mar-2026 is exactly 365 days later, which is NOT "more than 365" and
+// must classify short-term.
+function holdingPeriodDays(d1, d2){
+  const a = new Date(d1), b = new Date(d2);
+  return Math.round((b - a) / (1000 * 60 * 60 * 24));
+}
+const LTCG_HOLDING_DAYS = 365; // Sec 2(42A) boundary -- see holdingPeriodDays() above; keep in sync with itrgenie's ruleSet.ltcgHoldingDays
+
+// A sold lot whose source holding never had a Buy Price (e.g. arrived via CAS import, which never
+// carries cost basis -- see the CAS import section above) cannot compute a real gain. Matches
+// ITRGenie's computeRowGain() exactly: unknown cost basis returns {gain:null, term:null} for BOTH
+// fields, not just gain -- classifying a term without a trustworthy gain figure would be a
+// half-honest result, so this deliberately withholds both rather than fabricating either.
+function computeSoldLotGain(lot){
+  if(lot.buyPrice === null || lot.buyPrice === undefined || lot.buyPrice === '') return { gain: null, term: null };
+  const gain = (lot.sellPrice - lot.buyPrice) * lot.qty;
+  let term = null;
+  if(lot.buyDate && lot.sellDate){
+    const days = holdingPeriodDays(lot.buyDate, lot.sellDate);
+    term = days > LTCG_HOLDING_DAYS ? 'LongTerm' : 'ShortTerm'; // exactly 365 days -> ShortTerm, per the boundary note above
+  }
+  return { gain, term };
+}
+
+// Aggregates realized gains into INR (same toINR()/unconvertible-USD handling as computePortfolio()
+// above -- a sold lot's gain is in its account's native currency, so summing raw numbers across
+// INR and USD lots without converting would silently mix currencies). Only classification totals
+// (STCG/LTCG) -- no Section 112A exemption, no slab-rate tax, no loss carry-forward: that's
+// ITRGenie's domain, this module supplies raw transaction facts only.
+function computeRealizedGains(){
+  let stcg = 0, ltcg = 0, totalKnownINR = 0, unknownGainCount = 0, unknownTermCount = 0, unconvertedCount = 0;
+  data.soldLots.forEach(lot=>{
+    const calc = computeSoldLotGain(lot);
+    if(calc.gain === null){ unknownGainCount++; return; }
+    const currency = accountOf(lot.broker).currency;
+    const gainINR = toINR(calc.gain, currency);
+    if(gainINR === null){ unconvertedCount++; return; }
+    totalKnownINR += gainINR;
+    if(calc.term === 'LongTerm') ltcg += gainINR;
+    else if(calc.term === 'ShortTerm') stcg += gainINR;
+    else unknownTermCount++; // known gain, but no buy date to classify -- excluded from ST/LT split, not guessed as short-term
+  });
+  return { stcg, ltcg, total: totalKnownINR, unknownGainCount, unknownTermCount, unconvertedCount };
+}
+
+// ---------- capital gains feed (Portfolio -> ITRGenie) ----------
+// Builds the exact cross-module contract array documented in MASTER_ROADMAP.md:
+// {symbol, buydate, selldate, buyprice, sellprice, qty, assetType}[]. buyprice/buydate are left
+// `null`/`''`-derived-to-null when the source holding's cost basis was never filled in -- never a
+// fabricated 0, matching this module's existing "flag it, don't fabricate it" convention.
+function buildCapitalGainsFeed(){
+  return data.soldLots.map(lot => ({
+    symbol: lot.symbol,
+    buydate: lot.buyDate || null,
+    selldate: lot.sellDate,
+    buyprice: (lot.buyPrice === null || lot.buyPrice === undefined || lot.buyPrice === '') ? null : lot.buyPrice,
+    sellprice: lot.sellPrice,
+    qty: lot.qty,
+    assetType: lot.assetType || 'Other',
+  }));
+}
+
 // ---------- performance summary (front and center, right after the header) ----------
 function renderPerformanceSummary(container){
   const p = computePortfolio();
@@ -783,7 +872,7 @@ function renderHoldingsTable(container){
       <td data-label="As Of"><input type="date" data-asof="${h.id}" value="${h.asOf||''}"></td>
       <td data-label="Value" class="cell-strong">${formatMoney(m.currentValue, m.currency)}${m.isStale?' <span class="tag muted">stale</span>':''}</td>
       <td data-label="Gain/Loss" class="cell-strong" style="color:${gainColor};">${gainCellHtml}</td>
-      <td data-label=""><button class="btn small ghost" data-rm="${h.id}">✕</button></td>
+      <td data-label=""><div style="display:flex; gap:6px; justify-content:flex-end;"><button class="btn small ghost" data-sell="${h.id}" title="Record a sale against this holding">Sell</button><button class="btn small ghost" data-rm="${h.id}">✕</button></div></td>
     `;
     tbody.appendChild(tr);
   });
@@ -833,6 +922,9 @@ function renderHoldingsTable(container){
       saveData(); render();
     };
   });
+  wrap.querySelectorAll('[data-sell]').forEach(btn=>{
+    btn.onclick = (e)=> openSaleForm(e.currentTarget.dataset.sell);
+  });
   wrap.querySelectorAll('[data-live]').forEach(btn=>{
     btn.onclick = async (e)=>{
       const id = e.currentTarget.dataset.live;
@@ -846,6 +938,272 @@ function renderHoldingsTable(container){
       render();
     };
   });
+}
+
+// ---------- "Record a sale" -- guided form, the only entry path for sold-lot data ----------
+// Unlike adding a holding (which needs paste/CSV/Excel bulk paths too, per this repo's
+// data-entry convention), recording a sale is inherently relational -- it must reference an
+// existing open holding by id, which is a small closed set best picked from a dropdown, not
+// typed. A guided form is genuinely the right (and sufficient) shape here, not a shortcut.
+function openSaleForm(holdingId){
+  saleFormHoldingId = holdingId;
+  saleFormFeedbackMsg = { text: '', isError: false };
+  render();
+  requestAnimationFrame(()=>{
+    const panel = document.getElementById('sale-form-panel');
+    if(panel){
+      panel.scrollIntoView({behavior:'smooth', block:'start'});
+      const inp = document.getElementById('rs_qty');
+      if(inp) inp.focus({preventScroll:true});
+    }
+  });
+}
+
+function renderRecordSaleForm(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = 'sale-form-panel';
+  const openHoldings = data.holdings.filter(h => (+h.qty || 0) > 0);
+  if(openHoldings.length === 0){
+    card.innerHTML = `
+      <h3>Record a sale</h3>
+      <p class="helptext">No open holdings yet — add one above, then come back here to record a full or partial sale against it.</p>
+    `;
+    container.appendChild(card);
+    return;
+  }
+  const selectedId = (saleFormHoldingId && openHoldings.some(h=>h.id===saleFormHoldingId)) ? saleFormHoldingId : openHoldings[0].id;
+  const holding = openHoldings.find(h=>h.id===selectedId);
+  const acc = accountOf(holding.broker);
+  const hasBuyPrice = holding.buyPrice !== '' && holding.buyPrice !== null && holding.buyPrice !== undefined && !isNaN(+holding.buyPrice);
+  card.innerHTML = `
+    <h3>Record a sale</h3>
+    <p class="helptext" style="margin-bottom:10px;">Sell all or part of an existing holding. Selling the full quantity removes it from Holdings above and moves it to Realized gains below; a partial sale reduces the open holding's quantity and adds a separate sold-lot record for the sold portion. Cost basis for the sold lot is this holding's single Avg Price (not a true per-lot FIFO cost basis — this module tracks one buy price per holding, same as the Holdings table above).</p>
+    <div class="field-row">
+      <div class="field"><label>Holding</label>
+        <select id="rs_holding">${openHoldings.map(h=>{
+          const a = accountOf(h.broker);
+          return `<option value="${h.id}" ${h.id===selectedId?'selected':''}>${h.symbol} — ${a.name} (${h.qty} available)</option>`;
+        }).join('')}</select>
+      </div>
+      <div class="field"><label>Qty to sell</label><input id="rs_qty" type="number" step="any" min="0" max="${holding.qty}" value="${holding.qty}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Sell date</label><input id="rs_selldate" type="date"></div>
+      <div class="field"><label>Sell price</label><input id="rs_sellprice" type="number" step="0.01" min="0" placeholder="per unit"></div>
+      <div class="field" style="display:flex; align-items:flex-end;"><button class="btn primary small" id="rs_add_btn" style="width:100%;">Record sale</button></div>
+    </div>
+    <p class="helptext">${hasBuyPrice
+      ? `Cost basis on file: ${formatMoney(+holding.buyPrice, acc.currency)}, bought ${holding.buyDate || '(buy date unknown)'}.`
+      : `<span style="color:var(--gold);">No Buy Price on file for this holding</span> (likely CAS-imported) — the sold lot's gain will show as unknown in Realized gains below until you fill in a Buy Price there.`}</p>
+    <div id="rs_feedback" class="helptext" style="margin-top:2px; ${saleFormFeedbackMsg.isError ? 'color:var(--rust);' : ''}">${saleFormFeedbackMsg.text}</div>
+  `;
+  container.appendChild(card);
+
+  card.querySelector('#rs_holding').onchange = (e)=>{
+    saleFormHoldingId = e.target.value;
+    saleFormFeedbackMsg = { text: '', isError: false };
+    render();
+  };
+
+  card.querySelector('#rs_add_btn').onclick = ()=>{
+    const h = data.holdings.find(x=>x.id===selectedId);
+    if(!h){ saleFormFeedbackMsg = { text: 'That holding no longer exists — pick another.', isError: true }; render(); return; }
+    const qtyRaw = card.querySelector('#rs_qty').value;
+    const sellDate = card.querySelector('#rs_selldate').value;
+    const sellPriceRaw = card.querySelector('#rs_sellprice').value;
+    const qty = +qtyRaw;
+    const sellPrice = +sellPriceRaw;
+    const available = +h.qty || 0;
+
+    if(qtyRaw === '' || isNaN(qty) || qty <= 0){ saleFormFeedbackMsg = { text: 'Enter a quantity greater than 0.', isError: true }; render(); return; }
+    if(qty > available + 1e-9){ saleFormFeedbackMsg = { text: `Can't sell ${qty} — only ${available} of ${h.symbol} currently held.`, isError: true }; render(); return; }
+    if(!sellDate){ saleFormFeedbackMsg = { text: 'Sell date is required.', isError: true }; render(); return; }
+    if(sellPriceRaw === '' || isNaN(sellPrice) || sellPrice < 0){ saleFormFeedbackMsg = { text: 'Enter a valid sell price (0 or more).', isError: true }; render(); return; }
+    if(h.buyDate && new Date(sellDate) < new Date(h.buyDate)){ saleFormFeedbackMsg = { text: "Sell date can't be before the buy date.", isError: true }; render(); return; }
+
+    const lotHasBuyPrice = h.buyPrice !== '' && h.buyPrice !== null && h.buyPrice !== undefined && !isNaN(+h.buyPrice);
+    const soldLot = {
+      id: newId('sl'),
+      symbol: h.symbol,
+      broker: h.broker,
+      assetType: h.assetType,
+      isin: h.isin || '',
+      qty,
+      buyPrice: lotHasBuyPrice ? +h.buyPrice : null,
+      buyDate: h.buyDate || '',
+      sellDate,
+      sellPrice,
+      soldAt: new Date().toISOString(),
+    };
+    data.soldLots.push(soldLot);
+
+    const remaining = available - qty;
+    const closedFully = remaining <= 1e-9;
+    if(closedFully){
+      data.holdings = data.holdings.filter(x=>x.id!==h.id);
+    } else {
+      h.qty = remaining;
+    }
+    saleFormFeedbackMsg = {
+      text: `Recorded sale of ${qty} ${h.symbol}${closedFully ? ' — full position closed.' : ` — ${remaining} remaining open.`} See Realized gains below.`,
+      isError: false,
+    };
+    saleFormHoldingId = null; // back to default (first open holding) selection after a successful sale
+    saveData(); render();
+  };
+}
+
+// ---------- realized gains -- raw sold-lot facts, classification only, no tax computation ----------
+function renderRealizedGainsSection(container){
+  const header = document.createElement('div');
+  header.className = 'panel-header';
+  header.style.marginTop = '28px';
+  header.innerHTML = `
+    <h2 style="font-size:18px;">Realized gains</h2>
+    <p class="desc" style="margin-top:4px; max-width:none;">Raw sold-lot facts from the sales recorded above — short-term/long-term classification (Sec 2(42A): more than 365 days held is long-term, exactly 365 is still short-term) and gain/loss per lot. <strong>This is not a tax return</strong> — no Section 112A ₹1,25,000 exemption, no slab-rate tax, no loss carry-forward applied here. Full tax treatment happens in ITRGenie; export the feed below and paste it in there.</p>
+  `;
+  container.appendChild(header);
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  if(data.soldLots.length === 0){
+    card.innerHTML = `<h3>Sold lots (0)</h3><p class="helptext">No sales recorded yet — use "Record a sale" above against any open holding.</p>`;
+    container.appendChild(card);
+    return;
+  }
+
+  const g = computeRealizedGains();
+  const stcgColor = g.stcg >= 0 ? 'var(--green)' : 'var(--rust)';
+  const ltcgColor = g.ltcg >= 0 ? 'var(--green)' : 'var(--rust)';
+  const totalColor = g.total >= 0 ? 'var(--green)' : 'var(--rust)';
+  const statGrid = document.createElement('div');
+  statGrid.className = 'stat-grid';
+  statGrid.innerHTML = `
+    <div class="stat-tile"><div class="stat-label">Short-term (STCG)</div><div class="stat-value" style="color:${stcgColor};">${formatMoney(g.stcg,'INR')}</div></div>
+    <div class="stat-tile"><div class="stat-label">Long-term (LTCG)</div><div class="stat-value" style="color:${ltcgColor};">${formatMoney(g.ltcg,'INR')}</div></div>
+    <div class="stat-tile accent"><div class="stat-label">Total realized (known)</div><div class="stat-value" style="color:${totalColor};">${formatMoney(g.total,'INR')}</div></div>
+  `;
+  container.appendChild(statGrid);
+  if(g.unknownGainCount > 0){
+    const note = document.createElement('div');
+    note.className = 'helptext';
+    note.style.cssText = 'margin:-8px 0 14px; color:var(--gold);';
+    note.textContent = `${g.unknownGainCount} sold lot(s) have unknown gain — the original holding had no Buy Price on file (likely CAS-imported). Fill in Buy Price in the table below to compute a real gain instead of leaving it a guess.`;
+    container.appendChild(note);
+  }
+  if(g.unknownTermCount > 0){
+    const note2 = document.createElement('div');
+    note2.className = 'helptext';
+    note2.style.cssText = 'margin:-8px 0 14px; color:var(--gold);';
+    note2.textContent = `${g.unknownTermCount} sold lot(s) have a known cost but no Buy Date — included in "Total realized" but excluded from the ST/LT split above (not guessed as short-term) until Buy Date is filled in below.`;
+    container.appendChild(note2);
+  }
+  if(g.unconvertedCount > 0){
+    const note3 = document.createElement('div');
+    note3.className = 'helptext';
+    note3.style.cssText = 'margin:-8px 0 14px; color:var(--rust);';
+    note3.textContent = `${g.unconvertedCount} USD sold lot(s) not included in the totals above — set the USD → INR rate further down to fold Vested-US sales in.`;
+    container.appendChild(note3);
+  }
+
+  card.innerHTML = `<h3>Sold lots (${data.soldLots.length})</h3><div class="table-scroll" id="sl_table_wrap"></div>`;
+  container.appendChild(card);
+  const wrap = card.querySelector('#sl_table_wrap');
+  const table = document.createElement('table');
+  table.className = 'day-table';
+  table.innerHTML = `<thead><tr>
+    <th>Symbol</th><th>Broker</th><th>Qty</th><th>Buy</th><th>Sell</th><th>Term</th><th>Gain/Loss</th><th></th>
+  </tr></thead>`;
+  const tbody = document.createElement('tbody');
+  data.soldLots.slice().reverse().forEach(lot=>{
+    const acc = accountOf(lot.broker);
+    const calc = computeSoldLotGain(lot);
+    const hasGain = calc.gain !== null;
+    const gainColor = hasGain ? (calc.gain >= 0 ? 'var(--green)' : 'var(--rust)') : 'var(--gold)';
+    const gainCellHtml = hasGain
+      ? formatMoney(calc.gain, acc.currency)
+      : `<span title="No Buy Price on file -- fill it in to the left to compute a real gain">— unknown</span>`;
+    const termTag = calc.term === 'LongTerm' ? `<span class="tag green">LTCG</span>`
+      : calc.term === 'ShortTerm' ? `<span class="tag rust">STCG</span>`
+      : `<span class="tag muted">unclassified</span>`;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td data-label="Symbol"><strong>${lot.symbol}</strong></td>
+      <td data-label="Broker" class="cell-muted">${acc.name}</td>
+      <td data-label="Qty">${lot.qty}</td>
+      <td data-label="Buy"><div class="cp-cell">
+          <input type="number" step="0.01" min="0" data-slbp="${lot.id}" value="${lot.buyPrice!==null?lot.buyPrice:''}" placeholder="unknown" style="width:100px;">
+          <input type="date" data-slbd="${lot.id}" value="${lot.buyDate||''}" style="width:130px;">
+        </div></td>
+      <td data-label="Sell">${lot.sellDate} @ ${formatMoney(lot.sellPrice, acc.currency)}</td>
+      <td data-label="Term">${termTag}</td>
+      <td data-label="Gain/Loss" class="cell-strong" style="color:${gainColor};">${gainCellHtml}</td>
+      <td data-label=""><button class="btn small ghost" data-slrm="${lot.id}">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
+
+  wrap.querySelectorAll('[data-slbp]').forEach(inp=>{
+    inp.onchange = (e)=>{
+      const lot = data.soldLots.find(x=>x.id===e.target.dataset.slbp);
+      if(!lot) return;
+      lot.buyPrice = e.target.value === '' ? null : +e.target.value;
+      saveData(); render();
+    };
+  });
+  wrap.querySelectorAll('[data-slbd]').forEach(inp=>{
+    inp.onchange = (e)=>{
+      const lot = data.soldLots.find(x=>x.id===e.target.dataset.slbd);
+      if(!lot) return;
+      lot.buyDate = e.target.value;
+      saveData(); render();
+    };
+  });
+  wrap.querySelectorAll('[data-slrm]').forEach(btn=>{
+    btn.onclick = (e)=>{
+      data.soldLots = data.soldLots.filter(x=>x.id!==e.target.dataset.slrm);
+      saveData(); render();
+    };
+  });
+
+  // ---- Capital gains feed export (Portfolio -> ITRGenie), same JSON + paste-ready-lines pattern
+  // already used for the Net Worth feed below.
+  const feedCard = document.createElement('div');
+  feedCard.className = 'card';
+  feedCard.innerHTML = `
+    <h3>Capital gains feed → ITRGenie</h3>
+    <p class="helptext" style="margin-bottom:8px;">Exports the shared <code>{symbol, buydate, selldate, buyprice, sellprice, qty, assetType}[]</code> contract for every sold lot above — including ones with an unknown Buy Price, left as <code>null</code> rather than guessed. Download the JSON, or copy paste-ready lines matching ITRGenie's Capital Gains — Equity module's own paste format (<code>Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice</code> — leave BuyDate/BuyPrice blank where unknown, same as that module already expects) for a quick paste-in there. Mutual Fund sales need to be tagged Sec 112A vs 112 by hand once pasted into ITRGenie's separate Capital Gains — Mutual Funds module, since Portfolio doesn't track that classification — this module's job is correct raw transaction facts, not tax-rule authority.</p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn small" id="cg_export_json">Download Capital Gains feed (JSON)</button>
+      <button class="btn small ghost" id="cg_copy_lines">Copy paste-ready lines (ITRGenie Equity format)</button>
+    </div>
+    <div id="cg_feed_fb" class="helptext" style="margin-top:8px;"></div>
+  `;
+  container.appendChild(feedCard);
+  feedCard.querySelector('#cg_export_json').onclick = ()=>{
+    const feed = buildCapitalGainsFeed();
+    const blob = new Blob([JSON.stringify(feed, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `portfolio-capitalgains-feed-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  feedCard.querySelector('#cg_copy_lines').onclick = async ()=>{
+    const feed = buildCapitalGainsFeed();
+    const lines = feed.map(r => `${r.symbol}, ${r.qty}, ${r.buydate||''}, ${r.buyprice!==null?r.buyprice:''}, ${r.selldate}, ${r.sellprice}`).join('\n');
+    const fb = feedCard.querySelector('#cg_feed_fb');
+    try{
+      await navigator.clipboard.writeText(lines);
+      fb.textContent = "Copied — paste directly into ITRGenie's Capital Gains — Equity module paste box.";
+    }catch(e){
+      fb.textContent = 'Could not access clipboard; here it is to copy manually:\n' + lines;
+    }
+  };
 }
 
 // ---------- guided "Add a holding" form -- the primary entry path ----------
@@ -1912,6 +2270,12 @@ function render(){
   renderPerformanceSummary(content);
   renderHoldingsTable(content);
 
+  // Selling — guided form (only entry path, see comment above renderRecordSaleForm) plus the
+  // realized-gains view it feeds. Placed right after open holdings since this is now real
+  // portfolio data too, not buried under entry forms/settings.
+  renderRecordSaleForm(content);
+  renderRealizedGainsSection(content);
+
   // Entry — guided form is the primary path; bulk paste/CSV is the collapsed "advanced" option.
   renderAddHoldingForm(content);
   renderHoldingsEntryCard(content);
@@ -1975,6 +2339,7 @@ document.getElementById('importFile').onchange = (e)=>{
       if(!Array.isArray(parsed.accounts) || parsed.accounts.length===0) parsed.accounts = defaultData().accounts;
       if(!Array.isArray(parsed.holdings)) parsed.holdings = [];
       if(!parsed.fx) parsed.fx = { usdInr:'', asOf:'' };
+      if(!Array.isArray(parsed.soldLots)) parsed.soldLots = [];
       data = parsed;
       saveData(); render();
     }

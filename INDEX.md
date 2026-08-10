@@ -16,7 +16,7 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 | Module | Path | Status | Last touched |
 |---|---|---|---|
 | ITRGenie | `/itrgenie/` | 27 modules, AIS auto-import + Prior Years fix | 2026-08-03 |
-| Portfolio Tracker | `/portfolio/` | Live, guided form + paste/CSV/Excel entry + CAS (NSDL/CDSL) PDF import (dedup/refresh-safe, lazy-loaded libs) + live prices (Yahoo + Stooq no-setup, optional Twelve Data key) — holdings, allocation, performance across 4 accounts; mobile UX pass done | 2026-08-10 |
+| Portfolio Tracker | `/portfolio/` | Live, guided form + paste/CSV/Excel entry + CAS (NSDL/CDSL) PDF import (dedup/refresh-safe, lazy-loaded libs) + live prices (Yahoo + Stooq no-setup, optional Twelve Data key) — holdings, allocation, performance across 4 accounts + sold-lot/realized-gains tracking (ST/LT classification, capital-gains feed export to ITRGenie); mobile UX pass done | 2026-08-10 |
 | Net Worth Dashboard | `/networth/` | Live, manual entry | 2026-08-03 |
 | Goals | `/goals/` | Live, manual entry + file upload | 2026-08-03 |
 | Debt & Loan Tracker | `/loans/` | Live, auto-detects from bank statement | 2026-08-07 |
