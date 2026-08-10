@@ -83,6 +83,13 @@
   .tag.gold{ background:rgba(201,162,39,0.15); color:var(--gold); }
   .notice{ border:1px solid var(--gold-dim); background:rgba(201,162,39,0.08); border-radius:6px; padding:10px 14px; font-size:12.5px; color:var(--text); margin-bottom:12px; line-height:1.55; }
   .notice strong{ color:var(--gold); }
+  .notice.warn{ border-color:var(--rust); background:rgba(181,83,60,0.09); }
+  .notice.warn strong{ color:var(--rust); }
+  .match-tag{ display:inline-block; font-size:10px; padding:1px 7px; border-radius:9px; text-transform:uppercase; letter-spacing:0.3px; font-weight:600; background:rgba(74,155,110,0.15); color:var(--green); margin-left:6px; }
+  .match-tag.isin{ background:rgba(126,168,201,0.18); color:#7EA8C9; }
+  .import-group{ border:1px solid var(--line); border-radius:6px; padding:12px 14px; margin-top:12px; background:var(--panel-2); }
+  .import-group h4{ font-family:var(--serif); font-size:14px; margin-bottom:8px; }
+  .pw-row{ display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-top:10px; }
   .live-status{ display:block; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:3px; }
   details.collapsible{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px 20px; margin-bottom:16px; }
   details.collapsible summary{ cursor:pointer; font-family:var(--serif); font-size:16px; list-style:none; }
@@ -139,6 +146,8 @@
     .cp-cell{ display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
   }
 </style>
+<script src="./lib/xlsx.core.min.js"></script>
+<script src="./lib/pdf.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -191,6 +200,7 @@ function newId(prefix){ return prefix + '_' + Date.now() + '_' + Math.floor(Math
 let brokerFilter = 'all';
 let liveSettingsOpen = false; // persists the collapsible "Live prices" panel's open/closed state across render() rebuilds
 let bulkAddOpen = false;      // same, for the collapsible bulk-add/advanced entry panel
+let casImportOpen = false;    // same, for the collapsible CAS PDF import panel
 let holdingsSort = { key: null, dir: 1 }; // click-to-sort state for the holdings table (Symbol/Qty/Value/Gain-Loss)
 
 // Guided "Add a holding" form's transient state -- last-used broker/asset type are remembered
@@ -202,15 +212,38 @@ let addFormLastType = 'Stock';
 let addFormFeedbackMsg = { text: '', isError: false };
 let bulkAddFeedbackMsg = ''; // same fix applied to the bulk-paste entry panel below
 
+// Excel (.xlsx/.xls) import: transient, in-memory only -- holds the detected column mapping and
+// parsed rows for a chosen file, awaiting user confirmation before anything is committed to
+// data.holdings. null when no file is being previewed. See handleExcelFileSelected() below.
+let xlsxImport = null;
+
+// CAS (NSDL/CDSL demat statement) PDF import: transient, in-memory only. See casImport-related
+// functions below (handleCasFileSelected, submitCasPassword, parseCasPdfText) -- kept in one
+// clearly isolated section since the CAS text-parsing logic is UNVERIFIED against a real
+// statement and is the first thing to revise once a real CAS is available (see PROGRESS.md).
+let casImport = null;
+function resetCasImport(){ casImport = { stage:'idle', fileName:'', pdfPasswordUpdate:null, incorrectAttempt:false, errorMsg:'', groups:null, parseFailReason:'' }; }
+resetCasImport();
+
 // ---------- shared paste/file helpers, same pattern as every other module ----------
 function parsePastedRows(text){
   return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
     .map(line=>{ const sep = line.includes('\t') ? '\t' : ','; return line.split(sep).map(c=>c.trim()); });
 }
+// CSV/TXT still flow through the textarea + Parse&Add pipeline exactly as before (unchanged).
+// .xlsx/.xls are real binary Excel files -- readAsText on those produces garbage, so they're
+// routed to handleExcelFileSelected() instead, which does real SheetJS parsing + fuzzy column
+// detection and shows a mapping preview before anything is committed (see below).
 function wireFileUpload(fileInputEl, textareaEl, parseBtnEl){
   fileInputEl.onchange = (e)=>{
     const file = e.target.files[0];
     if(!file) return;
+    const name = file.name.toLowerCase();
+    if(name.endsWith('.xlsx') || name.endsWith('.xls')){
+      handleExcelFileSelected(file);
+      fileInputEl.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev)=>{ textareaEl.value = ev.target.result; parseBtnEl.click(); fileInputEl.value=''; };
     reader.readAsText(file);
@@ -468,44 +501,62 @@ async function refreshAllLive(feedbackEl){
 // whether that got there by manual entry/re-import or by a successful live refresh (see the
 // "live prices" section above) makes no difference to this math; a failed live refresh simply
 // never touches currentPrice, so this function never needs to know the difference.
+//
+// hasBuyPrice matters as of the CAS import path (see above): a CAS gives current qty/value but
+// NOT a purchase price, so a CAS-imported holding can genuinely have no buyPrice at all -- unlike
+// every other entry path (guided form, paste, Excel), which all require one. Treating a missing
+// buyPrice as "0" would silently show that holding's entire current value as "gain", which is a
+// real correctness bug (misrepresenting "no cost data" as "free money"), not just a display nit --
+// so costBasis/gainAbs/gainPct are `null` (not 0) whenever buyPrice is genuinely unset, and every
+// caller below must check hasBuyPrice before summing/displaying gain figures.
 function computeHoldingMetrics(h){
   const acc = accountOf(h.broker);
   const currency = acc.currency;
   const qty = +h.qty || 0;
-  const buyPrice = +h.buyPrice || 0;
+  const hasBuyPrice = h.buyPrice !== '' && h.buyPrice !== null && h.buyPrice !== undefined && !isNaN(+h.buyPrice);
+  const buyPrice = hasBuyPrice ? +h.buyPrice : null;
   const hasCurrentPrice = h.currentPrice !== '' && h.currentPrice !== null && h.currentPrice !== undefined && !isNaN(+h.currentPrice);
-  const currentPrice = hasCurrentPrice ? +h.currentPrice : buyPrice;
-  const costBasis = qty * buyPrice;
+  const currentPrice = hasCurrentPrice ? +h.currentPrice : (buyPrice !== null ? buyPrice : 0);
+  const costBasis = hasBuyPrice ? qty * buyPrice : null;
   const currentValue = qty * currentPrice;
-  const gainAbs = currentValue - costBasis;
-  const gainPct = costBasis > 0 ? (gainAbs / costBasis * 100) : 0;
-  return { currency, accountName: acc.name, qty, buyPrice, currentPrice, costBasis, currentValue, gainAbs, gainPct, isStale: !hasCurrentPrice };
+  const gainAbs = hasBuyPrice ? currentValue - costBasis : null;
+  const gainPct = hasBuyPrice ? (costBasis > 0 ? (gainAbs / costBasis * 100) : 0) : null;
+  return { currency, accountName: acc.name, qty, buyPrice, hasBuyPrice, currentPrice, costBasis, currentValue, gainAbs, gainPct, isStale: !hasCurrentPrice };
 }
 
 function computePortfolio(){
-  let totalCostINR = 0, totalValueINR = 0;
+  let totalValueINR = 0;       // full current value of every convertible holding -- real, unconditional on buyPrice
+  let costForGainINR = 0;      // cost basis, summed ONLY over holdings with a known buy price
+  let valueForGainINR = 0;     // current value of that SAME subset -- keeps the gain calc apples-to-apples
   let unconvertedCount = 0;
-  const byBroker = {};   // brokerId -> {name, currency, costNative, valueNative, count}
+  let unknownCostCount = 0;    // holdings (e.g. CAS-imported) with no buy price yet -- excluded from cost/gain math
+  const byBroker = {};   // brokerId -> {name, currency, valueNative (all), costNativePriced, valueNativePriced, unpricedCount, count}
   const byAssetType = {}; // assetType -> valueINR (only counts holdings that could be converted)
 
   data.holdings.forEach(h=>{
     const m = computeHoldingMetrics(h);
-    if(!byBroker[h.broker]) byBroker[h.broker] = { name: m.accountName, currency: m.currency, costNative:0, valueNative:0, count:0 };
-    byBroker[h.broker].costNative += m.costBasis;
-    byBroker[h.broker].valueNative += m.currentValue;
-    byBroker[h.broker].count++;
+    if(!byBroker[h.broker]) byBroker[h.broker] = { name: m.accountName, currency: m.currency, valueNative:0, costNativePriced:0, valueNativePriced:0, unpricedCount:0, count:0 };
+    const b = byBroker[h.broker];
+    b.valueNative += m.currentValue;
+    b.count++;
+    if(m.hasBuyPrice){ b.costNativePriced += m.costBasis; b.valueNativePriced += m.currentValue; }
+    else { b.unpricedCount++; }
 
-    const costINR = toINR(m.costBasis, m.currency);
     const valINR = toINR(m.currentValue, m.currency);
-    if(costINR===null || valINR===null){ unconvertedCount++; return; }
-    totalCostINR += costINR;
+    if(valINR===null){ unconvertedCount++; return; }
     totalValueINR += valINR;
     byAssetType[h.assetType || 'Other'] = (byAssetType[h.assetType || 'Other'] || 0) + valINR;
+    if(m.hasBuyPrice){
+      const costINR = toINR(m.costBasis, m.currency);
+      if(costINR!==null){ costForGainINR += costINR; valueForGainINR += valINR; }
+    } else {
+      unknownCostCount++;
+    }
   });
 
-  const gainINR = totalValueINR - totalCostINR;
-  const gainPct = totalCostINR > 0 ? (gainINR / totalCostINR * 100) : 0;
-  return { totalCostINR, totalValueINR, gainINR, gainPct, byBroker, byAssetType, unconvertedCount };
+  const gainINR = valueForGainINR - costForGainINR;
+  const gainPct = costForGainINR > 0 ? (gainINR / costForGainINR * 100) : 0;
+  return { totalCostINR: costForGainINR, totalValueINR, gainINR, gainPct, byBroker, byAssetType, unconvertedCount, unknownCostCount };
 }
 
 // ---------- performance summary (front and center, right after the header) ----------
@@ -523,6 +574,7 @@ function renderPerformanceSummary(container){
     <div class="stat-tile">
       <div class="stat-label">Invested (cost basis)</div>
       <div class="stat-value">${formatMoney(p.totalCostINR, 'INR')}</div>
+      ${p.unknownCostCount>0 ? `<div class="helptext" style="margin-top:2px;">of holdings with a Buy Price set</div>` : ''}
     </div>
     <div class="stat-tile">
       <div class="stat-label">Total gain / loss</div>
@@ -536,6 +588,13 @@ function renderPerformanceSummary(container){
     note.className = 'helptext';
     note.style.cssText = 'margin:-8px 0 14px; color:var(--rust);';
     note.textContent = `${p.unconvertedCount} USD holding(s) not included above — set the USD → INR rate further down to fold Vested-US in.`;
+    container.appendChild(note);
+  }
+  if(p.unknownCostCount>0){
+    const note = document.createElement('div');
+    note.className = 'helptext';
+    note.style.cssText = 'margin:-8px 0 14px; color:var(--gold);';
+    note.textContent = `${p.unknownCostCount} holding(s) (likely CAS-imported) have no Buy Price yet — their current value is counted above, but they're left out of Invested/Gain-Loss until you fill in Buy Price in the table below.`;
     container.appendChild(note);
   }
 }
@@ -614,27 +673,35 @@ function renderHoldingsTable(container){
   const tbody = document.createElement('tbody');
   withMetrics.forEach(({h, m})=>{
     const tr = document.createElement('tr');
-    const gainColor = m.gainAbs >= 0 ? 'var(--green)' : 'var(--rust)';
+    // A holding can have no Buy Price at all if it came from a CAS import (see the CAS import
+    // section above) -- gainAbs/gainPct are `null` in that case, not 0, so this must not fall
+    // back to a fake "green, zero gain" row; show a plain hint pointing at the now-editable Avg
+    // Price input instead of a number.
+    const hasGain = m.gainAbs !== null;
+    const gainColor = hasGain ? (m.gainAbs >= 0 ? 'var(--green)' : 'var(--rust)') : 'var(--gold)';
+    const gainCellHtml = hasGain
+      ? `${formatMoney(m.gainAbs, m.currency)} (${m.gainPct.toFixed(1)}%)`
+      : `<span title="No Buy Price yet -- enter one in the Avg Price column to the left">— set Buy Price</span>`;
     const refreshable = isRefreshable(h);
     const cpCell = refreshable
-      ? `<div class="cp-cell"><input type="number" step="0.01" data-cp="${h.id}" value="${h.currentPrice}" placeholder="${m.buyPrice}">
+      ? `<div class="cp-cell"><input type="number" step="0.01" data-cp="${h.id}" value="${h.currentPrice}" placeholder="${m.buyPrice!==null?m.buyPrice:''}">
            <div style="margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
              <button class="btn tiny ghost" data-live="${h.id}" title="Fetch a live price for this holding">↻ live</button>
              ${liveStatusHtml(h)}
            </div></div>`
-      : `<div class="cp-cell"><input type="number" step="0.01" data-cp="${h.id}" value="${h.currentPrice}" placeholder="${m.buyPrice}">
+      : `<div class="cp-cell"><input type="number" step="0.01" data-cp="${h.id}" value="${h.currentPrice}" placeholder="${m.buyPrice!==null?m.buyPrice:''}">
            <div class="helptext" style="margin-top:4px; font-size:10.5px;">manual only (${h.assetType||'—'})</div></div>`;
     tr.innerHTML = `
       <td data-label="Symbol"><strong>${h.symbol}</strong></td>
       <td data-label="Broker" class="cell-muted">${m.accountName}</td>
       <td data-label="Type" class="cell-muted">${h.assetType}</td>
       <td data-label="Qty">${m.qty}</td>
-      <td data-label="Avg Price">${formatMoney(m.buyPrice, m.currency)}</td>
+      <td data-label="Avg Price"><input type="number" step="0.01" min="0" data-bp="${h.id}" value="${m.buyPrice!==null?m.buyPrice:''}" placeholder="e.g. ${m.currentPrice||''}"></td>
       <td data-label="Buy Date" class="cell-muted">${h.buyDate}</td>
       <td data-label="Current Price">${cpCell}</td>
       <td data-label="As Of"><input type="date" data-asof="${h.id}" value="${h.asOf||''}"></td>
       <td data-label="Value" class="cell-strong">${formatMoney(m.currentValue, m.currency)}${m.isStale?' <span class="tag muted">stale</span>':''}</td>
-      <td data-label="Gain/Loss" class="cell-strong" style="color:${gainColor};">${formatMoney(m.gainAbs, m.currency)} (${m.gainPct.toFixed(1)}%)</td>
+      <td data-label="Gain/Loss" class="cell-strong" style="color:${gainColor};">${gainCellHtml}</td>
       <td data-label=""><button class="btn small ghost" data-rm="${h.id}">✕</button></td>
     `;
     tbody.appendChild(tr);
@@ -648,6 +715,18 @@ function renderHoldingsTable(container){
       const key = th.dataset.sort;
       if(holdingsSort.key === key) holdingsSort.dir *= -1; else { holdingsSort.key = key; holdingsSort.dir = 1; }
       render();
+    };
+  });
+  // Avg Price (Buy Price) inline edit -- this is the "already-existing inline-editable table"
+  // path a CAS-imported holding's blank Buy Price is meant to be filled in through (see the CAS
+  // import section above and its in-UI notice); works the same for any holding, not just
+  // CAS-imported ones.
+  wrap.querySelectorAll('[data-bp]').forEach(inp=>{
+    inp.onchange = (e)=>{
+      const h = data.holdings.find(x=>x.id===e.target.dataset.bp);
+      if(!h) return;
+      h.buyPrice = e.target.value === '' ? '' : +e.target.value;
+      saveData(); render();
     };
   });
   wrap.querySelectorAll('[data-cp]').forEach(inp=>{
@@ -758,6 +837,539 @@ function renderAddHoldingForm(container){
   };
 }
 
+// ---------- Excel (.xlsx/.xls) import -- fuzzy column detection ----------
+// Real broker exports (Zerodha, Angel One, Groww, ...) don't share one exact column schema, so
+// this matches headers by normalized substring against per-field alias lists rather than
+// requiring an exact match -- e.g. "Avg. cost" and "Buy Avg" both resolve to the same "price"
+// field. An ISIN found in a column's actual cell values is treated as an independent,
+// broker-agnostic signal for the symbol/security column, used as a fallback when no header
+// matches (some exports label that column just "Security" or leave it ambiguous).
+const ISIN_REGEX = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
+const XLSX_FIELD_ALIASES = {
+  symbol:   ['instrument','symbol','scrip','ticker','stock name','trading symbol','security name','security'],
+  quantity: ['qty','quantity','units','shares'],
+  price:    ['avg cost','average price','buy avg','avg price','buy price','cost price','purchase price','buy rate'],
+  date:     ['buy date','trade date','purchase date','date'], // "date" last -- most generic, so more specific aliases win first
+};
+// Lowercase, trim, strip punctuation to spaces, collapse whitespace -- "Avg. Cost" and "Qty."
+// both normalize to a form the alias lists above can substring-match against.
+function normalizeHeader(h){
+  return String(h==null ? '' : h).toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function fieldForHeader(headerText){
+  const norm = normalizeHeader(headerText);
+  if(!norm) return null;
+  for(const field of ['symbol','quantity','price','date']){
+    if(XLSX_FIELD_ALIASES[field].some(alias => norm.includes(alias))) return field;
+  }
+  return null;
+}
+function parseNumericCell(v){
+  if(v === '' || v === null || v === undefined) return NaN;
+  if(typeof v === 'number') return v;
+  const cleaned = String(v).replace(/[,₹$\s]/g, '');
+  return cleaned === '' ? NaN : parseFloat(cleaned);
+}
+function excelDateToISO(v){
+  if(v === '' || v === null || v === undefined) return '';
+  if(v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0,10);
+  const s = String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? '' : d.toISOString().slice(0,10);
+}
+// Given a header row and the data rows beneath it, map each recognizable column to symbol /
+// quantity / price / date. First column matching a field's alias list wins that field (left to
+// right); a column already claimed by one field isn't reused for another. Returns the mapping
+// plus how each match was made ("header" vs "isin"), so the preview UI can show its work.
+function detectColumnMapping(headerRow, dataRows){
+  const mapping = {}; // field -> column index
+  const matchedBy = {}; // field -> 'header' | 'isin'
+  headerRow.forEach((cell, idx) => {
+    const field = fieldForHeader(cell);
+    if(field && mapping[field] === undefined){ mapping[field] = idx; matchedBy[field] = 'header'; }
+  });
+  // ISIN content-scan fallback for symbol: only kicks in when no header matched a symbol column --
+  // scans a sample of data rows for a column whose cells consistently look like ISINs (broker-
+  // independent identifier, unlike a ticker convention that varies by exchange).
+  if(mapping.symbol === undefined && dataRows.length){
+    const sample = dataRows.slice(0, 15);
+    const colCount = headerRow.length;
+    let bestCol = -1, bestHits = 0;
+    for(let c=0; c<colCount; c++){
+      let hits = 0;
+      sample.forEach(row => { if(row[c] !== undefined && ISIN_REGEX.test(String(row[c]).trim())) hits++; });
+      if(hits > bestHits){ bestHits = hits; bestCol = c; }
+    }
+    if(bestCol >= 0 && bestHits >= Math.max(2, Math.ceil(sample.length * 0.5))){
+      mapping.symbol = bestCol; matchedBy.symbol = 'isin';
+    }
+  }
+  return { mapping, matchedBy };
+}
+// Scans the first several rows of the sheet for the best header row -- real exports often have
+// a title/date row or two above the actual column headers (e.g. "Holdings as on ..."). Picks the
+// earliest row (within the first 10) where symbol + quantity + price are all detected; if none
+// qualifies, returns the best partial match found so the preview can explain what's missing.
+function findHeaderRowAndMapping(rows){
+  let best = null;
+  const scanLimit = Math.min(rows.length, 10);
+  for(let r=0; r<scanLimit; r++){
+    const headerRow = rows[r].map(c => c==null ? '' : String(c));
+    const dataRows = rows.slice(r+1, r+16);
+    const { mapping, matchedBy } = detectColumnMapping(headerRow, dataRows);
+    const score = ['symbol','quantity','price','date'].filter(f => mapping[f] !== undefined).length;
+    const candidate = { headerRowIndex: r, headerRow, mapping, matchedBy, score };
+    const required = mapping.symbol !== undefined && mapping.quantity !== undefined && mapping.price !== undefined;
+    if(required) return candidate; // first fully-usable header row wins -- earliest is almost always correct
+    if(!best || score > best.score) best = candidate;
+  }
+  return best;
+}
+async function handleExcelFileSelected(file){
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:true});
+    const sheetName = wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:'', raw:true});
+    const nonEmptyRows = rows.filter(r => r.some(c => c!=='' && c!==null && c!==undefined));
+    if(nonEmptyRows.length === 0){
+      xlsxImport = { fileName: file.name, failed: true, reason: 'This file has no readable rows.' };
+      render(); return;
+    }
+    const found = findHeaderRowAndMapping(nonEmptyRows);
+    const requiredOk = found && found.mapping.symbol !== undefined && found.mapping.quantity !== undefined && found.mapping.price !== undefined;
+    if(!requiredOk){
+      const gotFields = found ? Object.keys(found.mapping) : [];
+      xlsxImport = {
+        fileName: file.name, failed: true,
+        reason: `Could not confidently detect Symbol, Quantity and Price columns${gotFields.length ? ` (only recognized: ${gotFields.join(', ')})` : ''}. Try the paste format above instead, or check the file has a proper header row.`,
+        headerRow: found ? found.headerRow : nonEmptyRows[0],
+      };
+      render(); return;
+    }
+    const dataRows = nonEmptyRows.slice(found.headerRowIndex + 1);
+    const parsedRows = [];
+    let skipped = 0;
+    dataRows.forEach(row => {
+      const symbolRaw = row[found.mapping.symbol];
+      const symbol = symbolRaw==null ? '' : String(symbolRaw).trim();
+      const qty = parseNumericCell(row[found.mapping.quantity]);
+      const price = parseNumericCell(row[found.mapping.price]);
+      const date = found.mapping.date !== undefined ? excelDateToISO(row[found.mapping.date]) : '';
+      if(!symbol || !isFinite(qty) || qty<=0 || !isFinite(price) || price<0){ skipped++; return; }
+      parsedRows.push({ symbol, qty, price, date });
+    });
+    if(parsedRows.length === 0){
+      xlsxImport = { fileName: file.name, failed: true, reason: `Found the right columns, but no rows had usable Symbol/Qty/Price values (${skipped} row(s) skipped). Try the paste format above instead.` };
+      render(); return;
+    }
+    xlsxImport = {
+      fileName: file.name, failed: false,
+      headerRow: found.headerRow, mapping: found.mapping, matchedBy: found.matchedBy,
+      rows: parsedRows, skipped,
+      broker: (data.accounts[0] && data.accounts[0].id) || null,
+      assetType: 'Stock',
+    };
+    bulkAddOpen = true;
+    render();
+  }catch(err){
+    xlsxImport = { fileName: file.name, failed: true, reason: 'Could not read this as an Excel file: ' + (err && err.message ? err.message : String(err)) };
+    render();
+  }
+}
+
+function fieldLabel(field){
+  return { symbol:'Symbol', quantity:'Quantity', price:'Price (Buy)', date:'Date (Buy)' }[field] || field;
+}
+function renderXlsxImportPreview(container){
+  if(!xlsxImport) return;
+  const card = document.createElement('div');
+  card.className = 'card';
+  if(xlsxImport.failed){
+    card.innerHTML = `
+      <h3>Excel import — ${xlsxImport.fileName}</h3>
+      <div class="notice warn"><strong>Couldn't import this file.</strong> ${xlsxImport.reason}</div>
+      <button class="btn small ghost" id="xlsx_dismiss">Dismiss</button>
+    `;
+    container.appendChild(card);
+    card.querySelector('#xlsx_dismiss').onclick = ()=>{ xlsxImport = null; render(); };
+    return;
+  }
+  const mapRows = ['symbol','quantity','price','date'].map(field=>{
+    const idx = xlsxImport.mapping[field];
+    if(idx === undefined) return `<tr><td data-label="Field">${fieldLabel(field)}</td><td data-label="Detected column" class="cell-muted">— not found${field==='date' ? ' (ok — optional)' : ''}</td><td data-label=""></td></tr>`;
+    const via = xlsxImport.matchedBy[field];
+    const tag = via==='isin' ? `<span class="match-tag isin">ISIN pattern</span>` : `<span class="match-tag">header match</span>`;
+    return `<tr><td data-label="Field">${fieldLabel(field)}</td><td data-label="Detected column"><strong>${xlsxImport.headerRow[idx] || '(column '+(idx+1)+')'}</strong></td><td data-label="">${tag}</td></tr>`;
+  }).join('');
+  const previewRows = xlsxImport.rows.slice(0,5).map(r=>`<tr><td data-label="Symbol">${r.symbol}</td><td data-label="Qty">${r.qty}</td><td data-label="Price">${r.price}</td><td data-label="Date">${r.date||'—'}</td></tr>`).join('');
+  card.innerHTML = `
+    <h3>Excel import — ${xlsxImport.fileName}</h3>
+    <p class="helptext" style="margin-bottom:8px;">Detected column mapping — review before importing:</p>
+    <div class="table-scroll"><table class="day-table"><thead><tr><th>Field</th><th>Detected column</th><th></th></tr></thead><tbody>${mapRows}</tbody></table></div>
+    <div class="field-row" style="margin-top:12px;">
+      <div class="field"><label>Import into account</label>
+        <select id="xlsx_broker">${data.accounts.map(a=>`<option value="${a.id}" ${a.id===xlsxImport.broker?'selected':''}>${a.name}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Asset type (applies to all rows)</label>
+        <select id="xlsx_assettype">${['Stock','ETF','Mutual Fund','Other'].map(t=>`<option value="${t}" ${t===xlsxImport.assetType?'selected':''}>${t}</option>`).join('')}</select>
+      </div>
+    </div>
+    <p class="helptext" style="margin:10px 0 4px;"><strong style="color:var(--text);">${xlsxImport.rows.length} row(s) ready to import</strong>${xlsxImport.skipped>0 ? `, ${xlsxImport.skipped} skipped (missing/invalid Symbol, Qty or Price)` : ''}. Preview of the first ${Math.min(5,xlsxImport.rows.length)}:</p>
+    <div class="table-scroll"><table class="day-table"><thead><tr><th>Symbol</th><th>Qty</th><th>Price</th><th>Date</th></tr></thead><tbody>${previewRows}</tbody></table></div>
+    ${xlsxImport.mapping.date===undefined ? `<p class="helptext" style="margin-top:8px;">No Buy Date column was detected — imported holdings will have Buy Date left blank; add it per-row in the holdings table afterward if you want it.</p>` : ''}
+    <div style="display:flex; gap:8px; margin-top:12px;">
+      <button class="btn primary small" id="xlsx_confirm">Import ${xlsxImport.rows.length} holding${xlsxImport.rows.length===1?'':'s'}</button>
+      <button class="btn small ghost" id="xlsx_cancel">Cancel</button>
+    </div>
+  `;
+  container.appendChild(card);
+  card.querySelector('#xlsx_broker').onchange = (e)=>{ xlsxImport.broker = e.target.value; };
+  card.querySelector('#xlsx_assettype').onchange = (e)=>{ xlsxImport.assetType = e.target.value; };
+  card.querySelector('#xlsx_confirm').onclick = ()=>{
+    const broker = xlsxImport.broker, assetType = xlsxImport.assetType;
+    xlsxImport.rows.forEach(r=>{
+      data.holdings.push({
+        id: newId('h'), symbol: r.symbol.toUpperCase(), broker, assetType,
+        qty: r.qty, buyPrice: r.price, buyDate: r.date || '',
+        currentPrice: '', asOf: '',
+      });
+    });
+    bulkAddFeedbackMsg = `Imported ${xlsxImport.rows.length} holding(s) from ${xlsxImport.fileName}${xlsxImport.skipped>0?` (${xlsxImport.skipped} skipped)`:''}.`;
+    xlsxImport = null;
+    bulkAddOpen = true;
+    saveData(); render();
+  };
+  card.querySelector('#xlsx_cancel').onclick = ()=>{ xlsxImport = null; render(); };
+}
+
+// ---------- CAS (NSDL/CDSL demat statement) PDF import ----------
+// A Consolidated Account Statement aggregates holdings across ALL of a user's brokers/demat
+// accounts into one document, unlike any single broker's own export -- genuinely broker-agnostic.
+// Near-universally password-protected. Everything here runs client-side via the self-hosted
+// PDF.js build; nothing is uploaded anywhere (see the notice rendered in the UI below).
+//
+// IMPORTANT / UNVERIFIED: the text-layout parsing in parseCasPdfText() below was built defensively
+// against publicly documented NSDL/CDSL CAS structure and general technique (positional text
+// extraction + ISIN-anchored regex, in the spirit of open-source tools like `casparser`), but this
+// session had no real CAS file to test against -- it has NOT been verified against an actual
+// statement's real text layout. It is deliberately kept in one isolated, easy-to-revise function
+// (see portfolio/PROGRESS.md) so it can be corrected quickly once tried against a real document.
+// CAMS/KFintech mutual-fund CAS (folio/AMC/scheme structure) is explicitly OUT of scope here --
+// its layout is different enough from a demat CAS that a real half-built parser would be worse
+// than a clear "not supported" message; NSDL/CDSL demat CAS is the primary, and only, target,
+// since it maps directly onto this module's existing Stock/ETF holdings model.
+if(typeof pdfjsLib !== 'undefined'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.js';
+}
+
+async function handleCasFileSelected(file){
+  resetCasImport();
+  casImport.fileName = file.name;
+  casImport.stage = 'reading';
+  render();
+  let buf;
+  try{ buf = await file.arrayBuffer(); }
+  catch(err){ casImport.stage='error'; casImport.errorMsg = 'Could not read this file: ' + err.message; render(); return; }
+  startCasUnlock(buf);
+}
+
+// Kept separate from handleCasFileSelected so the same in-flight loadingTask.promise can be
+// awaited once and resumed via updatePassword() without re-reading the file -- pdf.js calls
+// onPassword again (with INCORRECT_PASSWORD) if a wrong password is submitted, and this same
+// await simply continues until it either resolves or the user gives up.
+async function startCasUnlock(buf){
+  casImport.stage = 'unlocking-init';
+  const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buf.slice(0)) });
+  loadingTask.onPassword = (updatePassword, reason) => {
+    casImport.pdfPasswordUpdate = updatePassword;
+    casImport.incorrectAttempt = (reason === pdfjsLib.PasswordResponses.INCORRECT_PASSWORD);
+    casImport.stage = 'awaiting-password';
+    render();
+    requestAnimationFrame(()=>{ const inp = document.getElementById('cas_pw_input'); if(inp) inp.focus(); });
+  };
+  try{
+    const pdf = await loadingTask.promise;
+    casImport.stage = 'extracting';
+    render();
+    const { fullText, lines } = await extractPdfLines(pdf);
+    if(!fullText.trim()){
+      casImport.stage = 'parse-failed';
+      casImport.parseFailReason = 'No text found in this PDF — it may be a scanned image rather than a real document, which this tool can\'t read. Try Excel import or manual/paste entry instead.';
+      render(); return;
+    }
+    const result = parseCasPdfText(fullText, lines);
+    if(!result.ok){
+      casImport.stage = 'parse-failed';
+      casImport.parseFailReason = result.reason;
+      render(); return;
+    }
+    casImport.groups = result.groups.map(g => ({
+      label: g.label, holdings: g.holdings,
+      broker: guessBrokerForGroup(g),
+      assetType: 'Stock',
+    }));
+    casImport.stage = 'parsed';
+    render();
+  }catch(err){
+    casImport.stage = 'error';
+    casImport.errorMsg = 'Could not open this PDF: ' + (err && err.message ? err.message : String(err));
+    render();
+  }
+}
+
+function submitCasPassword(pw){
+  if(!casImport.pdfPasswordUpdate) return;
+  const fn = casImport.pdfPasswordUpdate;
+  casImport.pdfPasswordUpdate = null;
+  casImport.stage = 'unlocking';
+  render();
+  fn(pw || '');
+}
+
+// Groups PDF.js text items into visual lines by rounded vertical position, sorted left-to-right
+// within a line -- this reads real tabular PDF text far more reliably than a naive join of every
+// item in extraction order, which often interleaves columns. Same general technique used for
+// ITRGenie's PDF text extraction, extended here with line grouping because CAS parsing needs
+// row structure, not just a prose blob.
+async function extractPdfLines(pdf){
+  const lines = [];
+  for(let p=1; p<=pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const byY = new Map();
+    content.items.forEach(it=>{
+      if(!it.str || !it.str.trim()) return;
+      const y = Math.round(it.transform[5]);
+      const x = it.transform[4];
+      if(!byY.has(y)) byY.set(y, []);
+      byY.get(y).push({ x, str: it.str });
+    });
+    const ys = Array.from(byY.keys()).sort((a,b)=> b-a); // PDF y grows upward -- top of page first
+    ys.forEach(y=>{
+      const items = byY.get(y).sort((a,b)=>a.x-b.x);
+      const line = items.map(i=>i.str).join(' ').replace(/\s+/g,' ').trim();
+      if(line) lines.push(line);
+    });
+  }
+  return { fullText: lines.join('\n'), lines };
+}
+
+// ---- Isolated, easy-to-revise CAS text parser -- UNVERIFIED against a real statement ----
+// Anchors on ISIN (broker-independent, format-independent: [A-Z]{2}[A-Z0-9]{9}[0-9]) as the one
+// reliable signal in an otherwise-inconsistent table layout. For each line containing an ISIN:
+// the ISIN itself is stripped out FIRST (an ISIN like "INE009A01021" contains digit runs of its
+// own -- "009", "01021" -- that would otherwise contaminate the numeric-token scan below and,
+// depending on column order, corrupt the qty/value pick). The last two remaining numeric tokens
+// on the line are then treated as quantity then market value, since NSDL/CDSL holding-statement
+// tables near-universally end each row with a balance/quantity column followed by a value column
+// -- this ordering is a best-effort assumption based on published CAS format documentation, NOT
+// confirmed against a real file. The security name is whatever text is left once the ISIN and
+// those numeric tokens are both removed -- this works regardless of whether a real CAS orders
+// columns as ISIN-Name-Qty-Value or Name-ISIN-Qty-Value or something else, since it subtracts
+// known tokens rather than assuming a fixed position. Lines mentioning DP ID / Client ID / BO ID /
+// Depository Participant / CDSL / NSDL are used only to *label* groups of holdings (for the
+// account-assignment dropdown in the preview UI) -- mislabeling a group doesn't affect parsing
+// correctness, it just gives the user a worse hint for which of their accounts to assign it to.
+function parseCasPdfText(fullText, lines){
+  const isinLineRe = /\b[A-Z]{2}[A-Z0-9]{9}[0-9]\b/;
+  const acctHeaderRe = /(DP\s*ID|Client\s*ID|BO\s*ID|Depository\s*Participant|CDSL|NSDL)/i;
+  const groups = [];
+  let currentGroup = null;
+  function ensureGroup(){
+    if(!currentGroup){ currentGroup = { label: 'Holdings', holdings: [] }; groups.push(currentGroup); }
+    return currentGroup;
+  }
+  lines.forEach(line=>{
+    const isinMatch = line.match(isinLineRe);
+    if(isinMatch){
+      const isin = isinMatch[0];
+      const g = ensureGroup();
+      const withoutIsin = line.replace(isin, ' '); // strip the ISIN's own digits out of the scan entirely
+      const numTokens = (withoutIsin.match(/\d[\d,]*\.?\d*/g) || []).filter(t => t.replace(/[,\.]/g,'').length>0);
+      let qty = null, marketValue = null;
+      if(numTokens.length >= 2){
+        qty = parseFloat(numTokens[numTokens.length-2].replace(/,/g,''));
+        marketValue = parseFloat(numTokens[numTokens.length-1].replace(/,/g,''));
+      } else if(numTokens.length === 1){
+        qty = parseFloat(numTokens[0].replace(/,/g,''));
+      }
+      let namePart = withoutIsin;
+      numTokens.forEach(tok => { namePart = namePart.replace(tok, ' '); });
+      namePart = namePart.replace(/\s+/g,' ').trim().replace(/^[-.\s]+|[-.\s]+$/g,'');
+      if(!namePart) namePart = isin;
+      if(qty!==null && isFinite(qty) && qty>0){
+        g.holdings.push({ isin, name: namePart, qty, marketValue: (marketValue!==null && isFinite(marketValue)) ? marketValue : null });
+      }
+      return;
+    }
+    if(acctHeaderRe.test(line)){
+      // Start a fresh group only once the current one already has holdings, so a header line that
+      // repeats on every page (common in real statements) doesn't fragment one account into many
+      // empty groups -- it just re-labels the group still being filled.
+      if(!currentGroup || currentGroup.holdings.length>0){ currentGroup = { label: line.slice(0,90), holdings: [] }; groups.push(currentGroup); }
+      else currentGroup.label = line.slice(0,90);
+    }
+  });
+  const nonEmpty = groups.filter(g=>g.holdings.length>0);
+  if(nonEmpty.length===0){
+    return { ok:false, reason: 'Unlocked the PDF, but couldn\'t recognize a demat CAS holdings table in its text (no ISIN + quantity pattern found). This parser targets NSDL/CDSL demat statements specifically — if this is a CAMS/KFintech mutual-fund CAS or a different document, use Excel import or the manual/paste entry above instead.' };
+  }
+  return { ok:true, groups: nonEmpty };
+}
+function guessBrokerForGroup(g){
+  const t = (g.label||'').toLowerCase();
+  const hit = data.accounts.find(a => t.includes(a.name.toLowerCase()));
+  return (hit || data.accounts[0] || {}).id || null;
+}
+
+function renderCasImportCard(container){
+  const el = document.createElement('details');
+  el.className = 'collapsible';
+  el.id = 'cas-import-panel';
+  if(casImportOpen) el.open = true;
+  el.ontoggle = ()=>{ casImportOpen = el.open; };
+  const body = document.createElement('div');
+  body.className = 'details-body';
+  body.innerHTML = `
+    <div class="notice">
+      <strong>Client-side only — nothing is uploaded anywhere.</strong> The PDF you choose, the
+      password you enter, and everything extracted from it stay in this browser tab; unlocking and
+      reading happens entirely in your device's memory, the same as every other tool in Financial
+      OS. This is the one document that aggregates ALL your brokers/demat accounts into one file,
+      so it's usually the fastest way to get a full picture in here.
+    </div>
+    <div class="notice warn">
+      <strong>A CAS shows what you hold today, not what you paid for it.</strong> It has current
+      quantity and current market value, not your original purchase price/date — those aren't in
+      this document at all. Imported holdings will have <strong>Buy Price left blank</strong> for
+      you to fill in yourself (editable directly in the Holdings table above, per row).
+    </div>
+    <div id="cas_body"></div>
+  `;
+  el.innerHTML = `<summary>Import from CAS (NSDL/CDSL demat statement) <span class="summary-hint">— PDF, usually password-protected</span></summary>`;
+  el.appendChild(body);
+  container.appendChild(el);
+  renderCasBody(body.querySelector('#cas_body'));
+}
+
+function renderCasBody(container){
+  const st = casImport.stage;
+  if(st === 'idle'){
+    container.innerHTML = `
+      <div class="field-row">
+        <div class="field"><label>CAS PDF file</label>
+          <button class="btn small ghost" id="cas_file_btn" type="button">Choose PDF file</button>
+          <input type="file" id="cas_file" accept=".pdf" style="display:none">
+        </div>
+      </div>
+    `;
+    container.querySelector('#cas_file_btn').onclick = ()=> container.querySelector('#cas_file').click();
+    container.querySelector('#cas_file').onchange = (e)=>{
+      const file = e.target.files[0];
+      if(file) handleCasFileSelected(file);
+    };
+    return;
+  }
+  if(st === 'reading' || st === 'unlocking-init' || st === 'unlocking' || st === 'extracting'){
+    const msg = { reading:'Reading file…', 'unlocking-init':'Opening PDF…', unlocking:'Checking password…', extracting:'Extracting holdings…' }[st];
+    container.innerHTML = `<p class="helptext">${msg}</p>`;
+    return;
+  }
+  if(st === 'awaiting-password'){
+    container.innerHTML = `
+      <p class="helptext" style="margin-bottom:6px;"><strong style="color:var(--text);">${casImport.fileName}</strong> is password-protected.</p>
+      ${casImport.incorrectAttempt ? `<p class="helptext" style="color:var(--rust); margin-bottom:6px;">Incorrect password — try again.</p>` : ''}
+      <div class="pw-row">
+        <div class="field" style="max-width:220px; margin-bottom:0;"><label>Password</label><input type="password" id="cas_pw_input" placeholder="CAS PDF password"></div>
+        <button class="btn small primary" id="cas_pw_unlock">Unlock</button>
+        <button class="btn small ghost" id="cas_pw_cancel">Choose a different file</button>
+      </div>
+    `;
+    const submit = ()=> submitCasPassword(container.querySelector('#cas_pw_input').value);
+    container.querySelector('#cas_pw_unlock').onclick = submit;
+    container.querySelector('#cas_pw_input').onkeydown = (e)=>{ if(e.key==='Enter') submit(); };
+    container.querySelector('#cas_pw_cancel').onclick = ()=>{ resetCasImport(); render(); };
+    return;
+  }
+  if(st === 'error' || st === 'parse-failed'){
+    const msg = st==='error' ? casImport.errorMsg : casImport.parseFailReason;
+    container.innerHTML = `
+      <div class="notice warn"><strong>${st==='error' ? 'Could not open this PDF.' : 'Could not read this as a CAS.'}</strong> ${msg}</div>
+      <button class="btn small ghost" id="cas_retry">Choose a different file</button>
+    `;
+    container.querySelector('#cas_retry').onclick = ()=>{ resetCasImport(); render(); };
+    return;
+  }
+  if(st === 'parsed'){
+    const totalHoldings = casImport.groups.reduce((s,g)=>s+g.holdings.length, 0);
+    const groupsHtml = casImport.groups.map((g, gi)=>{
+      const rows = g.holdings.map(h=>{
+        const perShare = (h.marketValue!==null && h.qty>0) ? (h.marketValue/h.qty) : null;
+        return `<tr>
+          <td data-label="Security">${h.name}</td>
+          <td data-label="ISIN" class="cell-muted">${h.isin}</td>
+          <td data-label="Qty">${h.qty}</td>
+          <td data-label="Market Value">${h.marketValue!==null ? formatMoney(h.marketValue,'INR') : '—'}</td>
+          <td data-label="Current Price (from CAS)">${perShare!==null ? formatMoney(perShare,'INR') : '—'}</td>
+        </tr>`;
+      }).join('');
+      return `
+        <div class="import-group">
+          <h4>${g.label} <span class="cell-muted" style="font-weight:400;">(${g.holdings.length} holding${g.holdings.length===1?'':'s'})</span></h4>
+          <div class="field-row">
+            <div class="field"><label>Import into account</label>
+              <select data-cas-broker="${gi}">${data.accounts.map(a=>`<option value="${a.id}" ${a.id===g.broker?'selected':''}>${a.name}</option>`).join('')}</select>
+            </div>
+            <div class="field"><label>Asset type (applies to this group)</label>
+              <select data-cas-type="${gi}">${['Stock','ETF','Mutual Fund','Other'].map(t=>`<option value="${t}" ${t===g.assetType?'selected':''}>${t}</option>`).join('')}</select>
+            </div>
+          </div>
+          <div class="table-scroll"><table class="day-table"><thead><tr><th>Security</th><th>ISIN</th><th>Qty</th><th>Market Value</th><th>Current Price (from CAS)</th></tr></thead><tbody>${rows}</tbody></table></div>
+        </div>
+      `;
+    }).join('');
+    container.innerHTML = `
+      <p class="helptext" style="margin-bottom:4px;"><strong style="color:var(--text);">${totalHoldings} holding(s) found in ${casImport.fileName}</strong>, grouped as detected below. Review the account assignment for each group, then import.</p>
+      ${groupsHtml}
+      <div style="display:flex; gap:8px; margin-top:14px;">
+        <button class="btn primary small" id="cas_confirm">Import ${totalHoldings} holding${totalHoldings===1?'':'s'}</button>
+        <button class="btn small ghost" id="cas_cancel">Cancel</button>
+      </div>
+    `;
+    container.querySelectorAll('[data-cas-broker]').forEach(sel=>{
+      sel.onchange = (e)=>{ casImport.groups[+e.target.dataset.casBroker].broker = e.target.value; };
+    });
+    container.querySelectorAll('[data-cas-type]').forEach(sel=>{
+      sel.onchange = (e)=>{ casImport.groups[+e.target.dataset.casType].assetType = e.target.value; };
+    });
+    container.querySelector('#cas_confirm').onclick = ()=>{
+      const today = new Date().toISOString().slice(0,10);
+      let count = 0;
+      casImport.groups.forEach(g=>{
+        g.holdings.forEach(h=>{
+          const perShare = (h.marketValue!==null && h.qty>0) ? (h.marketValue/h.qty) : '';
+          data.holdings.push({
+            id: newId('h'), symbol: (h.name||h.isin).toUpperCase().slice(0,60), broker: g.broker, assetType: g.assetType,
+            qty: h.qty, buyPrice: '', buyDate: '',
+            currentPrice: perShare, asOf: perShare!=='' ? today : '',
+            isin: h.isin, // provenance only -- not read elsewhere in this module, safe additive field
+          });
+          count++;
+        });
+      });
+      bulkAddFeedbackMsg = `Imported ${count} holding(s) from CAS "${casImport.fileName}" — Buy Price left blank, fill in per row in the Holdings table above.`;
+      bulkAddOpen = true;
+      resetCasImport();
+      saveData(); render();
+    };
+    container.querySelector('#cas_cancel').onclick = ()=>{ resetCasImport(); render(); };
+    return;
+  }
+}
+
 // ---------- bulk add / advanced entry -- paste-and-parse plus CSV/TXT upload, collapsed by default ----------
 function renderHoldingsEntryCard(container){
   const el = document.createElement('details');
@@ -775,15 +1387,18 @@ function renderHoldingsEntryCard(container){
       <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
         <button class="btn small primary" id="h_btn">Parse &amp; add</button>
         <span class="helptext" style="margin:0;">or</span>
-        <button class="btn small ghost" id="h_file_btn">Choose CSV/TXT file</button>
-        <input type="file" id="h_file" accept=".csv,.txt" style="display:none">
+        <button class="btn small ghost" id="h_file_btn">Choose CSV/TXT/Excel file</button>
+        <input type="file" id="h_file" accept=".csv,.txt,.xlsx,.xls" style="display:none">
       </div>
+      <p class="helptext" style="margin-top:6px;">Excel (.xlsx/.xls) files from a real broker export are read directly — columns like "Instrument", "Avg. cost", "Qty." are auto-detected even if they don't match the format above; you'll see exactly what was matched before anything is imported.</p>
       <div id="h_feedback" class="helptext" style="margin:6px 0;">${bulkAddFeedbackMsg}</div>
+      <div id="xlsx_preview_wrap"></div>
     </div>
   `;
   container.appendChild(el);
   el.querySelector('#h_file_btn').onclick = ()=> el.querySelector('#h_file').click();
   wireFileUpload(el.querySelector('#h_file'), el.querySelector('#h_paste'), el.querySelector('#h_btn'));
+  if(xlsxImport) renderXlsxImportPreview(el.querySelector('#xlsx_preview_wrap'));
 
   el.querySelector('#h_btn').onclick = ()=>{
     const raw = el.querySelector('#h_paste').value;
@@ -877,7 +1492,7 @@ function renderBrokerBreakdown(container){
   const p = computePortfolio();
   const card = document.createElement('div');
   card.className = 'card';
-  card.innerHTML = `<h3>By account</h3><p class="helptext" style="margin-bottom:6px;">Native-currency totals per broker/demat account.</p>`;
+  card.innerHTML = `<h3>By account</h3><p class="helptext" style="margin-bottom:6px;">Native-currency totals per broker/demat account. Current Value covers every holding; Cost Basis and Gain/Loss cover only holdings with a Buy Price set (see note below rows with any missing).</p>`;
   container.appendChild(card);
   const entries = Object.entries(p.byBroker);
   if(entries.length===0){ card.innerHTML += `<div class="helptext">Nothing to show yet.</div>`; return; }
@@ -888,12 +1503,22 @@ function renderBrokerBreakdown(container){
   table.innerHTML = `<thead><tr><th>Account</th><th>Holdings</th><th>Cost Basis</th><th>Current Value</th><th>Gain/Loss</th></tr></thead>`;
   const tbody = document.createElement('tbody');
   entries.forEach(([id,b])=>{
-    const gain = b.valueNative - b.costNative;
-    const gainPct = b.costNative>0 ? gain/b.costNative*100 : 0;
+    // Gain/Loss is computed from the priced-only subset (costNativePriced / valueNativePriced),
+    // not the account's full Current Value -- otherwise any holding missing a Buy Price (e.g. a
+    // CAS import awaiting manual entry) would silently show its whole value as "gain". See
+    // computePortfolio() above for why.
+    const gain = b.valueNativePriced - b.costNativePriced;
+    const gainPct = b.costNativePriced>0 ? gain/b.costNativePriced*100 : 0;
     const gainColor = gain>=0 ? 'var(--green)' : 'var(--rust)';
+    const asterisk = b.unpricedCount>0 ? ' *' : '';
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td data-label="Account">${b.name} <span class="tag muted">${b.currency}</span></td><td data-label="Holdings">${b.count}</td><td data-label="Cost Basis">${formatMoney(b.costNative,b.currency)}</td><td data-label="Current Value">${formatMoney(b.valueNative,b.currency)}</td><td data-label="Gain/Loss" style="color:${gainColor};">${formatMoney(gain,b.currency)} (${gainPct.toFixed(1)}%)</td>`;
+    tr.innerHTML = `<td data-label="Account">${b.name} <span class="tag muted">${b.currency}</span></td><td data-label="Holdings">${b.count}</td><td data-label="Cost Basis">${formatMoney(b.costNativePriced,b.currency)}</td><td data-label="Current Value">${formatMoney(b.valueNative,b.currency)}</td><td data-label="Gain/Loss" style="color:${gainColor};">${formatMoney(gain,b.currency)} (${gainPct.toFixed(1)}%)${asterisk}</td>`;
     tbody.appendChild(tr);
+    if(b.unpricedCount>0){
+      const noteTr = document.createElement('tr');
+      noteTr.innerHTML = `<td colspan="5" data-label="" class="helptext" style="color:var(--gold); border-bottom:1px solid var(--line);">* ${b.unpricedCount} holding(s) in this account have no Buy Price yet — excluded from Cost Basis/Gain-Loss above until filled in.</td>`;
+      tbody.appendChild(noteTr);
+    }
   });
   table.appendChild(tbody);
   wrap.appendChild(table);
@@ -1065,12 +1690,13 @@ function renderKnownGapsCard(container){
   const el = document.createElement('details');
   el.className = 'collapsible';
   el.innerHTML = `
-    <summary>Known gaps <span class="summary-hint">— flagged, not papered over (3)</span></summary>
+    <summary>Known gaps <span class="summary-hint">— flagged, not papered over (4)</span></summary>
     <div class="details-body">
       <ol style="margin-left:18px; font-size:13px;">
         <li style="margin-bottom:10px;"><strong>Live price feed — Tier 1 (Yahoo) confirmed broken in at least one real browser</strong> (user report, 2026-08-09). Stooq (Tier 1b) was added as a second free, no-key attempt, but its NSE/Indian-stock coverage is itself unverified. Twelve Data (bring-your-own key) is the confirmed-reliable path for both NSE and US — the failure message on any row links straight to the Live Prices settings above to add one. See <code>portfolio/PROGRESS.md</code> for the full verified/unverified breakdown.</li>
         <li style="margin-bottom:10px;"><strong>The earlier "dark-terminal, Twelve Data, technical indicators" Portfolio Tracker referenced in past notes was never located in this repo</strong> and its actual design couldn't be re-confirmed. This module was built fresh, using this repo's real design system (the shared light/dark toggle, not a fixed dark-terminal look) rather than guessing at that unseen file.</li>
-        <li><strong>5+ years of historical portfolio data in Google Drive has not been reconciled against this module.</strong> This session had no Drive access, so the data model above is a reasonable first design, not one validated against your real trade history. A future session with Drive access should pull that data and check it actually fits (assetType categories, per-broker fields, USD handling) before treating this as final.</li>
+        <li style="margin-bottom:10px;"><strong>5+ years of historical portfolio data in Google Drive has not been reconciled against this module.</strong> This session had no Drive access, so the data model above is a reasonable first design, not one validated against your real trade history. A future session with Drive access should pull that data and check it actually fits (assetType categories, per-broker fields, USD handling) before treating this as final.</li>
+        <li><strong>CAS (NSDL/CDSL demat statement) PDF parsing is UNVERIFIED against a real statement</strong> (added 2026-08-10). No real CAS file was available to test against — the password-unlock mechanics and the Excel fuzzy-column-matching import were both verified for real; whether the text-layout parsing actually matches a real CAS's structure was not. It's built defensively and fails clearly (rather than importing wrong data) if it doesn't recognize a document's structure. See <code>portfolio/PROGRESS.md</code>'s 2026-08-10 entry.</li>
       </ol>
     </div>
   `;
@@ -1098,6 +1724,7 @@ function render(){
   // Entry — guided form is the primary path; bulk paste/CSV is the collapsed "advanced" option.
   renderAddHoldingForm(content);
   renderHoldingsEntryCard(content);
+  renderCasImportCard(content);
   renderLiveSettingsCard(content);
 
   const manageHeader = document.createElement('div');

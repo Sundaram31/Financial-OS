@@ -261,6 +261,146 @@ nor Tier 1b has been exercised against the real internet by anyone. Tier 2 (Twel
 the one tier with real-world provenance (the old Drive prototype). This is stated plainly in the
 in-app Live Prices settings copy, not just here.
 
+## Updated 2026-08-10 — Real Excel (.xlsx) import + CAS (NSDL/CDSL demat statement) PDF import
+Built per explicit user feedback: document import was the weakest part of the app. Two concrete
+problems fixed. **Nothing about this session's changes are speculative Drive-history work** — this
+is capability, not data reconciliation (gap #3 below is unchanged).
+
+**A. Real Excel import with fuzzy column detection (was: broken).** The old `#h_file` input
+(`accept=".csv,.txt"`) fed every uploaded file through `reader.readAsText()` into the comma
+parser — a real broker `.xlsx` export (Zerodha, Angel One, Groww, etc.) is a binary zip file, so
+this silently produced garbage or nothing. Fixed:
+- Self-hosted SheetJS at `portfolio/lib/xlsx.core.min.js` — copied from `itrgenie/lib/`, not
+  referenced cross-module, matching this repo's per-module independence (ITRGenie doesn't
+  reference Net Worth's files either; same reasoning applies here).
+- `#h_file`'s `accept` now includes `.xlsx,.xls`; `wireFileUpload()` branches on extension —
+  CSV/TXT still flow through the exact unchanged textarea+Parse&Add pipeline; Excel files route to
+  `handleExcelFileSelected()`, which reads the real binary file via `XLSX.read(buf, {type:'array',
+  cellDates:true})`.
+- **Fuzzy column detection** (`detectColumnMapping`, `findHeaderRowAndMapping`): headers are
+  normalized (lowercase, strip punctuation, collapse whitespace) and substring-matched against
+  per-field alias lists (symbol ← instrument/symbol/scrip/ticker/stock name/trading symbol/
+  security name/security; quantity ← qty/quantity/units/shares; price ← avg cost/average price/buy
+  avg/avg price/buy price/cost price/purchase price/buy rate; date ← buy date/trade date/purchase
+  date/date), so "Avg. cost" and "Buy Avg" both resolve to the price field without an exact-schema
+  requirement. Scans the first 10 rows for the real header row (real exports often have a title row
+  above it, e.g. "Holdings as on..."). A 12-character ISIN pattern found consistently in a column's
+  actual cell values is used as an independent fallback signal for the symbol column when no header
+  matches one — broker-independent, unlike a ticker convention.
+- **Mapping preview before commit**: `renderXlsxImportPreview()` shows exactly which column was
+  matched to which field and how (header-text match vs. ISIN-pattern match), a preview of the first
+  5 parsed rows, an account/asset-type selector applied to the import, and a row
+  imported/skipped count — nothing is written to `data.holdings` until the user clicks "Import N
+  holdings". A file with too few recognizable columns shows a clear failure message (not a silent
+  partial/garbage import) with a "Dismiss" button, no import path taken.
+
+**B. CAS (NSDL/CDSL demat statement) PDF import — new capability, password-protected, client-side.**
+A Consolidated Account Statement aggregates a user's holdings across ALL their brokers/demat
+accounts into one document — genuinely broker-agnostic, unlike any single broker's own export;
+confirmed by the user as their most readily-available document. Built:
+- Self-hosted PDF.js at `portfolio/lib/pdf.min.js` + `pdf.worker.min.js` — same copy-not-reference
+  pattern as SheetJS above.
+- New collapsible "Import from CAS (NSDL/CDSL demat statement)" panel (`renderCasImportCard`),
+  positioned next to the bulk-add panel. A `.notice` box states plainly that everything (the PDF,
+  the password, the extracted data) stays client-side, nothing is uploaded — same tone/pattern as
+  the existing Live Prices notice.
+- **Password handling** (`startCasUnlock`, `submitCasPassword`): uses PDF.js's real
+  `loadingTask.onPassword(updatePassword, reason)` callback — `NEED_PASSWORD` shows an inline
+  password field + Unlock button in the page itself (not a browser `prompt()`); a wrong password
+  re-fires the same callback with `INCORRECT_PASSWORD`, which the UI shows as a plain "Incorrect
+  password — try again" message with the field still there, not a dead end. No password is ever
+  guessed, hardcoded, or skipped.
+- **Text extraction** (`extractPdfLines`): groups PDF.js text items by rounded y-position and sorts
+  by x within each line, reconstructing row structure from a tabular PDF far more reliably than a
+  naive extraction-order join (needed here because CAS parsing needs rows, not prose).
+- **Parsing** (`parseCasPdfText` — see the "UNVERIFIED" callout below): anchors on the ISIN pattern
+  as the one reliable signal in an otherwise inconsistent layout; for each ISIN-containing line,
+  strips the ISIN's own embedded digits out of the numeric-token scan first (an ISIN like
+  "INE009A01021" contains digit runs of its own that would otherwise contaminate quantity/value
+  detection), takes the last two remaining numeric tokens as quantity then market value, and
+  derives the security name by subtracting the ISIN and those numeric tokens from the line rather
+  than assuming a fixed column order. Lines mentioning DP ID/Client ID/BO ID/CDSL/NSDL are used only
+  to *label* groups of holdings for the account-assignment dropdown (mislabeling doesn't affect
+  parsing correctness). CAMS/KFintech mutual-fund CAS (folio/AMC/scheme structure) is explicitly
+  OUT of scope — its layout differs enough from a demat CAS that a half-built parser would produce
+  worse results than a clear "not supported, try Excel/manual" message; NSDL/CDSL demat CAS is the
+  sole target, since it maps directly onto this module's existing Stock/ETF holdings model.
+- **Graceful failure**: no text layer (scanned PDF) → clear message, no crash. No ISIN+quantity
+  pattern recognized anywhere in the unlocked text → clear "couldn't recognize a CAS holdings
+  table... try Excel import or manual/paste entry instead" message with a retry button, never a
+  silent wrong import.
+- **The "buy price isn't in a CAS" honesty requirement — surfaced in the UI itself, not just docs.**
+  A CAS shows current quantity and current market value; it does NOT contain historical purchase
+  price/cost basis. Imported holdings get `buyPrice: ''` (genuinely blank), never a computed
+  `marketValue/qty` mislabeled as buy price. This is stated in **two places directly in the import
+  flow**: a rust-colored `.notice.warn` box in the CAS panel itself ("A CAS shows what you hold
+  today, not what you paid for it... Buy Price left blank for you to fill in yourself") shown before
+  the user even picks a file, and again in the post-import feedback message ("Buy Price left blank,
+  fill in per row in the Holdings table above").
+- **Closing the loop**: the Holdings table's Avg Price (Buy Price) column is now itself an inline-
+  editable input (`data-bp`), the same pattern already used for Current Price/As Of — previously
+  Buy Price could only be set at creation time via the guided form or paste/Excel import. This is
+  what CAS-imported rows' "fill in Buy Price yourself" note above actually points at.
+- **Real correctness bug found and fixed while building this**: `computeHoldingMetrics` previously
+  did `+h.buyPrice || 0`, treating a missing buy price as a cost basis of zero — which would have
+  made a CAS-imported holding's entire current value display as "gain" (misrepresenting "no cost
+  data" as "100% profit"), a real math error, not a display nit. Fixed by threading `hasBuyPrice`
+  through: `costBasis`/`gainAbs`/`gainPct` are now `null` (not 0) when buy price is genuinely unset,
+  and every consumer was updated to handle it — the per-row Gain/Loss cell shows "— set Buy Price"
+  instead of a number; the top stat tile's "Invested"/"Total gain-loss" figures and the "By
+  account" table's Cost Basis/Gain-Loss columns now sum only over holdings with a known buy price
+  (tracked separately from the always-complete "Current value" total), with an explicit
+  gold-colored note ("N holding(s)... have no Buy Price yet — ... excluded from Invested/Gain-Loss
+  until you fill in Buy Price") wherever this applies — same "flag it, don't fabricate it" pattern
+  already used for the unconverted-USD-holdings case elsewhere on this page. Verified by test: a
+  freshly CAS-imported holding shows ₹0 invested / ₹0 gain (not the holding's full value as fake
+  profit); filling in its Buy Price via the new inline input immediately recalculates the correct
+  gain.
+
+**UNVERIFIED — CAS text-layout parsing (`parseCasPdfText`), flagged the same way the live-price
+Tier 1 work was.** This build environment had no real CAS file to test against, and the actual
+document is the user's private data. `parseCasPdfText` was built defensively against publicly
+documented NSDL/CDSL CAS structure and the general technique used by open-source tools like
+`casparser` (positional text extraction + ISIN-anchored regex) — it was **not** verified against a
+real statement's actual text layout, which is well known to vary between depositories/DPs and PDF
+generators. It is deliberately kept in one small, isolated, clearly-commented function (see
+`portfolio/index.html`, search for "Isolated, easy-to-revise CAS text parser") specifically so it
+can be corrected quickly once tried against a real CAS. If a real CAS becomes available, this is
+the one function to revise/replace — the surrounding UI (password unlock, preview, account
+assignment, import commit, the Buy-Price-blank guarantee) does not need to change.
+
+**What's confirmed working vs. unverified — full breakdown.**
+- **Verified with real headless Chromium (Playwright), real files, no mocking of the parsing logic
+  itself:**
+  - Excel fuzzy-matching: a real `.xlsx` built with realistic messy headers ("Instrument", "Avg.
+    cost", "Qty.", plus an unrelated title row and a comma-formatted price string) was uploaded and
+    correctly mapped/imported end-to-end.
+  - Excel graceful failure: a `.xlsx` with no recognizable columns showed the failure message and
+    did not import anything.
+  - PDF password mechanics, fully real: a genuinely AES-128-encrypted PDF (built with `pypdf`, known
+    password) was uploaded — wrong password correctly showed "Incorrect password — try again" and
+    kept the field open for retry; the correct password correctly unlocked it and proceeded to
+    extraction. This exercises the actual PDF.js `onPassword`/`updatePassword` callback mechanics
+    for real, not a simulation.
+  - Unencrypted-PDF path: no password prompt shown at all when the PDF isn't encrypted (confirmed).
+  - Graceful parse failure: a plain PDF with ordinary prose (no ISIN pattern anywhere) correctly
+    produced the "couldn't recognize a CAS holdings table... try Excel or manual entry" message
+    with a working retry button, not a crash or silent wrong import.
+  - The gain/loss correctness fix (above) — confirmed via a full import → check-neutral-gain →
+    fill-in-Buy-Price → check-recalculated-gain round trip.
+  - Mobile viewport (375×812), both themes: zero horizontal overflow on the Excel preview, the CAS
+    password prompt, and the CAS parsed-holdings preview; screenshotted and reviewed in both themes.
+  - Full regression pass: guided add-holding form, bulk CSV/TXT paste, and Export JSON all still
+    work exactly as before — untouched by this session's changes.
+- **NOT verified — the one piece that genuinely cannot be, without a real document:** whether
+  `parseCasPdfText`'s ISIN-anchored heuristic actually matches a real NSDL/CDSL CAS's text layout
+  once extracted by PDF.js. The synthetic test PDF used to exercise the parsing *logic* (line
+  grouping, ISIN-vs-numeric-token separation, name extraction, group labeling) was built by this
+  session, not sourced from a real statement, so it proves the code *runs and behaves sensibly*
+  against a CAS-shaped layout — it does not prove real CAS files are shaped the way this code
+  assumes. If the user obtains a real CAS and its password, re-running the import against it and
+  fixing `parseCasPdfText` accordingly is the natural next step.
+
 ## Known gaps — flagged deliberately, not resolved by guessing
 Per explicit instruction not to silently resolve these, and not to fabricate
 functionality to paper over them:
@@ -308,6 +448,18 @@ functionality to paper over them:
    corporate actions like splits/bonuses/dividends reinvested, closed/sold
    positions) once real data is run through it.
 
+4. **CAS (NSDL/CDSL demat statement) PDF parsing (`parseCasPdfText`,
+   2026-08-10) is UNVERIFIED against a real CAS document.** This session had
+   no real CAS file (or its password) to test against — see the dated
+   2026-08-10 entry above for exactly what was and wasn't verified. The
+   password-unlock mechanics, the Excel fuzzy-matching, and the parser's
+   *behavior* against a synthetic CAS-shaped test file are all confirmed
+   real; whether the ISIN-anchored line-parsing heuristic matches a real
+   statement's actual text layout is not. Kept in one small, isolated,
+   clearly-commented function specifically so it's fast to revise once a
+   real CAS is available — that's the next natural verification step, not a
+   guess to be resolved by assumption.
+
 ## Deliberately NOT done yet
 - No capital-gains export (`{symbol, buydate, selldate, buyprice, sellprice,
   qty, assetType}[]` contract, Portfolio → ITRGenie) — that's for *sold*
@@ -323,13 +475,33 @@ functionality to paper over them:
   price/qty are taken as entered; adjusting historical cost basis for these
   events is out of scope until real historical data (gap #3) shows it's
   actually needed.
+- No CAMS/KFintech mutual-fund CAS parsing (folio number/AMC/scheme/units/
+  NAV structure) — deliberately scoped out of the 2026-08-10 CAS import work.
+  Its text layout differs enough from an NSDL/CDSL demat CAS that a
+  half-built parser for it would produce worse results (confidently wrong
+  data) than the current behavior (a clear "not recognized, try Excel or
+  manual entry" message). NSDL/CDSL demat CAS was prioritized because it
+  maps directly onto this module's existing Stock/ETF holdings model; MF CAS
+  would need its own parser and probably its own preview UI, not a small
+  extension of this one.
 
 ## Design invariants (same as every other module)
-- Zero external dependencies, works offline once loaded.
-- Paste-and-parse plus CSV/TXT file upload (bulk add/advanced, collapsed by
-  default), not form-fields-only — a guided single-holding form (added
-  2026-08-09) is the primary entry path, but paste/upload remains a fully
-  supported, non-removed alternative, per this repo's convention.
+- Zero external dependencies, works offline once loaded. Self-hosted
+  libraries live under `portfolio/lib/` (`xlsx.core.min.js`, `pdf.min.js`,
+  `pdf.worker.min.js`, added 2026-08-10) — copied from `itrgenie/lib/`, not
+  referenced cross-module, so this module stays independently self-contained
+  (same reasoning as ITRGenie not referencing Net Worth's files).
+- Paste-and-parse plus CSV/TXT/**Excel (.xlsx/.xls)** file upload (bulk
+  add/advanced, collapsed by default), not form-fields-only — a guided
+  single-holding form (added 2026-08-09) is the primary entry path, but
+  paste/upload remains a fully supported, non-removed alternative, per this
+  repo's convention. Excel files get real binary parsing + fuzzy column
+  detection (added 2026-08-10), not the plain-text comma parser. A separate
+  **CAS (NSDL/CDSL demat statement) PDF import** path (also added
+  2026-08-10) is the broker-agnostic option for a user's most
+  readily-available document — see the dated entry above; its holdings
+  always import with Buy Price left blank (a CAS has no cost-basis data),
+  never a fabricated `marketValue/qty` mislabeled as buy price.
 - Shared theme key: `itrgenie_theme`.
 - Own data storage key: `portfolio_data_v1` — never writes into Net Worth's,
   Goals', or any other module's key. Feeds Net Worth only via explicit
@@ -339,8 +511,17 @@ functionality to paper over them:
   Stooq, and Twelve Data if a key is saved), disclosed plainly in-UI, never
   carrying holdings/personal data. The Twelve Data key lives in its own
   storage key, `portfolio_livekey_v1`, separate from `portfolio_data_v1` so
-  it's never included in the Export JSON backup.
+  it's never included in the Export JSON backup. Excel and CAS PDF import
+  (2026-08-10) do NOT call out to the network at all — all parsing (SheetJS,
+  PDF.js) runs entirely client-side on the file the user picked.
 - Mobile viewport (down to 375px) gets its own font-size and table-layout
   rules under `@media (max-width:760px)` — desktop sizing stays denser by
   design; don't remove the mobile block thinking it's redundant with base
   styles.
+- A holding's `buyPrice` (and therefore `costBasis`/`gainAbs`/`gainPct`) can
+  now genuinely be unset (CAS-imported, awaiting manual entry) — every
+  aggregate that sums cost/gain (`computePortfolio`, the top stat tile, the
+  "By account" breakdown) must treat this as excluded-and-flagged, never as
+  a cost basis of zero, per the 2026-08-10 fix. Any future change to
+  `computeHoldingMetrics`/`computePortfolio` must preserve `hasBuyPrice` /
+  `null`-vs-`0` handling rather than reintroducing `+h.buyPrice || 0`.
