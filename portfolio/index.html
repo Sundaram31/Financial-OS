@@ -146,8 +146,10 @@
     .cp-cell{ display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
   }
 </style>
-<script src="./lib/xlsx.core.min.js"></script>
-<script src="./lib/pdf.min.js"></script>
+<!-- SheetJS (Excel import) and PDF.js (CAS PDF import) are self-hosted under ./lib/ but are
+     deliberately NOT loaded here -- 814KB combined, and most page views never touch either
+     feature. They're lazy-loaded on demand (see ensureXlsxLoaded/ensurePdfJsLoaded below),
+     triggered the first time the relevant panel is opened. -->
 </head>
 <body>
 <div class="app">
@@ -224,6 +226,80 @@ let xlsxImport = null;
 let casImport = null;
 function resetCasImport(){ casImport = { stage:'idle', fileName:'', pdfPasswordUpdate:null, incorrectAttempt:false, errorMsg:'', groups:null, parseFailReason:'' }; }
 resetCasImport();
+
+// ---------- lazy-loaded heavy libraries (SheetJS for Excel, PDF.js for CAS PDF import) ----------
+// These self-hosted files are 437KB (xlsx.core.min.js) and 377KB (pdf.min.js) -- 814KB combined --
+// and previously loaded unconditionally via blocking <script> tags in <head> on EVERY page view,
+// even for the majority of visits that never touch Excel or CAS import (measured ~10s to
+// interactive on a throttled connection, almost entirely attributable to these two files). Now
+// injected on demand via a dynamic <script> tag, cached so a second call is a no-op, and triggered
+// as soon as the relevant collapsible panel is opened (not only once a file is actually picked) so
+// the library is usually already warm by the time the user gets to choosing a file. pdf.worker.min.js
+// is unaffected -- it was already lazy (PDF.js only fetches it once getDocument() actually runs).
+const libLoadPromises = {};
+function loadScriptOnce(src){
+  if(libLoadPromises[src]) return libLoadPromises[src];
+  libLoadPromises[src] = new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = ()=> resolve();
+    s.onerror = ()=> { delete libLoadPromises[src]; reject(new Error(`Failed to load ${src}`)); };
+    document.head.appendChild(s);
+  });
+  return libLoadPromises[src];
+}
+let xlsxLoadState = 'idle'; // 'idle' | 'loading' | 'ready' | 'error' -- read by renderXlsxImportPreview
+let xlsxLoadErrorMsg = '';
+async function ensureXlsxLoaded(){
+  if(typeof XLSX !== 'undefined'){ xlsxLoadState = 'ready'; return true; }
+  if(xlsxLoadState !== 'loading' && xlsxLoadState !== 'ready'){ xlsxLoadState = 'loading'; xlsxLoadErrorMsg = ''; render(); }
+  try{ await loadScriptOnce('./lib/xlsx.core.min.js'); xlsxLoadState = 'ready'; }
+  catch(err){ xlsxLoadState = 'error'; xlsxLoadErrorMsg = err && err.message ? err.message : String(err); }
+  render();
+  return xlsxLoadState === 'ready';
+}
+let pdfjsLoadState = 'idle'; // same states, for pdf.min.js -- read by renderCasBody
+let pdfjsLoadErrorMsg = '';
+async function ensurePdfJsLoaded(){
+  if(typeof pdfjsLib !== 'undefined'){ pdfjsLoadState = 'ready'; return true; }
+  if(pdfjsLoadState !== 'loading' && pdfjsLoadState !== 'ready'){ pdfjsLoadState = 'loading'; pdfjsLoadErrorMsg = ''; render(); }
+  try{
+    await loadScriptOnce('./lib/pdf.min.js');
+    // One-time setup PDF.js needs right after it becomes available -- previously ran as a
+    // synchronous top-level check at page load, which only worked because the <script> tag was
+    // blocking. Now it must run right after THIS load resolves instead, not at page-init time.
+    pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.js';
+    pdfjsLoadState = 'ready';
+  }catch(err){ pdfjsLoadState = 'error'; pdfjsLoadErrorMsg = err && err.message ? err.message : String(err); }
+  render();
+  return pdfjsLoadState === 'ready';
+}
+
+// ---------- duplicate-holding detection, shared by every import path ----------
+// A holding already in the portfolio is treated as a match for an incoming one if either:
+//   - both carry an ISIN and the ISINs match (case-insensitive) -- ISIN is the one
+//     broker-independent identifier a CAS always carries, so it's the strongest signal available.
+//   - one or both sides lack a usable ISIN, in which case broker + symbol match
+//     case-insensitively -- the fallback for Excel/paste imports, which usually don't carry an
+//     ISIN at all.
+// Returns the matching holding's index in data.holdings, or -1 if nothing matches. Used by the CAS
+// import (update-in-place refresh, see renderCasBody), Excel import and bulk paste (skip-duplicates,
+// default on) commit paths -- so importing the same document twice doesn't silently double the
+// portfolio's value/gain totals.
+function findDuplicateHoldingIndex(candidate){
+  const candIsin = (candidate.isin || '').trim().toUpperCase();
+  const candSymbol = (candidate.symbol || '').trim().toUpperCase();
+  for(let i=0;i<data.holdings.length;i++){
+    const h = data.holdings[i];
+    const hIsin = (h.isin || '').trim().toUpperCase();
+    if(candIsin && hIsin){
+      if(candIsin === hIsin) return i;
+      continue; // both sides have an ISIN and they differ -- definitely not the same holding
+    }
+    if(h.broker === candidate.broker && (h.symbol||'').trim().toUpperCase() === candSymbol) return i;
+  }
+  return -1;
+}
 
 // ---------- shared paste/file helpers, same pattern as every other module ----------
 function parsePastedRows(text){
@@ -927,6 +1003,13 @@ function findHeaderRowAndMapping(rows){
   return best;
 }
 async function handleExcelFileSelected(file){
+  xlsxImport = { fileName: file.name, loading: true };
+  render();
+  const loaded = await ensureXlsxLoaded();
+  if(!loaded){
+    xlsxImport = { fileName: file.name, failed: true, reason: `Could not load Excel support: ${xlsxLoadErrorMsg}. Check your connection and try again, or use the paste/CSV format above.` };
+    render(); return;
+  }
   try{
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, {type:'array', cellDates:true});
@@ -971,6 +1054,7 @@ async function handleExcelFileSelected(file){
       rows: parsedRows, skipped,
       broker: (data.accounts[0] && data.accounts[0].id) || null,
       assetType: 'Stock',
+      skipDuplicates: true, // default: skip rows already in the portfolio rather than duplicate them
     };
     bulkAddOpen = true;
     render();
@@ -987,6 +1071,14 @@ function renderXlsxImportPreview(container){
   if(!xlsxImport) return;
   const card = document.createElement('div');
   card.className = 'card';
+  if(xlsxImport.loading){
+    card.innerHTML = `
+      <h3>Excel import — ${xlsxImport.fileName}</h3>
+      <p class="helptext">Loading Excel support…</p>
+    `;
+    container.appendChild(card);
+    return;
+  }
   if(xlsxImport.failed){
     card.innerHTML = `
       <h3>Excel import — ${xlsxImport.fileName}</h3>
@@ -1005,6 +1097,10 @@ function renderXlsxImportPreview(container){
     return `<tr><td data-label="Field">${fieldLabel(field)}</td><td data-label="Detected column"><strong>${xlsxImport.headerRow[idx] || '(column '+(idx+1)+')'}</strong></td><td data-label="">${tag}</td></tr>`;
   }).join('');
   const previewRows = xlsxImport.rows.slice(0,5).map(r=>`<tr><td data-label="Symbol">${r.symbol}</td><td data-label="Qty">${r.qty}</td><td data-label="Price">${r.price}</td><td data-label="Date">${r.date||'—'}</td></tr>`).join('');
+  // Duplicate check against the currently-selected import account, matched the same way (ISIN --
+  // Excel rows rarely carry one -- falling back to broker+symbol) the commit handler below will
+  // match, so this count is exactly what will happen, not an estimate.
+  const dupCount = xlsxImport.rows.filter(r => findDuplicateHoldingIndex({ symbol: r.symbol, broker: xlsxImport.broker }) >= 0).length;
   card.innerHTML = `
     <h3>Excel import — ${xlsxImport.fileName}</h3>
     <p class="helptext" style="margin-bottom:8px;">Detected column mapping — review before importing:</p>
@@ -1020,24 +1116,40 @@ function renderXlsxImportPreview(container){
     <p class="helptext" style="margin:10px 0 4px;"><strong style="color:var(--text);">${xlsxImport.rows.length} row(s) ready to import</strong>${xlsxImport.skipped>0 ? `, ${xlsxImport.skipped} skipped (missing/invalid Symbol, Qty or Price)` : ''}. Preview of the first ${Math.min(5,xlsxImport.rows.length)}:</p>
     <div class="table-scroll"><table class="day-table"><thead><tr><th>Symbol</th><th>Qty</th><th>Price</th><th>Date</th></tr></thead><tbody>${previewRows}</tbody></table></div>
     ${xlsxImport.mapping.date===undefined ? `<p class="helptext" style="margin-top:8px;">No Buy Date column was detected — imported holdings will have Buy Date left blank; add it per-row in the holdings table afterward if you want it.</p>` : ''}
+    ${dupCount>0 ? `
+    <div class="notice" style="margin-top:10px;">
+      <strong>${dupCount} of these row(s) already exist</strong> in ${accountOf(xlsxImport.broker).name} (matched by ISIN/symbol).
+      <label style="display:flex; align-items:center; gap:6px; margin-top:6px; text-transform:none; font-weight:400;">
+        <input type="checkbox" id="xlsx_skip_dupes" ${xlsxImport.skipDuplicates!==false ? 'checked' : ''}>
+        Skip duplicates (recommended) — importing anyway will create extra rows
+      </label>
+    </div>` : ''}
     <div style="display:flex; gap:8px; margin-top:12px;">
       <button class="btn primary small" id="xlsx_confirm">Import ${xlsxImport.rows.length} holding${xlsxImport.rows.length===1?'':'s'}</button>
       <button class="btn small ghost" id="xlsx_cancel">Cancel</button>
     </div>
   `;
   container.appendChild(card);
-  card.querySelector('#xlsx_broker').onchange = (e)=>{ xlsxImport.broker = e.target.value; };
+  card.querySelector('#xlsx_broker').onchange = (e)=>{ xlsxImport.broker = e.target.value; render(); };
   card.querySelector('#xlsx_assettype').onchange = (e)=>{ xlsxImport.assetType = e.target.value; };
+  const dupCheckbox = card.querySelector('#xlsx_skip_dupes');
+  if(dupCheckbox) dupCheckbox.onchange = (e)=>{ xlsxImport.skipDuplicates = e.target.checked; };
   card.querySelector('#xlsx_confirm').onclick = ()=>{
     const broker = xlsxImport.broker, assetType = xlsxImport.assetType;
+    const skipDupes = xlsxImport.skipDuplicates !== false;
+    let imported = 0, dupSkipped = 0;
     xlsxImport.rows.forEach(r=>{
+      if(skipDupes && findDuplicateHoldingIndex({ symbol: r.symbol, broker }) >= 0){ dupSkipped++; return; }
       data.holdings.push({
         id: newId('h'), symbol: r.symbol.toUpperCase(), broker, assetType,
         qty: r.qty, buyPrice: r.price, buyDate: r.date || '',
         currentPrice: '', asOf: '',
       });
+      imported++;
     });
-    bulkAddFeedbackMsg = `Imported ${xlsxImport.rows.length} holding(s) from ${xlsxImport.fileName}${xlsxImport.skipped>0?` (${xlsxImport.skipped} skipped)`:''}.`;
+    bulkAddFeedbackMsg = `Imported ${imported} holding(s) from ${xlsxImport.fileName}`
+      + `${xlsxImport.skipped>0?` (${xlsxImport.skipped} skipped as invalid)`:''}`
+      + `${dupSkipped>0?`, ${dupSkipped} skipped as duplicate(s) already in ${accountOf(broker).name} (matched by ISIN/symbol)`:''}.`;
     xlsxImport = null;
     bulkAddOpen = true;
     saveData(); render();
@@ -1061,13 +1173,21 @@ function renderXlsxImportPreview(container){
 // its layout is different enough from a demat CAS that a real half-built parser would be worse
 // than a clear "not supported" message; NSDL/CDSL demat CAS is the primary, and only, target,
 // since it maps directly onto this module's existing Stock/ETF holdings model.
-if(typeof pdfjsLib !== 'undefined'){
-  pdfjsLib.GlobalWorkerOptions.workerSrc = './lib/pdf.worker.min.js';
-}
+// (pdf.min.js is lazy-loaded -- see ensurePdfJsLoaded above, which also sets
+// GlobalWorkerOptions.workerSrc right after the library becomes available, since that can no
+// longer run as a synchronous top-level check at page-init time.)
 
 async function handleCasFileSelected(file){
   resetCasImport();
   casImport.fileName = file.name;
+  casImport.stage = 'loading-lib';
+  render();
+  const loaded = await ensurePdfJsLoaded();
+  if(!loaded){
+    casImport.stage = 'error';
+    casImport.errorMsg = `Could not load PDF support: ${pdfjsLoadErrorMsg}. Check your connection and try again.`;
+    render(); return;
+  }
   casImport.stage = 'reading';
   render();
   let buf;
@@ -1230,7 +1350,7 @@ function renderCasImportCard(container){
   el.className = 'collapsible';
   el.id = 'cas-import-panel';
   if(casImportOpen) el.open = true;
-  el.ontoggle = ()=>{ casImportOpen = el.open; };
+  el.ontoggle = ()=>{ casImportOpen = el.open; if(el.open) ensurePdfJsLoaded(); };
   const body = document.createElement('div');
   body.className = 'details-body';
   body.innerHTML = `
@@ -1261,10 +1381,11 @@ function renderCasBody(container){
     container.innerHTML = `
       <div class="field-row">
         <div class="field"><label>CAS PDF file</label>
-          <button class="btn small ghost" id="cas_file_btn" type="button">Choose PDF file</button>
+          <button class="btn small ghost" id="cas_file_btn" type="button">${pdfjsLoadState==='loading' ? 'Loading PDF support…' : 'Choose PDF file'}</button>
           <input type="file" id="cas_file" accept=".pdf" style="display:none">
         </div>
       </div>
+      ${pdfjsLoadState==='error' ? `<p class="helptext" style="color:var(--rust);">Couldn't preload PDF support (${pdfjsLoadErrorMsg}) — choosing a file will try again.</p>` : ''}
     `;
     container.querySelector('#cas_file_btn').onclick = ()=> container.querySelector('#cas_file').click();
     container.querySelector('#cas_file').onchange = (e)=>{
@@ -1273,8 +1394,8 @@ function renderCasBody(container){
     };
     return;
   }
-  if(st === 'reading' || st === 'unlocking-init' || st === 'unlocking' || st === 'extracting'){
-    const msg = { reading:'Reading file…', 'unlocking-init':'Opening PDF…', unlocking:'Checking password…', extracting:'Extracting holdings…' }[st];
+  if(st === 'loading-lib' || st === 'reading' || st === 'unlocking-init' || st === 'unlocking' || st === 'extracting'){
+    const msg = { 'loading-lib':'Loading PDF support…', reading:'Reading file…', 'unlocking-init':'Opening PDF…', unlocking:'Checking password…', extracting:'Extracting holdings…' }[st];
     container.innerHTML = `<p class="helptext">${msg}</p>`;
     return;
   }
@@ -1305,6 +1426,19 @@ function renderCasBody(container){
   }
   if(st === 'parsed'){
     const totalHoldings = casImport.groups.reduce((s,g)=>s+g.holdings.length, 0);
+    // Pre-commit duplicate check, matched the exact same way the commit handler below will match
+    // (ISIN first, falling back to broker+symbol) -- so this count is exactly what will happen on
+    // import, not an estimate. Re-importing the same/a refreshed CAS is a common, expected use
+    // (e.g. quarterly), so a match here is treated as a refresh-in-place (Qty/Current Price
+    // updated on the existing holding) rather than a new duplicate row -- Buy Price is never
+    // touched by a refresh, since a CAS never carries that data.
+    let willUpdate = 0, willAdd = 0;
+    casImport.groups.forEach(g=>{
+      g.holdings.forEach(h=>{
+        const idx = findDuplicateHoldingIndex({ isin: h.isin, symbol: (h.name||h.isin), broker: g.broker });
+        if(idx >= 0) willUpdate++; else willAdd++;
+      });
+    });
     const groupsHtml = casImport.groups.map((g, gi)=>{
       const rows = g.holdings.map(h=>{
         const perShare = (h.marketValue!==null && h.qty>0) ? (h.marketValue/h.qty) : null;
@@ -1333,34 +1467,61 @@ function renderCasBody(container){
     }).join('');
     container.innerHTML = `
       <p class="helptext" style="margin-bottom:4px;"><strong style="color:var(--text);">${totalHoldings} holding(s) found in ${casImport.fileName}</strong>, grouped as detected below. Review the account assignment for each group, then import.</p>
+      ${willUpdate>0 ? `
+      <div class="notice">
+        <strong>${willUpdate} of these already exist in your holdings</strong> (matched by ISIN/symbol) —
+        importing will refresh their Qty and Current Price in place rather than create duplicate rows.
+        Buy Price is never touched by a CAS refresh, since a CAS doesn't carry that data.
+        ${willAdd>0 ? ` ${willAdd} new holding${willAdd===1?'':'s'} will be added.` : ''}
+      </div>` : ''}
       ${groupsHtml}
       <div style="display:flex; gap:8px; margin-top:14px;">
-        <button class="btn primary small" id="cas_confirm">Import ${totalHoldings} holding${totalHoldings===1?'':'s'}</button>
+        <button class="btn primary small" id="cas_confirm">${willUpdate>0 ? `Import ${willAdd} new / refresh ${willUpdate} existing` : `Import ${totalHoldings} holding${totalHoldings===1?'':'s'}`}</button>
         <button class="btn small ghost" id="cas_cancel">Cancel</button>
       </div>
     `;
     container.querySelectorAll('[data-cas-broker]').forEach(sel=>{
-      sel.onchange = (e)=>{ casImport.groups[+e.target.dataset.casBroker].broker = e.target.value; };
+      sel.onchange = (e)=>{ casImport.groups[+e.target.dataset.casBroker].broker = e.target.value; render(); };
     });
     container.querySelectorAll('[data-cas-type]').forEach(sel=>{
       sel.onchange = (e)=>{ casImport.groups[+e.target.dataset.casType].assetType = e.target.value; };
     });
     container.querySelector('#cas_confirm').onclick = ()=>{
       const today = new Date().toISOString().slice(0,10);
-      let count = 0;
+      let added = 0, updated = 0;
       casImport.groups.forEach(g=>{
         g.holdings.forEach(h=>{
           const perShare = (h.marketValue!==null && h.qty>0) ? (h.marketValue/h.qty) : '';
-          data.holdings.push({
-            id: newId('h'), symbol: (h.name||h.isin).toUpperCase().slice(0,60), broker: g.broker, assetType: g.assetType,
-            qty: h.qty, buyPrice: '', buyDate: '',
-            currentPrice: perShare, asOf: perShare!=='' ? today : '',
-            isin: h.isin, // provenance only -- not read elsewhere in this module, safe additive field
-          });
-          count++;
+          const symbol = (h.name||h.isin).toUpperCase().slice(0,60);
+          const idx = findDuplicateHoldingIndex({ isin: h.isin, symbol, broker: g.broker });
+          if(idx >= 0){
+            // Update-in-place: a CAS reflects a point-in-time snapshot of qty/value, so a
+            // re-import is treated as a refresh of the existing holding, not a new row. Buy
+            // Price/Buy Date are deliberately left untouched -- a CAS never carries that data, so
+            // overwriting a value the user already filled in manually would destroy real
+            // information for no reason.
+            const existing = data.holdings[idx];
+            existing.qty = h.qty;
+            existing.currentPrice = perShare;
+            if(perShare !== '') existing.asOf = today;
+            if(!existing.isin && h.isin) existing.isin = h.isin;
+            updated++;
+          } else {
+            data.holdings.push({
+              id: newId('h'), symbol, broker: g.broker, assetType: g.assetType,
+              qty: h.qty, buyPrice: '', buyDate: '',
+              currentPrice: perShare, asOf: perShare!=='' ? today : '',
+              isin: h.isin, // provenance only -- also what future re-imports match against
+            });
+            added++;
+          }
         });
       });
-      bulkAddFeedbackMsg = `Imported ${count} holding(s) from CAS "${casImport.fileName}" — Buy Price left blank, fill in per row in the Holdings table above.`;
+      const parts = [];
+      if(added>0) parts.push(`${added} new holding${added===1?'':'s'} added`);
+      if(updated>0) parts.push(`${updated} existing holding${updated===1?'':'s'} refreshed (Qty/Current Price updated by ISIN/symbol match, Buy Price untouched)`);
+      bulkAddFeedbackMsg = `CAS import from "${casImport.fileName}": ${parts.join(', ') || 'no holdings found'}.`
+        + (added>0 ? ' Buy Price left blank on new holdings — fill in per row in the Holdings table above.' : '');
       bulkAddOpen = true;
       resetCasImport();
       saveData(); render();
@@ -1371,11 +1532,12 @@ function renderCasBody(container){
 }
 
 // ---------- bulk add / advanced entry -- paste-and-parse plus CSV/TXT upload, collapsed by default ----------
+let bulkPasteSkipDuplicates = true; // default: skip rows that already exist (matched by ISIN/symbol) rather than duplicate them
 function renderHoldingsEntryCard(container){
   const el = document.createElement('details');
   el.className = 'collapsible';
   if(bulkAddOpen) el.open = true;
-  el.ontoggle = ()=>{ bulkAddOpen = el.open; };
+  el.ontoggle = ()=>{ bulkAddOpen = el.open; if(el.open) ensureXlsxLoaded(); };
   el.innerHTML = `
     <summary>Bulk add / advanced <span class="summary-hint">— paste multiple holdings, or upload a CSV/TXT file</span></summary>
     <div class="details-body">
@@ -1384,11 +1546,17 @@ function renderHoldingsEntryCard(container){
         <code>INFY, Axis Direct, Equity, 50, 1450, 2022-04-15, 1850, 2026-08-01</code><br>
         <code>VOO, Vested-US, ETF, 10, 380.25, 2023-01-10, 512.40, 2026-08-01</code></p>
       <textarea id="h_paste" rows="4" placeholder="Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf"></textarea>
+      <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-size:12.5px; color:var(--muted);">
+        <input type="checkbox" id="h_skip_dupes" ${bulkPasteSkipDuplicates ? 'checked' : ''}>
+        Skip rows that already exist (matched by broker + symbol) — recommended
+      </label>
       <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
         <button class="btn small primary" id="h_btn">Parse &amp; add</button>
         <span class="helptext" style="margin:0;">or</span>
         <button class="btn small ghost" id="h_file_btn">Choose CSV/TXT/Excel file</button>
         <input type="file" id="h_file" accept=".csv,.txt,.xlsx,.xls" style="display:none">
+        ${xlsxLoadState==='loading' ? `<span class="helptext" style="margin:0;">(loading Excel support…)</span>` : ''}
+        ${xlsxLoadState==='error' ? `<span class="helptext" style="margin:0; color:var(--rust);">Couldn't preload Excel support (${xlsxLoadErrorMsg}) — choosing an .xlsx file will try again.</span>` : ''}
       </div>
       <p class="helptext" style="margin-top:6px;">Excel (.xlsx/.xls) files from a real broker export are read directly — columns like "Instrument", "Avg. cost", "Qty." are auto-detected even if they don't match the format above; you'll see exactly what was matched before anything is imported.</p>
       <div id="h_feedback" class="helptext" style="margin:6px 0;">${bulkAddFeedbackMsg}</div>
@@ -1398,17 +1566,19 @@ function renderHoldingsEntryCard(container){
   container.appendChild(el);
   el.querySelector('#h_file_btn').onclick = ()=> el.querySelector('#h_file').click();
   wireFileUpload(el.querySelector('#h_file'), el.querySelector('#h_paste'), el.querySelector('#h_btn'));
+  el.querySelector('#h_skip_dupes').onchange = (e)=>{ bulkPasteSkipDuplicates = e.target.checked; };
   if(xlsxImport) renderXlsxImportPreview(el.querySelector('#xlsx_preview_wrap'));
 
   el.querySelector('#h_btn').onclick = ()=>{
     const raw = el.querySelector('#h_paste').value;
     const rows = parsePastedRows(raw);
-    let added=0, skipped=0;
+    let added=0, skipped=0, dupSkipped=0;
     rows.forEach(cols=>{
       if(cols.length<6){ skipped++; return; }
       const [symbol, brokerTxt, assetType, qty, buyPrice, buyDate, currentPrice, asOf] = cols;
       if(!symbol || !brokerTxt || isNaN(+qty) || +qty<=0 || isNaN(+buyPrice) || +buyPrice<0 || !buyDate){ skipped++; return; }
       const brokerId = resolveBrokerId(brokerTxt);
+      if(bulkPasteSkipDuplicates && findDuplicateHoldingIndex({ symbol, broker: brokerId }) >= 0){ dupSkipped++; return; }
       const hasCurrentPrice = currentPrice!==undefined && currentPrice!=='' && !isNaN(+currentPrice);
       data.holdings.push({
         id: newId('h'),
@@ -1424,7 +1594,9 @@ function renderHoldingsEntryCard(container){
       added++;
     });
     bulkAddOpen = true; // keep the panel open after adding so the feedback message below is actually visible
-    bulkAddFeedbackMsg = `Added ${added}${skipped>0?`, skipped ${skipped} (missing/invalid Symbol, Broker, AssetType, Qty, BuyPrice or BuyDate)`:''}.`;
+    bulkAddFeedbackMsg = `Added ${added}`
+      + `${skipped>0?`, skipped ${skipped} (missing/invalid Symbol, Broker, AssetType, Qty, BuyPrice or BuyDate)`:''}`
+      + `${dupSkipped>0?`, skipped ${dupSkipped} duplicate(s) already in your holdings (matched by broker+symbol)`:''}.`;
     saveData(); render();
   };
 }

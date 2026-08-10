@@ -401,6 +401,90 @@ assignment, import commit, the Buy-Price-blank guarantee) does not need to chang
   assumes. If the user obtains a real CAS and its password, re-running the import against it and
   fixing `parseCasPdfText` accordingly is the natural next step.
 
+## Updated 2026-08-10 — Fast follow-up from independent review: duplicate-on-reimport + blocking library loads
+The `financial-os-reviewer` subagent independently audited the Excel + CAS import build (commit
+`62c8772`, above) and confirmed the core work correct and safe, but flagged two real issues. Both
+fixed same-day, in the same file, no scope changes beyond these two.
+
+**1. Duplicate holdings on re-import — fixed with a shared `findDuplicateHoldingIndex()` helper,
+applied to all three import paths (CAS, Excel, bulk paste), not just CAS.** Previously, importing
+the same CAS PDF or Excel file twice (or pasting the same rows twice) silently created duplicate
+holdings, silently doubling the portfolio's value/gain totals — a real risk for CAS specifically,
+since a CAS is a document a user would naturally re-import periodically (e.g. quarterly) expecting
+a refresh, not a one-time paste.
+- `findDuplicateHoldingIndex(candidate)` matches an incoming holding against `data.holdings` by
+  ISIN (case-insensitive) when both sides carry one — the strongest, broker-independent signal a
+  CAS always provides — falling back to broker + symbol (case-insensitive) when ISIN isn't
+  available, which is the common case for Excel/paste imports. One small function, reused by all
+  three commit paths, so the matching rule can't drift between them.
+- **CAS import → update-in-place (chosen over skip-or-duplicate).** A CAS is a snapshot of current
+  qty/value, so re-importing one — the exact scenario flagged as likely — is naturally a *refresh*,
+  not a fresh addition. On a match, the existing holding's `qty`, `currentPrice` and `asOf` are
+  updated from the new CAS; `buyPrice`/`buyDate` are deliberately left untouched (a CAS never
+  carries that data, so overwriting a value the user filled in by hand would destroy real
+  information for no reason). On no match, a new holding is added exactly as before. The "parsed"
+  preview computes and shows the exact will-update/will-add split *before* the user commits (e.g.
+  "2 of these already exist in your holdings — importing will refresh their Qty and Current Price
+  in place... 1 new holding will be added"), and the confirm button label reflects it ("Import 1
+  new / refresh 2 existing"). Verified end-to-end: re-importing an identical CAS a second time
+  leaves holdings count unchanged (no duplication); re-importing a *different* CAS snapshot for the
+  same ISIN (qty changed 50→60 in the test fixture) actually updates the existing holding's qty,
+  proving this is a real refresh, not a silent no-op.
+- **Excel import and bulk paste → skip-duplicates, checked by default, real user override.** These
+  two paths carry buy price/date that a re-import might legitimately intend to change (e.g. a
+  corrected cost basis), so an automatic update-in-place felt like the wrong default risk — instead,
+  the (already-existing, for Excel) preview-before-commit step now also shows a duplicate count
+  ("2 of these row(s) already exist... — matched by ISIN/symbol") with a "Skip duplicates
+  (recommended)" checkbox, checked by default; unchecking it and re-confirming imports the
+  duplicate rows anyway, so a user who genuinely wants two lots of the same stock isn't blocked,
+  only defaulted away from an accidental double-import. Bulk paste (no preview step) got the same
+  checkbox directly in the paste panel, defaulting to skip, with the skip count folded into the
+  existing "Added N, skipped M" feedback line.
+
+**2. `xlsx.core.min.js` (437KB) + `pdf.min.js` (377KB) — 814KB combined — no longer block every
+page load.** Both were previously loaded via unconditional blocking `<script src>` tags in `<head>`
+on every single Portfolio Tracker page view, regardless of whether the user ever touched Excel or
+CAS import — measured ~10s to interactive on a throttled (750kbps) connection. Fixed by lazy-loading
+both via dynamic `<script>` injection (`loadScriptOnce()`, cached so a second call is a no-op),
+triggered the first time the user actually opens the relevant panel — "Bulk add / advanced" for
+Excel, "Import from CAS" for the PDF path — via each `<details>` element's `ontoggle` handler, so
+the library is usually already warm by the time a file is picked. `handleExcelFileSelected` and
+`handleCasFileSelected` also `await` the same loader directly (via `ensureXlsxLoaded()` /
+`ensurePdfJsLoaded()`) before touching `XLSX`/`pdfjsLib`, so a file chosen before the panel-open
+fetch finishes still works correctly instead of racing. A "Loading Excel support…" /
+"Loading PDF support…" state is shown (on the file-choose button before a file is picked; as a
+loading card in the import preview once a file is being processed) so the UI never looks frozen
+during the fetch. **The `pdfjsLib.GlobalWorkerOptions.workerSrc` correctness trap called out by the
+reviewer was specifically avoided**: that assignment previously ran as a synchronous top-level
+`if(typeof pdfjsLib !== 'undefined')` check at page-init time, which only worked because the
+`<script>` tag was blocking; it's now set inside `ensurePdfJsLoaded()`, immediately after
+`pdf.min.js`'s dynamic load actually resolves, not at page-init time when `pdfjsLib` doesn't exist
+yet. `pdf.worker.min.js` was already correctly lazy (PDF.js only fetches it once `getDocument()`
+runs) and is untouched.
+
+**Testing.** Real headless Chromium (Playwright), same approach as every other session on this
+module. 47 checks, all pass: (a) network-request capture confirms `xlsx.core.min.js`/`pdf.min.js`
+are absent from a plain page load's request list, and are fetched exactly once panel-open/file-select
+triggers them, with the globals (`XLSX`, `pdfjsLib`) and `workerSrc` confirmed set correctly
+afterward; (b) a throttled-network (750kbps, CDP `Network.emulateNetworkConditions`) timing check —
+time-to-`load` dropped to ~1.35s (vs. the reviewer's ~10s baseline) on a plain page view, with the
+Excel library taking ~4.8s to become available *after* opening the Bulk add panel under the same
+throttle (the cost moved from "always paid" to "paid once, by the user who opts in, with a visible
+loading state"); (c) full Excel import (fuzzy-header `.xlsx`, ISIN/header-match tags, mapping
+preview) and CAS import (password-protected PDF, wrong-then-correct password, ISIN-anchored parse,
+preview) end-to-end through the lazy-loaded libraries — both work exactly as before; (d) the
+duplicate/update-in-place logic: re-importing an identical Excel file skips both rows by default,
+unchecking "skip duplicates" and re-confirming imports them anyway (2→4 holdings, proving it's a
+real user choice, not a hard block); re-importing an identical CAS refreshes both existing holdings
+in place (holdings count stays at 2, not 4); re-importing a CAS with a *changed* quantity for one
+ISIN actually updates that holding's qty (60, not the original 50), proving a real refresh, not a
+no-op; pasting the same row twice skips the second by default, and unchecking the checkbox adds it
+anyway; (e) regression pass — guided "Add a holding" form, live price refresh (mocked `fetch`), and
+the FX card all still render/work correctly, untouched by this session's changes; (f) mobile
+viewport (375×812), both themes — the new duplicate-notice boxes and checkboxes screenshotted and
+confirmed to render cleanly with zero horizontal overflow (`scrollWidth` stayed at 375px in every
+case tested).
+
 ## Known gaps — flagged deliberately, not resolved by guessing
 Per explicit instruction not to silently resolve these, and not to fabricate
 functionality to paper over them:
@@ -525,3 +609,18 @@ functionality to paper over them:
   a cost basis of zero, per the 2026-08-10 fix. Any future change to
   `computeHoldingMetrics`/`computePortfolio` must preserve `hasBuyPrice` /
   `null`-vs-`0` handling rather than reintroducing `+h.buyPrice || 0`.
+- `xlsx.core.min.js` and `pdf.min.js` (added 2026-08-10 build to `lib/xlsx.core.min.js` and
+  `lib/pdf.min.js`) are lazy-loaded, not blocking `<head>` `<script>` tags (fixed 2026-08-10,
+  follow-up) — do not re-add unconditional `<script src>` tags for either; use
+  `ensureXlsxLoaded()`/`ensurePdfJsLoaded()` (which cache via `loadScriptOnce()` and set
+  `pdfjsLib.GlobalWorkerOptions.workerSrc` right after `pdf.min.js` resolves, not at page-init
+  time) from wherever a new consumer needs either library. `pdf.worker.min.js` stays as-is — it's
+  fetched lazily by PDF.js itself once `getDocument()` runs, nothing to change there.
+- Every commit path that adds holdings from an import (CAS, Excel, bulk paste — fixed 2026-08-10,
+  follow-up) must run new rows through `findDuplicateHoldingIndex()` before pushing to
+  `data.holdings`, matching by ISIN when available, else broker+symbol. CAS import updates a
+  matched holding in place (qty/currentPrice/asOf refreshed, buyPrice/buyDate left untouched);
+  Excel/paste default to skip-with-a-visible-count-and-override-checkbox. A future new import path
+  (or a change to any of the three existing ones) that pushes to `data.holdings` without this check
+  reintroduces the exact "importing the same document twice doubles your portfolio" bug this fix
+  closed.
