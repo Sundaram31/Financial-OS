@@ -276,6 +276,17 @@ figures can now disagree slightly. Out of scope for this task (unrelated to the 
 feature) and touching it risks the "don't restructure Synthesis's Goals card wholesale"
 instruction — noted here as a real, found gap rather than silently left for someone to discover.
 
+### Fix (2026-08-10, same day) — reviewer-found visual-emphasis gap
+`financial-os-reviewer` audited this feature and confirmed the math, category-gating, edge cases,
+and Synthesis parity all correct — no wrong-but-confident number found anywhere. One real ease-of-
+operation gap: the EPF/PPF liquidity warning (the single sentence this whole feature's correctness
+depends on) was styled identically to five other pieces of throwaway `.helptext` on the same card,
+not visually elevated as a caution. Fixed by giving it the same `.notice.warn` rust-bordered callout
+treatment already established in `portfolio/index.html` (added the same CSS rules here, this module
+didn't have them yet) — now visually distinct rather than blending into ordinary muted copy.
+Verified via headless Chromium: the callout renders with the correct rust border/background, and the
+months-covered figure is unaffected by the change (still 4.2 for the same example as above).
+
 ## Design invariants (same as ITRGenie/Net Worth)
 - Zero external dependencies, works offline once loaded.
 - Paste-and-file-upload dual input mode (CSV/TXT via FileReader, same parser
