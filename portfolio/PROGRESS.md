@@ -882,6 +882,30 @@ module); and what the sale proceeds would be switched into (the optional note fi
 user's own reference only, nothing about a destination is computed). **This closes
 `MASTER_ROADMAP.md`'s item 4** — see that file's updated entry.
 
+### Fix (2026-08-10, same day) — reviewer-found eligibility gap
+The `financial-os-reviewer` audit of the what-if simulator found one real (if
+low-reachability) safety gap: `isSec112AEligibleHolding`/`isSec112AEligibleSoldLot`
+and the what-if UI's own `isForeign` check both trusted `accountOf(brokerId)`,
+which silently falls back to `{currency:'INR'}` for a broker id matching no
+real account — reachable only via a hand-edited or corrupted Export/Import
+JSON with a typo'd broker id, since every real entry path (guided form, paste,
+Excel/CAS import) always resolves to a genuine account id. Under that one
+narrow path, the simulator would have confidently computed a domestic Sec
+111A/112A tax figure for a holding whose real currency was actually unknown —
+the exact "wrong-but-confident number" failure mode this module exists to
+avoid everywhere else. Fixed by checking `data.accounts.some(a=>a.id===...)`
+before trusting `accountOf(...).currency`, in both the exemption-pool helpers
+and the what-if UI's own eligibility gate (which didn't call those helpers at
+all — the real gate was inline `acc.currency !== 'INR'`, so both spots needed
+the fix, not just the higher-level one). An unrecognized account now shows an
+honest "account isn't recognized, currency can't be confirmed" message
+instead of either a wrong number or a self-contradictory "foreign-currency
+account (INR)" label. Verified directly: seeded a holding with a broker id
+matching no account — confirmed no tax figure is computed and the new message
+renders; re-verified the normal INR case still computes the same ₹9,375
+example from the original build, and the legitimate foreign-currency (Vested
+US) exclusion still renders unaffected.
+
 ## Known gaps — flagged deliberately, not resolved by guessing
 Per explicit instruction not to silently resolve these, and not to fabricate
 functionality to paper over them:

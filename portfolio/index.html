@@ -792,17 +792,24 @@ function isDateInFY(dateStr, fyRange){
 }
 
 // A holding is eligible for this simulator's Sec 111A/112A math only if it's not a Mutual Fund AND
-// its account is INR (not foreign/USD) -- see the two-exclusion comment block above.
+// its account is confirmed INR (not foreign/USD) -- see the two-exclusion comment block above.
+// Deliberately does NOT go through accountOf(brokerId).currency alone: that helper falls back to
+// {currency:'INR'} for a broker id matching no real account (e.g. a hand-edited Export/Import JSON
+// with a typo'd broker id), which would silently apply domestic Sec 111A/112A tax to what might
+// actually be a foreign holding -- exactly the confidently-wrong-number failure mode this module
+// exists to avoid everywhere else. Checking the account genuinely exists first closes that gap.
 function isSec112AEligibleHolding(h){
   if(isMutualFundAssetType(h.assetType)) return false;
+  if(!data.accounts.some(a=>a.id===h.broker)) return false;
   return accountOf(h.broker).currency === 'INR';
 }
 // Same eligibility rule, applied to an already-sold lot (used to build the "already realized this
 // FY" exemption pool below) -- kept as a separate small function rather than reused verbatim
 // because a sold lot and an open holding are different shapes, even though the underlying rule
-// (not MF, INR account) is identical.
+// (not MF, confirmed INR account) is identical.
 function isSec112AEligibleSoldLot(lot){
   if(isMutualFundAssetType(lot.assetType)) return false;
+  if(!data.accounts.some(a=>a.id===lot.broker)) return false;
   return accountOf(lot.broker).currency === 'INR';
 }
 
@@ -1426,7 +1433,12 @@ function renderWhatIfSaleSection(container){
   }
 
   const isMF = isMutualFundAssetType(holding.assetType);
-  const isForeign = !isMF && acc.currency !== 'INR';
+  // accountOf() falls back to {currency:'INR'} for a broker id matching no real account (reachable
+  // via a hand-edited Export/Import JSON with a typo'd broker id) -- treat an unrecognized account
+  // as NOT confirmed-domestic rather than defaulting to INR, so this never silently applies
+  // domestic Sec 111A/112A tax to a holding whose actual currency isn't actually known.
+  const accountKnown = data.accounts.some(a=>a.id===holding.broker);
+  const isForeign = !isMF && (!accountKnown || acc.currency !== 'INR');
   const eligible = !isMF && !isForeign;
 
   const hasBuyPrice = holding.buyPrice !== '' && holding.buyPrice !== null && holding.buyPrice !== undefined && !isNaN(+holding.buyPrice);
@@ -1506,7 +1518,9 @@ function renderWhatIfSaleSection(container){
     <div class="notice${isForeign?' warn':''}" style="margin-top:10px;">
       ${isMF
         ? `<strong>${holding.symbol} is a Mutual Fund</strong> — this simulator doesn't compute mutual fund capital-gains tax. A real MF redemption gain depends on the actual CAS/CAMS statement at the time of redemption (post-2023 debt-fund rules, indexation grandfathering, etc. make it too fragile to derive from a formula) — this is exactly why ITRGenie's own Capital Gains — Mutual Funds module asks you to type in the real gain figure rather than computing it, and a hypothetical future sale has no statement to read from yet. When you actually redeem, use that ITRGenie module with the real numbers from your statement.`
-        : `<strong>${holding.symbol} is held in a foreign-currency account</strong> (${acc.name}, ${acc.currency}) — India's Sec 111A/112A concessional equity rates modeled here (flat 20% short-term, flat 12.5% long-term with the shared ₹1,25,000 exemption) only apply to equity sold with STT paid on a recognized Indian stock exchange. Foreign shares are taxed differently — long-term gains fall under Sec 112 (still 12.5%, but with no pooled exemption) and short-term gains are taxed at your income slab rate, not a flat 20%. Getting that right needs your full income picture, which is out of scope here — use ITRGenie's Foreign Assets (Schedule FA) module for the real figure.`
+        : accountKnown
+          ? `<strong>${holding.symbol} is held in a foreign-currency account</strong> (${acc.name}, ${acc.currency}) — India's Sec 111A/112A concessional equity rates modeled here (flat 20% short-term, flat 12.5% long-term with the shared ₹1,25,000 exemption) only apply to equity sold with STT paid on a recognized Indian stock exchange. Foreign shares are taxed differently — long-term gains fall under Sec 112 (still 12.5%, but with no pooled exemption) and short-term gains are taxed at your income slab rate, not a flat 20%. Getting that right needs your full income picture, which is out of scope here — use ITRGenie's Foreign Assets (Schedule FA) module for the real figure.`
+          : `<strong>${holding.symbol}'s account (${holding.broker}) isn't recognized</strong> — its currency can't be confirmed, so this simulator won't guess at domestic vs. foreign tax treatment (this can happen after a hand-edited or corrupted Export/Import file). Re-check this holding's account under Holdings above before simulating a sale.`
       }
     </div>
   `;
