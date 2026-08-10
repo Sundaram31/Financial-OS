@@ -671,6 +671,69 @@ tax-rate/exemption logic in a dedicated simulation UI, which is a distinct, size
 in its own right (not something to bundle into the same pass as building the underlying data model).
 See `MASTER_ROADMAP.md`'s updated item 4 entry.
 
+## Updated 2026-08-10 — Second-pass reviewer fixes on the sold-lot/realized-gains feature
+The `financial-os-reviewer` subagent independently re-verified the sold-lot/realized-capital-gains
+build above (commit `36f841d`) — confirmed the core math, ST/LT boundary logic, and honesty
+invariants (never fabricating a gain from missing cost basis) all correct — but found two real
+issues, fixed same-day, same pattern as the earlier Excel/CAS review cycles (2026-08-10 entries
+above).
+
+**1. The "Copy paste-ready lines (ITRGenie Equity format)" button didn't filter out Mutual Fund
+sold lots.** Reviewer verified directly: a Mutual Fund sold lot alongside a Stock sold lot got
+copied together, unfiltered, formatted for ITRGenie's Equity capital-gains module — which taxes
+rows under Sec 111A/112A equity rules. A mutual fund redemption needs its own Sec 112A-vs-112
+classification that only ITRGenie's separate MF module asks for; pasting one into the Equity module
+would make ITRGenie confidently compute a wrong tax number for that row. Every other honesty-gap in
+this module (unconverted USD, unknown-cost lots, unknown-term lots) was already handled by
+explicitly excluding it and telling the user why — this was the one place that pattern was missed.
+Fixed: `isMutualFundAssetType()` filters the copy-lines output to exclude Mutual Fund rows only
+(everything else — Stock/ETF/Equity/Other/any free-text bulk-paste value — is treated as
+equity-like); the feedback message now states the excluded count ("N mutual fund lot(s)
+excluded — route those to ITRGenie's own MF capital-gains module by hand"), and an all-MF-lots
+edge case shows a clear "nothing to copy" message instead of copying an empty line or crashing. The
+JSON export (`buildCapitalGainsFeed()`) is deliberately left unfiltered, as instructed — it already
+carries `assetType` per row, so a downstream consumer can filter it itself; this fix is specific to
+the one-click paste-ready-lines shortcut, which had no such safety net.
+
+**2. The "Record a sale" form silently wiped user-entered values on a validation error.**
+Reviewer reproduced: Qty=3, Sell price=1500, blank Sell date, submit → correct "Sell date is
+required" error shown, but Qty reverted to the holding's full default quantity and Sell price
+cleared to blank, because the validation-failure path called the same full `render()` used
+everywhere else, which rebuilds the form from scratch with default `value="${holding.qty}"`
+attributes — discarding whatever the user had typed into the other fields. A user who then just
+fixed the one field they saw complained about could silently sell the wrong quantity at no price
+without noticing. Fixed by having the validation-failure path (`showSaleError()`) update only the
+`#rs_feedback` text node in place, in every one of the five validation branches in the "Record
+sale" button handler, instead of calling `render()` — the success path still calls the full
+`render()` unchanged, since a real state change (holding qty/removal, new sold lot) genuinely
+warrants resetting the form to fresh defaults there.
+- **Checked, not assumed, whether the sibling "Add a holding" form already avoided this** (as the
+  reviewer's report suggested it might, worth confirming before assuming the same fix pattern
+  applied). It does **not** — a real headless-Chromium check found the exact same bug there too
+  (Symbol/Qty/etc. also revert to blank on its own validation error). This was flagged, not fixed,
+  in this pass — it wasn't part of the reviewer's two reported issues or this session's requested
+  scope (the sold-lot feature specifically), so fixing it here would have widened the diff beyond
+  what was asked; the fix pattern above (in-place feedback update instead of full `render()` on
+  validation failure) would very likely apply cleanly to it too, and is the correct one to reuse in
+  a future session. **Adding to Known gaps below.**
+
+**Testing.** Real headless Chromium (Playwright), reproducing the reviewer's exact scenarios: (1)
+seeded a Stock sold lot + a Mutual Fund sold lot, clicked the copy-lines button — clipboard
+contained only the Stock lot's 6-field line, the Mutual Fund line was absent, the feedback showed
+"1 mutual fund lot(s) excluded..."; confirmed the JSON export (`buildCapitalGainsFeed()`) still
+returned both lots unfiltered; confirmed the all-Mutual-Fund-lots edge case shows a "nothing to
+copy" message rather than an empty/broken copy. (2) Filled Qty=3/Sell price=1500, left Sell date
+blank, submitted — confirmed Qty and Sell price were still exactly 3 and 1500 after the "Sell date
+is required" error appeared (not reverted/cleared), confirmed no sold lot was created and the
+holding's qty was unchanged; then filled in the date and resubmitted — confirmed the sale went
+through with the originally-entered Qty (3) and Sell price (1500), not the holding's default full
+quantity, and the holding's open qty correctly reduced by 3. (3) Regression pass: full sale
+(holding removed, sold lot carries full qty, correct gain, LongTerm classification), ST/LT boundary
+at all three points (364/365/366 days), missing-cost-basis honesty (`buyPrice: null` →
+`{gain: null, term: null}`, never fabricated), partial sale (holding qty reduced correctly, sold
+lot created for the sold portion only), and the paste-ready-lines 6-field format for a real
+Stock-only export — all still pass unchanged. 30 checks total, all pass.
+
 ## Known gaps — flagged deliberately, not resolved by guessing
 Per explicit instruction not to silently resolve these, and not to fabricate
 functionality to paper over them:
@@ -749,6 +812,21 @@ functionality to paper over them:
    ticker↔company-name mapping) rather than a quick patch that could
    silently merge two genuinely different holdings that happen to share a
    loosely similar name.
+6. **The "Add a holding" form has the same validation-error-wipes-input bug
+   the "Record a sale" form had (found while fixing the latter, 2026-08-10
+   second-pass review).** Confirmed with a real headless-Chromium check, not
+   assumed: filling Symbol + Qty but leaving Buy Price blank and submitting
+   shows the correct "Fill in Symbol, Broker, Qty..., Buy Price and Buy
+   Date" error, but Symbol and Qty are both wiped back to blank — same root
+   cause as the sale form's bug (the validation-failure path calls the full
+   `render()`, which rebuilds the form fresh with no `value="..."`
+   preserving what was typed). Not fixed in this pass — it wasn't one of the
+   reviewer's two reported issues or this session's requested scope (the
+   sold-lot feature specifically); flagged here rather than silently left
+   for someone to rediscover. The fix pattern used for the sale form
+   (`showSaleError()` — update the feedback text node in place instead of
+   calling `render()` on a validation failure) would very likely apply
+   cleanly here too, in a future session.
 
 ## Deliberately NOT done yet
 - **The what-if fund-switch tax-modeling UI itself** ("simulate switching Fund
@@ -875,3 +953,21 @@ functionality to paper over them:
   BOTH fields (not just gain) when cost basis is unknown. Any future change to
   `computeSoldLotGain()`/`computeRealizedGains()` must preserve this `null`-vs-fabricated-zero
   handling, same as the existing `hasBuyPrice` convention for open holdings above.
+- **The "Copy paste-ready lines (ITRGenie Equity format)" button must always run through
+  `isMutualFundAssetType()` before copying (fixed 2026-08-10, second-pass reviewer fix)** — never
+  copy a Mutual Fund sold lot into that button's output. ITRGenie's Equity module taxes rows under
+  Sec 111A/112A equity rules; a mutual fund needs its own Sec 112A-vs-112 classification this module
+  has no basis to know, so an unfiltered copy would make ITRGenie confidently compute a wrong tax
+  number for that row. The JSON export (`buildCapitalGainsFeed()`) is deliberately left unfiltered
+  on purpose (it carries `assetType` per row for a downstream consumer to filter itself) — don't
+  "fix" that by filtering the JSON too, and don't remove the filter from the copy-lines button
+  thinking it's now redundant with the JSON's `assetType` field.
+- **The "Record a sale" form's validation-failure path must update `#rs_feedback` in place
+  (`showSaleError()`), never call the full `render()` (fixed 2026-08-10, second-pass reviewer
+  fix).** `render()` rebuilds the form from scratch with fresh `value="${holding.qty}"` / blank
+  defaults, silently discarding whatever the user had typed into the other fields — a real risk of
+  someone unknowingly submitting the wrong qty/price after fixing just the one field they saw an
+  error about. The success path is unaffected and still calls the full `render()`, since a genuine
+  state change (holding qty/removal, new sold lot) correctly warrants resetting the form. Any new
+  validation branch added to this form's submit handler must call `showSaleError()`, not set
+  `saleFormFeedbackMsg` directly and call `render()`.

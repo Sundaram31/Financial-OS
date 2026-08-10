@@ -728,6 +728,16 @@ function buildCapitalGainsFeed(){
     assetType: lot.assetType || 'Other',
   }));
 }
+// True only for Mutual Fund rows -- everything else (Stock/ETF/Equity/Other/anything else a user
+// typed via bulk paste) is treated as equity-like and safe for ITRGenie's Equity module paste
+// format. Mutual Fund sales need a separate Sec 112A-vs-112 classification (equity-oriented vs.
+// debt-oriented fund) that this module has no basis to know -- pasting one into the Equity module
+// would make ITRGenie confidently compute a wrong tax number for that row, so the paste-ready-lines
+// shortcut below must never include one, matching this module's existing "exclude it and say why"
+// pattern used for unconverted USD lots / unknown-cost lots / unknown-term lots elsewhere.
+function isMutualFundAssetType(assetType){
+  return (assetType || '').trim().toLowerCase() === 'mutual fund';
+}
 
 // ---------- performance summary (front and center, right after the header) ----------
 function renderPerformanceSummary(container){
@@ -1006,9 +1016,22 @@ function renderRecordSaleForm(container){
     render();
   };
 
+  // Validation-failure path updates only the feedback message node in place, rather than calling
+  // the full render() -- render() rebuilds this whole card from scratch with fresh default
+  // `value="${holding.qty}"` / blank attributes, which was silently discarding whatever the user
+  // had actually typed into the *other* fields (e.g. Qty/Sell price survive a "Sell date is
+  // required" error, instead of reverting to holding.qty / clearing to blank). Success still calls
+  // the full render() below -- that's a genuine state change (holding qty/removal, new sold lot),
+  // so resetting the form to fresh defaults there is correct.
+  const showSaleError = (text)=>{
+    saleFormFeedbackMsg = { text, isError: true };
+    const fb = card.querySelector('#rs_feedback');
+    if(fb){ fb.textContent = text; fb.style.color = 'var(--rust)'; }
+  };
+
   card.querySelector('#rs_add_btn').onclick = ()=>{
     const h = data.holdings.find(x=>x.id===selectedId);
-    if(!h){ saleFormFeedbackMsg = { text: 'That holding no longer exists — pick another.', isError: true }; render(); return; }
+    if(!h){ showSaleError('That holding no longer exists — pick another.'); return; }
     const qtyRaw = card.querySelector('#rs_qty').value;
     const sellDate = card.querySelector('#rs_selldate').value;
     const sellPriceRaw = card.querySelector('#rs_sellprice').value;
@@ -1016,11 +1039,11 @@ function renderRecordSaleForm(container){
     const sellPrice = +sellPriceRaw;
     const available = +h.qty || 0;
 
-    if(qtyRaw === '' || isNaN(qty) || qty <= 0){ saleFormFeedbackMsg = { text: 'Enter a quantity greater than 0.', isError: true }; render(); return; }
-    if(qty > available + 1e-9){ saleFormFeedbackMsg = { text: `Can't sell ${qty} — only ${available} of ${h.symbol} currently held.`, isError: true }; render(); return; }
-    if(!sellDate){ saleFormFeedbackMsg = { text: 'Sell date is required.', isError: true }; render(); return; }
-    if(sellPriceRaw === '' || isNaN(sellPrice) || sellPrice < 0){ saleFormFeedbackMsg = { text: 'Enter a valid sell price (0 or more).', isError: true }; render(); return; }
-    if(h.buyDate && new Date(sellDate) < new Date(h.buyDate)){ saleFormFeedbackMsg = { text: "Sell date can't be before the buy date.", isError: true }; render(); return; }
+    if(qtyRaw === '' || isNaN(qty) || qty <= 0){ showSaleError('Enter a quantity greater than 0.'); return; }
+    if(qty > available + 1e-9){ showSaleError(`Can't sell ${qty} — only ${available} of ${h.symbol} currently held.`); return; }
+    if(!sellDate){ showSaleError('Sell date is required.'); return; }
+    if(sellPriceRaw === '' || isNaN(sellPrice) || sellPrice < 0){ showSaleError('Enter a valid sell price (0 or more).'); return; }
+    if(h.buyDate && new Date(sellDate) < new Date(h.buyDate)){ showSaleError("Sell date can't be before the buy date."); return; }
 
     const lotHasBuyPrice = h.buyPrice !== '' && h.buyPrice !== null && h.buyPrice !== undefined && !isNaN(+h.buyPrice);
     const soldLot = {
@@ -1176,7 +1199,7 @@ function renderRealizedGainsSection(container){
   feedCard.className = 'card';
   feedCard.innerHTML = `
     <h3>Capital gains feed → ITRGenie</h3>
-    <p class="helptext" style="margin-bottom:8px;">Exports the shared <code>{symbol, buydate, selldate, buyprice, sellprice, qty, assetType}[]</code> contract for every sold lot above — including ones with an unknown Buy Price, left as <code>null</code> rather than guessed. Download the JSON, or copy paste-ready lines matching ITRGenie's Capital Gains — Equity module's own paste format (<code>Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice</code> — leave BuyDate/BuyPrice blank where unknown, same as that module already expects) for a quick paste-in there. Mutual Fund sales need to be tagged Sec 112A vs 112 by hand once pasted into ITRGenie's separate Capital Gains — Mutual Funds module, since Portfolio doesn't track that classification — this module's job is correct raw transaction facts, not tax-rule authority.</p>
+    <p class="helptext" style="margin-bottom:8px;">Exports the shared <code>{symbol, buydate, selldate, buyprice, sellprice, qty, assetType}[]</code> contract for every sold lot above — including ones with an unknown Buy Price, left as <code>null</code> rather than guessed, and including Mutual Fund lots (unfiltered — a downstream consumer can filter by <code>assetType</code> itself). Download the JSON, or copy paste-ready lines matching ITRGenie's Capital Gains — Equity module's own paste format (<code>Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice</code> — leave BuyDate/BuyPrice blank where unknown, same as that module already expects) for a quick paste-in there. <strong>The paste-ready-lines button excludes Mutual Fund sold lots automatically</strong> (and says how many were excluded) — ITRGenie's Equity module taxes rows under Sec 111A/112A equity rules, and a mutual fund redemption needs its own Sec 112A-vs-112 classification that only ITRGenie's separate Capital Gains — Mutual Funds module asks for, which this module has no basis to guess at. Route those lots there by hand instead.</p>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <button class="btn small" id="cg_export_json">Download Capital Gains feed (JSON)</button>
       <button class="btn small ghost" id="cg_copy_lines">Copy paste-ready lines (ITRGenie Equity format)</button>
@@ -1195,13 +1218,28 @@ function renderRealizedGainsSection(container){
   };
   feedCard.querySelector('#cg_copy_lines').onclick = async ()=>{
     const feed = buildCapitalGainsFeed();
-    const lines = feed.map(r => `${r.symbol}, ${r.qty}, ${r.buydate||''}, ${r.buyprice!==null?r.buyprice:''}, ${r.selldate}, ${r.sellprice}`).join('\n');
+    // Only Stock/ETF/Equity/Other lots go into this button's output -- Mutual Fund lots are
+    // excluded (see isMutualFundAssetType's comment above). The JSON export above is left
+    // unfiltered on purpose: it already carries assetType per row, so a downstream consumer can
+    // filter it itself; this button has no such safety net, so the filtering happens here.
+    const equityLikeRows = feed.filter(r => !isMutualFundAssetType(r.assetType));
+    const excludedCount = feed.length - equityLikeRows.length;
+    const exclusionNote = excludedCount > 0
+      ? ` ${excludedCount} mutual fund lot(s) excluded — route those to ITRGenie's own MF capital-gains module by hand.`
+      : '';
     const fb = feedCard.querySelector('#cg_feed_fb');
+    if(equityLikeRows.length === 0){
+      fb.textContent = excludedCount > 0
+        ? `Nothing to copy — all ${excludedCount} sold lot(s) are Mutual Fund.${exclusionNote}`
+        : 'No sold lots to copy yet.';
+      return;
+    }
+    const lines = equityLikeRows.map(r => `${r.symbol}, ${r.qty}, ${r.buydate||''}, ${r.buyprice!==null?r.buyprice:''}, ${r.selldate}, ${r.sellprice}`).join('\n');
     try{
       await navigator.clipboard.writeText(lines);
-      fb.textContent = "Copied — paste directly into ITRGenie's Capital Gains — Equity module paste box.";
+      fb.textContent = "Copied — paste directly into ITRGenie's Capital Gains — Equity module paste box." + exclusionNote;
     }catch(e){
-      fb.textContent = 'Could not access clipboard; here it is to copy manually:\n' + lines;
+      fb.textContent = 'Could not access clipboard; here it is to copy manually:\n' + lines + (exclusionNote ? '\n\n' + exclusionNote.trim() : '');
     }
   };
 }
