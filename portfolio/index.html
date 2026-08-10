@@ -232,6 +232,21 @@ let bulkAddFeedbackMsg = ''; // same fix applied to the bulk-paste entry panel b
 let saleFormHoldingId = null;
 let saleFormFeedbackMsg = { text: '', isError: false };
 
+// "Simulate a sale" what-if tax calculator's transient state -- purely computational, never
+// mutates data.holdings/data.soldLots (see renderWhatIfSaleSection below). whatIfHoldingId starts
+// `null` so the first render can seed sensible defaults for whichever holding ends up selected;
+// whatIfPoolOverride is `null` when the user hasn't overridden the auto-computed "already realized
+// Sec 112A LTCG this FY" figure, else the number they typed. whatIfNote is a free-text scratch
+// field ("Considering switching to: ___") for the user's own reference only -- deliberately never
+// saved to data/localStorage and never computed against, since this tool doesn't evaluate switch
+// destinations, only the tax cost of exiting the current holding.
+let whatIfHoldingId = null;
+let whatIfQty = '';
+let whatIfSellPrice = '';
+let whatIfSellDate = '';
+let whatIfPoolOverride = null;
+let whatIfNote = '';
+
 // Excel (.xlsx/.xls) import: transient, in-memory only -- holds the detected column mapping and
 // parsed rows for a chosen file, awaiting user confirmation before anything is committed to
 // data.holdings. null when no file is being previewed. See handleExcelFileSelected() below.
@@ -739,6 +754,114 @@ function isMutualFundAssetType(assetType){
   return (assetType || '').trim().toLowerCase() === 'mutual fund';
 }
 
+// ---------- what-if sale simulator (roadmap item 4 -- "what's the tax cost if I sold this today") ----------
+// Purely computational -- never records a sold lot, never mutates data.holdings/data.soldLots.
+// Scoped to domestic (INR) Stock/ETF/Equity/Other open holdings only. Two deliberate exclusions,
+// each with an honest explanation shown in-UI rather than a fabricated number:
+//   1. Mutual Fund holdings -- a real MF redemption gain depends on the actual CAS/CAMS statement
+//      at the time of redemption (post-2023 debt-fund rules, indexation grandfathering, etc. are
+//      too fragile to derive from a formula); this is exactly why itrgenie/index.html's
+//      CapitalGainsMFModule (~line 2510) requires the user to type in the real gain figure rather
+//      than computing it -- a hypothetical future sale has no such statement to read from.
+//   2. Foreign-currency holdings (Vested-US / any non-INR account) -- verified directly against
+//      itrgenie/index.html's ForeignAssetsModule and its use in the tax computation (~line
+//      4809-4818): foreign LTCG is added to the SEPARATE `ltcg112` bucket (still 12.5%, but with NO
+//      pooled ₹1,25,000 exemption -- it never joins `ltcg112a`), and foreign STCG is taxed at the
+//      person's income SLAB rate (folded into `slabIncomeBase`), not the flat 20% Sec 111A `stcg`
+//      bucket. Sec 111A/112A's concessional rates require STT paid on a recognized Indian stock
+//      exchange, which a foreign-listed holding doesn't have by definition -- applying this
+//      simulator's flat-rate math to one would produce a confidently wrong number, so it's excluded
+//      the same honest way Mutual Funds are, pointing at ITRGenie's Foreign Assets (Schedule FA)
+//      module instead of guessing at the real foreign-asset holding-period/rate rules.
+
+// Indian financial year: April 1 -- March 31. Returns the FY range containing refDate (a Date or
+// ISO date string) as ISO date strings, so it can be string-compared against other ISO dates
+// directly (lexicographic comparison on YYYY-MM-DD strings matches chronological order).
+function getFinancialYearRange(refDate){
+  const d = refDate instanceof Date ? refDate : new Date(refDate);
+  const year = d.getFullYear();
+  const month = d.getMonth(); // 0 = Jan ... 3 = Apr
+  const fyStartYear = month >= 3 ? year : year - 1; // Jan/Feb/Mar belong to the FY that started the PREVIOUS April
+  const start = `${fyStartYear}-04-01`;
+  const end = `${fyStartYear + 1}-03-31`;
+  return { start, end, label: `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}` };
+}
+function isDateInFY(dateStr, fyRange){
+  if(!dateStr) return false;
+  return dateStr >= fyRange.start && dateStr <= fyRange.end;
+}
+
+// A holding is eligible for this simulator's Sec 111A/112A math only if it's not a Mutual Fund AND
+// its account is INR (not foreign/USD) -- see the two-exclusion comment block above.
+function isSec112AEligibleHolding(h){
+  if(isMutualFundAssetType(h.assetType)) return false;
+  return accountOf(h.broker).currency === 'INR';
+}
+// Same eligibility rule, applied to an already-sold lot (used to build the "already realized this
+// FY" exemption pool below) -- kept as a separate small function rather than reused verbatim
+// because a sold lot and an open holding are different shapes, even though the underlying rule
+// (not MF, INR account) is identical.
+function isSec112AEligibleSoldLot(lot){
+  if(isMutualFundAssetType(lot.assetType)) return false;
+  return accountOf(lot.broker).currency === 'INR';
+}
+
+// "Already realized Sec 112A LTCG this FY" -- the shared exemption pool needed to compute the
+// MARGINAL tax on a new hypothetical sale, since the ₹1,25,000 exemption is a per-FY pool, not a
+// per-transaction allowance. Sums existing data.soldLots that are Sec-112A-eligible (not MF, INR
+// account -- see isSec112AEligibleSoldLot above) and classify LongTerm, whose sell date falls
+// within the given FY. Deliberately a straight sum, not clamped to >=0 per lot -- this mirrors
+// ITRGenie's own `ltcg112a = eqLT + mf112A` aggregation (a plain sum, clamped to >=0 only once,
+// right before applying the exemption in `Math.max(0, ltcg112a - 125000)`), so a loss lot within
+// the same FY's LTCG bucket correctly nets against a gain lot rather than being silently ignored.
+function computeAlreadyRealizedLTCG112AThisFY(fyRange){
+  let total = 0, includedCount = 0;
+  data.soldLots.forEach(lot=>{
+    if(!isSec112AEligibleSoldLot(lot)) return;
+    if(!isDateInFY(lot.sellDate, fyRange)) return;
+    const calc = computeSoldLotGain(lot);
+    if(calc.gain === null || calc.term !== 'LongTerm') return;
+    total += calc.gain; // native currency -- always INR here, isSec112AEligibleSoldLot guarantees it
+    includedCount++;
+  });
+  return { total, includedCount };
+}
+
+// Core what-if tax computation -- a pure function of the numbers passed in, so it's reusable for
+// both the real UI and tests without touching data.holdings/data.soldLots at all. Caller must
+// already have confirmed the holding is Sec 112A-eligible (isSec112AEligibleHolding) -- this
+// function doesn't re-check that, it just computes the flat-rate capital-gains tax given the
+// classification. `alreadyRealizedLTCGThisFY` is the shared exemption-pool figure (the editable
+// "already realized this FY" number in the UI), not any property of this specific hypothetical sale.
+function computeWhatIfTax({ buyPrice, buyDate, sellPrice, sellDate, qty, alreadyRealizedLTCGThisFY }){
+  const gain = (sellPrice - buyPrice) * qty;
+  let term = null;
+  if(buyDate && sellDate){
+    const days = holdingPeriodDays(buyDate, sellDate);
+    term = days > LTCG_HOLDING_DAYS ? 'LongTerm' : 'ShortTerm'; // exactly 365 days -> ShortTerm, same boundary as sold lots
+  }
+  if(term === null) return { gain, term: null, tax: null };
+  if(gain <= 0) return { gain, term, tax: 0 }; // a loss (or exactly break-even) sale owes no capital-gains tax
+  if(term === 'ShortTerm') return { gain, term, tax: gain * 0.20 }; // Sec 111A, flat, no exemption
+  // LongTerm (Sec 112A) -- marginal tax against the shared FY exemption pool.
+  const pool = +alreadyRealizedLTCGThisFY || 0;
+  const taxableBefore = Math.max(0, pool - 125000);
+  const taxableAfter = Math.max(0, pool + gain - 125000);
+  const tax = (taxableAfter - taxableBefore) * 0.125;
+  return { gain, term, tax, taxableBefore, taxableAfter };
+}
+
+// Default sell price shown in the what-if form: the holding's live/last-known Current Price if
+// set (this is the same field the live-price-feed feature and manual refresh already write into,
+// so "live price if this holding has one" and "last-known/manual price" are the same field, not
+// two separate things to track), else its own Buy Price as a fallback, else blank.
+function whatIfDefaultSellPrice(h){
+  const hasCP = h.currentPrice !== '' && h.currentPrice !== null && h.currentPrice !== undefined && !isNaN(+h.currentPrice);
+  if(hasCP) return +h.currentPrice;
+  const hasBP = h.buyPrice !== '' && h.buyPrice !== null && h.buyPrice !== undefined && !isNaN(+h.buyPrice);
+  return hasBP ? +h.buyPrice : '';
+}
+
 // ---------- performance summary (front and center, right after the header) ----------
 function renderPerformanceSummary(container){
   const p = computePortfolio();
@@ -882,7 +1005,7 @@ function renderHoldingsTable(container){
       <td data-label="As Of"><input type="date" data-asof="${h.id}" value="${h.asOf||''}"></td>
       <td data-label="Value" class="cell-strong">${formatMoney(m.currentValue, m.currency)}${m.isStale?' <span class="tag muted">stale</span>':''}</td>
       <td data-label="Gain/Loss" class="cell-strong" style="color:${gainColor};">${gainCellHtml}</td>
-      <td data-label=""><div style="display:flex; gap:6px; justify-content:flex-end;"><button class="btn small ghost" data-sell="${h.id}" title="Record a sale against this holding">Sell</button><button class="btn small ghost" data-rm="${h.id}">✕</button></div></td>
+      <td data-label=""><div style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap;"><button class="btn small ghost" data-whatif="${h.id}" title="Simulate the tax cost of selling this holding — doesn't create a sale">What-if</button><button class="btn small ghost" data-sell="${h.id}" title="Record a sale against this holding">Sell</button><button class="btn small ghost" data-rm="${h.id}">✕</button></div></td>
     `;
     tbody.appendChild(tr);
   });
@@ -935,6 +1058,9 @@ function renderHoldingsTable(container){
   wrap.querySelectorAll('[data-sell]').forEach(btn=>{
     btn.onclick = (e)=> openSaleForm(e.currentTarget.dataset.sell);
   });
+  wrap.querySelectorAll('[data-whatif]').forEach(btn=>{
+    btn.onclick = (e)=> openWhatIfSale(e.currentTarget.dataset.whatif);
+  });
   wrap.querySelectorAll('[data-live]').forEach(btn=>{
     btn.onclick = async (e)=>{
       const id = e.currentTarget.dataset.live;
@@ -966,6 +1092,21 @@ function openSaleForm(holdingId){
       const inp = document.getElementById('rs_qty');
       if(inp) inp.focus({preventScroll:true});
     }
+  });
+}
+
+// Opens the "Simulate a sale" what-if panel pre-selected on a specific holding, seeding the qty/
+// sell-price defaults for it (mirrors openSaleForm above). Never touches data.holdings/data.soldLots.
+function openWhatIfSale(holdingId){
+  const h = data.holdings.find(x=>x.id===holdingId);
+  whatIfHoldingId = holdingId;
+  whatIfQty = h ? String(h.qty) : '';
+  whatIfSellPrice = h ? String(whatIfDefaultSellPrice(h)) : '';
+  whatIfSellDate = new Date().toISOString().slice(0,10);
+  render();
+  requestAnimationFrame(()=>{
+    const panel = document.getElementById('whatif-panel');
+    if(panel) panel.scrollIntoView({behavior:'smooth', block:'start'});
   });
 }
 
@@ -1242,6 +1383,172 @@ function renderRealizedGainsSection(container){
       fb.textContent = 'Could not access clipboard; here it is to copy manually:\n' + lines + (exclusionNote ? '\n\n' + exclusionNote.trim() : '');
     }
   };
+}
+
+// ---------- "Simulate a sale" -- what-if tax calculator, purely computational ----------
+// Sits right after Realized gains, per explicit placement. Never mutates data.holdings/
+// data.soldLots -- every input here (qty/price/date/pool override/note) lives only in the
+// module-level whatIf* state vars declared near the top of the file, read fresh on every render().
+function renderWhatIfSaleSection(container){
+  const header = document.createElement('div');
+  header.className = 'panel-header';
+  header.style.marginTop = '28px';
+  header.innerHTML = `
+    <h2 style="font-size:18px;">Simulate a sale</h2>
+    <p class="desc" style="margin-top:4px; max-width:none;">"What would the tax cost be if I sold this today (or on some other date)?" — purely computational: unlike "Record a sale" above, this never creates a sold lot or changes a holding's quantity. Shows only the capital-gains-specific flat tax (Sec 111A short-term / Sec 112A long-term) — no surcharge, cess, or how this interacts with the rest of your income/tax regime. ITRGenie remains the source of truth for your actual return; this is for deciding whether (and when) to sell, not for filing. This also doesn't evaluate what the money would be switched into — only the tax cost of exiting the current holding.</p>
+  `;
+  container.appendChild(header);
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = 'whatif-panel';
+
+  const openHoldings = data.holdings.filter(h => (+h.qty || 0) > 0);
+  if(openHoldings.length === 0){
+    card.innerHTML = `<h3>Simulate a sale</h3><p class="helptext">No open holdings yet — add one above, then come back here to check the tax cost of a hypothetical sale.</p>`;
+    container.appendChild(card);
+    return;
+  }
+
+  const selectedId = (whatIfHoldingId && openHoldings.some(h=>h.id===whatIfHoldingId)) ? whatIfHoldingId : openHoldings[0].id;
+  const holding = openHoldings.find(h=>h.id===selectedId);
+  const acc = accountOf(holding.broker);
+
+  // Seed sensible defaults the first time this holding becomes selected (fresh page load, or the
+  // user switched holdings via the dropdown below) -- never re-runs on a plain re-render caused by
+  // editing qty/price/date/pool, since whatIfHoldingId already equals selectedId by then, so it
+  // never clobbers an in-progress edit.
+  if(whatIfHoldingId !== selectedId){
+    whatIfHoldingId = selectedId;
+    whatIfQty = String(holding.qty);
+    whatIfSellPrice = String(whatIfDefaultSellPrice(holding));
+    whatIfSellDate = whatIfSellDate || new Date().toISOString().slice(0,10);
+  }
+
+  const isMF = isMutualFundAssetType(holding.assetType);
+  const isForeign = !isMF && acc.currency !== 'INR';
+  const eligible = !isMF && !isForeign;
+
+  const hasBuyPrice = holding.buyPrice !== '' && holding.buyPrice !== null && holding.buyPrice !== undefined && !isNaN(+holding.buyPrice);
+  const qtyNum = +whatIfQty;
+  const sellPriceNum = +whatIfSellPrice;
+  const fyRange = getFinancialYearRange(new Date());
+  const poolCalc = computeAlreadyRealizedLTCG112AThisFY(fyRange);
+  const poolValue = whatIfPoolOverride !== null ? whatIfPoolOverride : poolCalc.total;
+
+  const errors = [];
+  if(eligible && hasBuyPrice){
+    if(whatIfQty === '' || isNaN(qtyNum) || qtyNum <= 0) errors.push('Enter a quantity greater than 0.');
+    else if(qtyNum > +holding.qty + 1e-9) errors.push(`Can't simulate selling ${qtyNum} — only ${holding.qty} of ${holding.symbol} currently held.`);
+    if(whatIfSellPrice === '' || isNaN(sellPriceNum) || sellPriceNum < 0) errors.push('Enter a valid sell price (0 or more).');
+    if(!whatIfSellDate) errors.push('Sell date is required.');
+    else if(holding.buyDate && new Date(whatIfSellDate) < new Date(holding.buyDate)) errors.push("Sell date can't be before the buy date.");
+  }
+
+  let result = null;
+  if(eligible && hasBuyPrice && errors.length === 0){
+    result = computeWhatIfTax({
+      buyPrice: +holding.buyPrice,
+      buyDate: holding.buyDate || '',
+      sellPrice: sellPriceNum,
+      sellDate: whatIfSellDate,
+      qty: qtyNum,
+      alreadyRealizedLTCGThisFY: poolValue,
+    });
+  }
+
+  let resultHtml = '';
+  if(eligible && !hasBuyPrice){
+    resultHtml = `<div class="helptext" style="color:var(--gold); margin-top:8px;">No Buy Price on file for this holding — fill it in via the Avg Price column in the Holdings table above, then come back here to simulate a sale.</div>`;
+  } else if(eligible && errors.length){
+    resultHtml = `<div class="helptext" style="color:var(--rust); margin-top:8px;">${errors.join(' ')}</div>`;
+  } else if(eligible && result && result.term === null){
+    resultHtml = `<div class="helptext" style="color:var(--gold); margin-top:8px;">No Buy Date on file for this holding — can't classify Short-term vs Long-term. Fill in Buy Date in the Holdings table above.</div>`;
+  } else if(eligible && result){
+    const gainColor = result.gain >= 0 ? 'var(--green)' : 'var(--rust)';
+    const termTag = result.term === 'LongTerm' ? `<span class="tag green">LTCG</span>` : `<span class="tag rust">STCG</span>`;
+    let detail = '';
+    if(result.gain <= 0){
+      detail = `<p class="helptext" style="margin-top:6px;">This would be a capital <strong>loss</strong> — ₹0 capital-gains tax on this sale. A loss can offset other gains (Sec 70 set-off rules) — see ITRGenie's Loss Set-off &amp; Carry Forward module for the complete picture; that ordering isn't modeled here.</p>`;
+    } else if(result.term === 'ShortTerm'){
+      detail = `<p class="helptext" style="margin-top:6px;">Held ≤365 days — Short-term (Sec 111A): flat 20% on the full gain, no exemption.</p>`;
+    } else {
+      const usedBefore = Math.min(Math.max(0,poolValue), 125000);
+      const headroomBefore = Math.max(0, 125000 - poolValue);
+      const taxablePortion = result.taxableAfter - result.taxableBefore;
+      detail = `<p class="helptext" style="margin-top:6px;">Held &gt;365 days — Long-term (Sec 112A). Exemption headroom remaining before this sale: ${formatMoney(headroomBefore,'INR')} of the shared ₹1,25,000/FY pool (${formatMoney(usedBefore,'INR')} already used by the "already realized" figure below). Of this sale's ${formatMoney(result.gain,'INR')} gain, ${formatMoney(taxablePortion,'INR')} is taxable at 12.5%.</p>`;
+    }
+    resultHtml = `
+      <div class="stat-grid" style="margin-top:10px;">
+        <div class="stat-tile"><div class="stat-label">Hypothetical gain</div><div class="stat-value" style="color:${gainColor}; font-size:20px;">${formatMoney(result.gain,'INR')}</div><div class="helptext" style="margin-top:2px;">${termTag}</div></div>
+        <div class="stat-tile accent"><div class="stat-label">Estimated capital-gains tax</div><div class="stat-value" style="font-size:20px;">${formatMoney(result.tax,'INR')}</div></div>
+      </div>
+      ${detail}
+    `;
+  }
+
+  const bodyHtml = eligible ? `
+    <div class="field-row">
+      <div class="field"><label>Qty to sell</label><input id="wi_qty" type="number" step="any" min="0" max="${holding.qty}" value="${whatIfQty}"></div>
+      <div class="field"><label>Sell price</label><input id="wi_sellprice" type="number" step="0.01" min="0" value="${whatIfSellPrice}" placeholder="per unit"></div>
+      <div class="field"><label>Sell date</label><input id="wi_selldate" type="date" value="${whatIfSellDate}"></div>
+    </div>
+    <div class="field-row" style="margin-top:-2px;">
+      <div class="field"><label>Already realized Sec 112A LTCG this FY (${fyRange.label})</label><input id="wi_pool" type="number" step="0.01" value="${poolValue}"></div>
+      ${whatIfPoolOverride !== null ? `<div class="field" style="display:flex; align-items:flex-end;"><button class="btn small ghost" id="wi_pool_reset" type="button">↺ use tracked value (${formatMoney(poolCalc.total,'INR')})</button></div>` : ''}
+    </div>
+    <p class="helptext" style="margin:-4px 0 8px;">${whatIfPoolOverride !== null
+      ? `Using your own override, not the auto-computed figure.`
+      : `Pre-filled from ${poolCalc.includedCount} sold lot${poolCalc.includedCount===1?'':'s'} tracked in this Portfolio module this financial year — check it against your own records; sales made through a broker directly, or before you started using this tracker, aren't included here.`
+    }</p>
+    ${resultHtml}
+  ` : `
+    <div class="notice${isForeign?' warn':''}" style="margin-top:10px;">
+      ${isMF
+        ? `<strong>${holding.symbol} is a Mutual Fund</strong> — this simulator doesn't compute mutual fund capital-gains tax. A real MF redemption gain depends on the actual CAS/CAMS statement at the time of redemption (post-2023 debt-fund rules, indexation grandfathering, etc. make it too fragile to derive from a formula) — this is exactly why ITRGenie's own Capital Gains — Mutual Funds module asks you to type in the real gain figure rather than computing it, and a hypothetical future sale has no statement to read from yet. When you actually redeem, use that ITRGenie module with the real numbers from your statement.`
+        : `<strong>${holding.symbol} is held in a foreign-currency account</strong> (${acc.name}, ${acc.currency}) — India's Sec 111A/112A concessional equity rates modeled here (flat 20% short-term, flat 12.5% long-term with the shared ₹1,25,000 exemption) only apply to equity sold with STT paid on a recognized Indian stock exchange. Foreign shares are taxed differently — long-term gains fall under Sec 112 (still 12.5%, but with no pooled exemption) and short-term gains are taxed at your income slab rate, not a flat 20%. Getting that right needs your full income picture, which is out of scope here — use ITRGenie's Foreign Assets (Schedule FA) module for the real figure.`
+      }
+    </div>
+  `;
+
+  card.innerHTML = `
+    <h3>Simulate a sale</h3>
+    <div class="field-row">
+      <div class="field"><label>Holding</label>
+        <select id="wi_holding">${openHoldings.map(h=>{
+          const a = accountOf(h.broker);
+          return `<option value="${h.id}" ${h.id===selectedId?'selected':''}>${h.symbol} — ${a.name} (${h.qty} available)</option>`;
+        }).join('')}</select>
+      </div>
+      <div class="field"><label>Considering switching to <span style="text-transform:none;">(optional note, your own reference — not computed)</span></label>
+        <input id="wi_note" type="text" placeholder="e.g. an index fund" value="${whatIfNote.replace(/"/g,'&quot;')}"></div>
+    </div>
+    ${bodyHtml}
+  `;
+  container.appendChild(card);
+
+  card.querySelector('#wi_holding').onchange = (e)=>{
+    const h = openHoldings.find(x=>x.id===e.target.value);
+    whatIfHoldingId = e.target.value;
+    if(h){
+      whatIfQty = String(h.qty);
+      whatIfSellPrice = String(whatIfDefaultSellPrice(h));
+    }
+    render();
+  };
+  card.querySelector('#wi_note').onchange = (e)=>{ whatIfNote = e.target.value; };
+  if(eligible){
+    const qtyInp = card.querySelector('#wi_qty');
+    if(qtyInp) qtyInp.onchange = (e)=>{ whatIfQty = e.target.value; render(); };
+    const spInp = card.querySelector('#wi_sellprice');
+    if(spInp) spInp.onchange = (e)=>{ whatIfSellPrice = e.target.value; render(); };
+    const sdInp = card.querySelector('#wi_selldate');
+    if(sdInp) sdInp.onchange = (e)=>{ whatIfSellDate = e.target.value; render(); };
+    const poolInp = card.querySelector('#wi_pool');
+    if(poolInp) poolInp.onchange = (e)=>{ whatIfPoolOverride = e.target.value === '' ? null : +e.target.value; render(); };
+    const resetBtn = card.querySelector('#wi_pool_reset');
+    if(resetBtn) resetBtn.onclick = ()=>{ whatIfPoolOverride = null; render(); };
+  }
 }
 
 // ---------- guided "Add a holding" form -- the primary entry path ----------
@@ -2313,6 +2620,7 @@ function render(){
   // portfolio data too, not buried under entry forms/settings.
   renderRecordSaleForm(content);
   renderRealizedGainsSection(content);
+  renderWhatIfSaleSection(content);
 
   // Entry — guided form is the primary path; bulk paste/CSV is the collapsed "advanced" option.
   renderAddHoldingForm(content);

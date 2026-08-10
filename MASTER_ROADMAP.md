@@ -76,6 +76,7 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
 - 2026-08-09: Built the Synthesis Layer's **first pass** (`/synthesis/`) -- roadmap item 5 above, moved from "not started" to a real first build. Confirmed the key architecture fact first (same-origin GitHub Pages deploy means every module's localStorage key is already directly readable from any page on the site -- no export/import handshake needed for a read-only view), then read each source module's actual current data shape from its own file rather than trusting a paraphrase (Net Worth's `{categories:{...}, liabilities:{...}, snapshots:[...]}`, Goals' `{goals:[...]}` with a `projectGoal()` function copied verbatim to stay in lockstep, Portfolio's `{accounts, holdings, fx}` with its own `computeHoldingMetrics`/`toINR` logic reused, Loans' `{loans:[...]}` -- confirmed it does NOT store a debt-free date field, only enough to derive one via its own `amortizationSummary()` amortization formula, reused verbatim -- and Insurance's `{policies:[...], annualIncome, dependents, existingLoans}`). Scoped deliberately to what's genuinely computable today rather than the full aspirational wishlist in this file's "Synthesis Layer" section: net worth + trend, per-goal progress/on-track status, portfolio value/gain/allocation, debt outstanding + EMI + projected debt-free date, and insurance cover-vs-income adequacy -- this maps directly onto the Life Confidence pillar's item 8 ("annual financial health report card"). Explicitly left out, and why: what-if fund-switch/capital-gains tax modeling (needs Portfolio's sold-position/realized-gains tracking, which doesn't exist -- Portfolio only tracks open holdings), and the overall tax-reduction synthesis across ITRGenie + Portfolio + What-If Planner (same blocker). The insurance-adequacy income figure was deliberately NOT reverse-engineered from ITRGenie's `itr_advisor_profile_v1` (scattered per-tax-module, not a single clean number) -- Synthesis instead has its own manual income input stored in its own `synthesis_data_v1` key, with a one-time convenience prefill from Insurance Tracker's own already-real `annualIncome` field if set (never re-read after that, `insurance_data_v1` itself never written). Verified strictly read-only against every source module with a real headless-Chromium (Playwright) suite (29 checks): byte-for-byte before/after comparison of every source module's localStorage value confirmed no writes ever happen to `networth_data_v1`/`goals_data_v1`/`portfolio_data_v1`/`loans_data_v1`/`insurance_data_v1`, even immediately after the income-prefill read; partial-data (3 of 5 modules seeded), full-data, and fully-empty scenarios all rendered correctly with clear per-section "no data yet, add it in [Module]" guidance rather than a crash or a misleading zero; mobile (375px) and desktop (1280px), both themes, verified no sub-13px text and no horizontal scroll (two CSS-specificity bugs found and fixed during this pass, where a mobile media-query override was silently losing to a more specific base-CSS selector). See `synthesis/PROGRESS.md` for full detail.
 - 2026-08-10: Fixed Portfolio Tracker's document import per real user feedback naming it the weakest part of the app. (1) Real Excel (.xlsx/.xls) import via self-hosted SheetJS with fuzzy column detection (header aliasing + ISIN-pattern fallback) and a mapping-preview-before-commit UI -- the old file upload silently mis-read binary broker exports as plain text. (2) New capability: password-protected CAS (NSDL/CDSL demat statement) PDF import via self-hosted PDF.js, real inline password-unlock UI (PDF.js's actual `onPassword` callback, not a stub), ISIN-anchored text parsing kept in one isolated/easy-to-revise function since it's UNVERIFIED against a real CAS (no real file/password was available this session -- password mechanics and Excel fuzzy-matching WERE verified for real, against a genuinely encrypted test PDF and a realistic messy-header test spreadsheet). Because a CAS has no cost-basis data, imported holdings get Buy Price left genuinely blank rather than a `marketValue/qty` figure mislabeled as buy price -- surfaced directly in the import UI, not just docs. Found and fixed a related real correctness bug while building this: the gain/loss math previously treated a missing buy price as a cost basis of 0, which would have shown a CAS-imported holding's full current value as fake "gain" -- now `null`-aware throughout (`computeHoldingMetrics`, `computePortfolio`, the top stat tile, the by-account table), with holdings missing a Buy Price explicitly flagged and excluded from Invested/Gain-Loss totals rather than silently miscounted. See `portfolio/PROGRESS.md`'s 2026-08-10 entry for the full verified/unverified breakdown.
 - 2026-08-10: Built Portfolio Tracker's sold/realized capital-gains tracking -- item 4's explicitly stated prerequisite ("Portfolio currently has no sell/capital-gains workflow... that would need to be built as part of this item, not assumed to already exist"). A guided "Record a sale" form (full or partial, against any open holding, qty-validated against what's actually held) creates a sold-lot record and either removes the holding (full sale) or reduces its qty in place (partial sale). ST/LT classification is copied verbatim from `itrgenie/index.html`'s `holdingPeriodDays()`/`computeRowGain()` (not re-derived, not referenced cross-module, per this repo's self-containment convention) -- confirmed by test to preserve the exact real-world Sec 2(42A) boundary correction already baked into ITRGenie: a holding sold on exactly 365 days is Short-Term, not Long-Term (364/365/366-day boundary cases all verified). A sold lot from a CAS-imported holding with no Buy Price on file shows an honest "unknown gain/unclassified" state (`{gain:null, term:null}`, matching ITRGenie's own `computeRowGain()`'s exact null-both-fields behavior) rather than a fabricated cost-basis-of-zero gain, with the Buy Price/Buy Date fixable inline directly in the new Realized Gains table. The Realized Gains view shows raw STCG/LTCG totals only -- explicitly, in the UI copy itself, NOT a tax computation (no Sec 112A exemption, no slab rates, no loss carry-forward -- that authority stays with ITRGenie). The capital-gains feed export (`{symbol, buydate, selldate, buyprice, sellprice, qty, assetType}[]`, the contract already documented below) was built only after actually reading ITRGenie's `CapitalGainsEquityModule`/`CapitalGainsMFModule` paste-parsers, not assumed -- the paste-ready-lines button matches the Equity module's real `Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice` format field-for-field; Mutual Fund sold lots are explicitly NOT auto-mapped into the MF module's different format (`Scheme, 112A-or-112, RedemptionDate, Cost, Gain, TDS`) since that needs a Sec 112A/112 classification this module has no basis to know. Verified with 40 real headless-Chromium (Playwright) checks: full/partial sale mechanics, the 364/365/366-day ST/LT boundary, the CAS-no-cost-basis honest-unknown path, oversell-quantity validation, the exact feed contract shape/values, mobile (375px) rendering, and a full regression pass confirming nothing about existing holdings/live-price/FX/dedup functionality broke. Deliberately NOT built in this pass, and stated as the real next step for item 4: the what-if fund-switch simulation UI itself (joining this data with ITRGenie's tax-rate/exemption logic) -- see `portfolio/PROGRESS.md`'s 2026-08-10 "Sold/realized capital-gains tracking" entry and this file's updated item 4 above for full detail.
+- 2026-08-10: Built Portfolio Tracker's "Simulate a sale" what-if tax calculator -- item 4's last remaining piece, now DONE. Given a hypothetical qty/sell-price/sell-date on any open domestic (INR) Stock/ETF/Equity/Other holding, applies ITRGenie's actual verified rates (re-read directly from `itrgenie/index.html` ~line 4802-4818, not assumed): STCG (Sec 111A) flat 20%; LTCG (Sec 112A) flat 12.5% on the amount above a ₹1,25,000-per-financial-year POOLED exemption -- computed as a real marginal-tax calculation against "how much Sec 112A LTCG has this person already realized this FY" (summed from Portfolio's own tracked sold lots via a new `getFinancialYearRange()`/`isDateInFY()` Indian-FY helper, shown explicitly and fully editable/overridable since it can only see sales tracked in this module). Two deliberate exclusions, each honestly explained in-UI rather than producing a wrong number: Mutual Fund holdings (a real MF redemption gain needs an actual CAS/CAMS statement a hypothetical sale doesn't have, mirroring `CapitalGainsMFModule`'s own design) and foreign-currency (Vested-US/non-INR) holdings -- the latter found while re-reading ITRGenie's tax code beyond the cited line range, since `ForeignAssetsModule`'s use in the main computation puts foreign LTCG in a separate no-exemption Sec 112 bucket and foreign STCG at the person's income slab rate, not this simulator's domestic Sec 111A/112A rates. Purely computational (never creates a sold lot or mutates a holding, confirmed by test: `data.holdings`/`data.soldLots` byte-identical before/after). Verified with 29 tax-logic checks + 14 regression/mobile checks (real headless Chromium, system clock frozen to 2026-08-10 for deterministic FY math) -- including hand-traced exemption-pooling scenarios (a prior ₹1,00,000 Sec-112A LTCG this FY correctly reduces headroom to ₹25,000, not a fresh ₹1,25,000; prior gains already over ₹1,25,000 correctly leave a new sale fully taxed; a sold lot from a different FY, and the exact March-31-vs-April-1 boundary, are correctly excluded/included). See `portfolio/PROGRESS.md`'s 2026-08-10 "What-if fund-switch tax simulator" entry for full detail, including the foreign-asset holding-period threshold flagged as unverified (ITRGenie's own `ForeignAssetsModule` takes STCG/LTCG as direct manual entry, so there was no computed threshold to read/verify -- this simulator sidesteps the question by excluding foreign holdings from computation entirely rather than guessing).
 
 ## The Synthesis Layer — what Financial OS is actually for
 Every module so far has been built to work standalone. The real value, stated
@@ -143,27 +144,52 @@ data before designing the Portfolio module's data model.
    `{symbol, buydate, selldate, buyprice, sellprice, qty, assetType}[]`
    contract below (JSON + paste-ready lines checked against ITRGenie's
    actual Capital Gains -- Equity module paste parser, not assumed). See
-   `portfolio/PROGRESS.md`'s 2026-08-10 entry for full detail. **Still not
-   done -- the actual next step for this item**: the what-if fund-switch
-   simulation UI itself ("if I sold Fund A and bought Fund B today, what's
-   the tax cost of that specific switch") -- this session deliberately built
-   only the data-tracking prerequisite, not the simulation, since bundling
-   both would have been too large a single change; the simulation still
-   needs this sold-lot/cost-basis data joined with ITRGenie's actual
-   tax-rate/exemption logic in a dedicated UI, not attempted here.
+   `portfolio/PROGRESS.md`'s 2026-08-10 entry for full detail.
+   **This item is now DONE (2026-08-10): the "Simulate a sale" what-if tax
+   calculator is live in `portfolio/index.html`**, right after Realized
+   gains. Given a hypothetical qty/sell-price/sell-date on any open Stock/
+   ETF/Equity/Other holding (default sell price = the holding's live/last-
+   known Current Price, default date = today, both editable), it applies
+   ITRGenie's actual verified rates -- STCG (Sec 111A) flat 20%, LTCG
+   (Sec 112A) flat 12.5% on the amount above a ₹1,25,000-per-financial-year
+   POOLED exemption (not per-transaction) -- computing the marginal tax by
+   summing this FY's already-realized Sec-112A LTCG from Portfolio's own
+   tracked sold lots (shown explicitly, fully editable/overridable, since
+   it can't see sales made elsewhere). Scoped to domestic (INR) Stock/ETF/
+   Equity/Other only: Mutual Fund holdings show an honest exclusion
+   (a hypothetical sale has no real CAS/CAMS redemption statement to derive
+   a gain from, mirroring `CapitalGainsMFModule`'s own design) rather than a
+   computed figure, and -- found while re-verifying ITRGenie's tax code
+   directly rather than assuming the task's stated scope was complete --
+   foreign-currency (Vested-US/non-INR) holdings are excluded too, since
+   ITRGenie's own computation puts foreign LTCG in a *separate* Sec 112
+   bucket (12.5%, no pooled exemption) and foreign STCG at the person's
+   income slab rate, not the domestic Sec 111A/112A rates this simulator
+   models. Purely computational -- never creates a sold lot or mutates a
+   holding, verified by test. Explicitly out of scope, stated in-UI:
+   surcharge/cess/slab interaction (ITRGenie's job), loss set-off ordering
+   (ITRGenie's Loss Set-off module), and evaluating what the sale proceeds
+   would be switched into (an optional free-text note only, nothing
+   computed about a destination). See `portfolio/PROGRESS.md`'s 2026-08-10
+   entry for full detail and hand-traced verification numbers for the
+   exemption-pooling logic specifically -- the part most likely to have a
+   subtle bug if the pooling math weren't exactly right.
 5. **The Synthesis Layer -- first pass built 2026-08-09 (`/synthesis/`).**
    Read-only cross-module view: net worth + trend, per-goal progress,
    portfolio value/gain/allocation, debt outstanding + projected debt-free
    date, insurance cover-vs-income adequacy. Scoped to the "annual
    financial health report card" (Life Confidence pillar item 8 below), the
    part of this wishlist genuinely computable from data that already
-   exists -- not the full list below. **Still not done, deliberately**:
-   what-if fund-switch/capital-gains tax modeling and the overall
-   tax-reduction synthesis (both need Portfolio's sold-position/realized-
-   gains tracking, which doesn't exist -- Portfolio only tracks open
-   holdings, so item 4 above still needs to happen first). See
-   `synthesis/PROGRESS.md` for full scope and the income-figure design
-   decision.
+   exists -- not the full list below. **Still not done, deliberately**: the
+   overall tax-reduction synthesis (joining what-if-sale results, Loss
+   Set-off, and the rest of ITRGenie's return-level computation into one
+   cross-module view). Item 4's own prerequisite (Portfolio sold-position/
+   realized-gains tracking) and the what-if sale tax simulator itself are
+   now both built (2026-08-10, see item 4 above and `portfolio/PROGRESS.md`)
+   -- this Synthesis page just hasn't been extended to surface that
+   simulator's output yet, which is a distinct future piece of work, not a
+   blocked prerequisite anymore. See `synthesis/PROGRESS.md` for full scope
+   and the income-figure design decision.
 
 ## Life Confidence — a 9th pillar (added 2026-08-07)
 Everything so far tracks and computes. This pillar exists for a different

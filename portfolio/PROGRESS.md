@@ -734,6 +734,154 @@ at all three points (364/365/366 days), missing-cost-basis honesty (`buyPrice: n
 lot created for the sold portion only), and the paste-ready-lines 6-field format for a real
 Stock-only export — all still pass unchanged. 30 checks total, all pass.
 
+## Updated 2026-08-10 — What-if fund-switch tax simulator built (roadmap item 4, the last piece)
+`MASTER_ROADMAP.md`'s item 4 stated the actual next step for this item was "the what-if
+fund-switch simulation UI itself... needs this sold-lot/cost-basis data joined with ITRGenie's
+actual tax-rate/exemption logic in a dedicated simulation UI." This session built exactly that —
+a "Simulate a sale" section right after Realized gains, reachable via a new "What-if" button on
+each Holdings-table row too.
+
+**Before writing any code, ITRGenie's actual capital-gains tax computation was re-read directly**
+(`itrgenie/index.html` ~line 4802-4818) to confirm the exact rates rather than assume them: equity
+STCG (Sec 111A) is `Math.max(0,stcg)*0.20`; equity/equity-MF LTCG (Sec 112A) is
+`Math.max(0, ltcg112a - 125000) * 0.125` — a per-financial-year pooled ₹1,25,000 exemption, not a
+per-transaction one; debt-MF/non-112A LTCG (Sec 112) is `Math.max(0,ltcg112)*0.125` with **no**
+exemption at all.
+
+**Scope: domestic (INR) Stock/ETF/Equity/Other open holdings only — two deliberate exclusions,
+each honestly explained in-UI rather than producing a wrong number.**
+1. **Mutual Fund holdings.** Same reasoning already established for the capital-gains feed export:
+   `itrgenie/index.html`'s `CapitalGainsMFModule` (~line 2510) requires the user to type in the
+   real gain figure from an actual CAS/CAMS redemption statement rather than deriving it (post-2023
+   debt-fund rule changes, indexation grandfathering, etc. are too fragile to formula-derive) — a
+   hypothetical future sale has no such statement to read from. Selecting an MF holding in the
+   simulator shows a `.notice` explanation pointing at ITRGenie's real MF module instead of a
+   computed tax figure.
+2. **Foreign-currency (non-INR / Vested-US) holdings — found while grounding this in ITRGenie's
+   real logic, not something the task spec called out explicitly.** Reading further than the given
+   line range, `itrgenie/index.html`'s `ForeignAssetsModule` and its use in the main computation
+   (~4809-4818) show foreign LTCG is added to the *separate* `ltcg112` bucket (still 12.5%, but with
+   **no** pooled exemption — it never joins `ltcg112a`), and foreign STCG is taxed at the person's
+   income **slab rate** (folded into `slabIncomeBase`), not the flat 20% Sec 111A `stcg` bucket.
+   Sec 111A/112A's concessional rates require STT paid on a recognized Indian stock exchange, which
+   a foreign-listed holding (Vested-US) doesn't have by definition. Applying this simulator's
+   domestic-equity math to a USD holding would produce a confidently wrong number, so it's excluded
+   the same honest way Mutual Funds are — a `.notice.warn` box names the real distinction and points
+   at ITRGenie's Foreign Assets (Schedule FA) module, rather than guessing at the real foreign-asset
+   holding-period/rate rules (e.g. a possible 24-month LT threshold) which weren't independently
+   verified here.
+
+**Inputs**, on any open (qty>0) holding: Qty to hypothetically sell (defaults to the holding's full
+qty, capped at it), Sell price (defaults to the holding's `currentPrice` if set — which is the same
+field the live-price-feed and manual refresh already write into, so "live price if this holding has
+one" and "last-known/manual price" are literally the same field, not two things to track separately
+— else the holding's own Buy Price, else blank, always editable), Sell date (defaults to today,
+editable — lets the user check "what if I wait until it's long-term"). A plain optional
+"Considering switching to: ___" text field exists for the user's own reference only — deliberately
+never computed against and never persisted (module-level var only, not written to
+`portfolio_data_v1`), since this tool doesn't evaluate switch destinations, only the tax cost of
+exiting the current holding.
+
+**Gain + ST/LT classification** reuses `holdingPeriodDays()`/`LTCG_HOLDING_DAYS` verbatim — the
+exact same function the sold-lot feature already ported from ITRGenie, not re-derived a third time.
+
+**The exemption-pooling math (`computeWhatIfTax`)** — a pure function, no data mutation:
+- Short-term: `tax = gain * 0.20` (gain already confirmed >0 by this point; a loss is handled
+  separately, see below).
+- Long-term: needs "how much Sec 112A LTCG has this person already realized this financial year" to
+  compute the MARGINAL tax on the new hypothetical gain, since the exemption is a shared FY pool.
+  `computeAlreadyRealizedLTCG112AThisFY(fyRange)` sums `data.soldLots` that are Sec-112A-eligible
+  (not Mutual Fund, INR account — same two exclusions as above, applied to historical sold lots too,
+  since a foreign or MF sold lot was never part of this pool in real tax law either) and classify
+  LongTerm, whose sell date falls in the given FY — a straight sum, not clamped per lot, mirroring
+  ITRGenie's own `ltcg112a = eqLT + mf112A` aggregation (clamped to >=0 only once, right before the
+  exemption is applied). Then: `taxableBefore = max(0, pool - 125000)`,
+  `taxableAfter = max(0, pool + gain - 125000)`, `tax = (taxableAfter - taxableBefore) * 0.125`.
+- **A new `getFinancialYearRange()`/`isDateInFY()` helper pair** computes the Indian FY (April 1 –
+  March 31) containing a given date and buckets other dates into it — built fresh, verified at the
+  boundary (see Testing below), not reusing any inclusive/exclusive day-counting logic from
+  elsewhere in this file that solves a different problem.
+- **The "already realized this FY" figure is shown explicitly and is fully editable/overridable** —
+  a labeled input pre-filled with the auto-computed figure, with helptext stating plainly it's only
+  as complete as sold lots tracked in *this* Portfolio module ("sales made through a broker
+  directly, or before you started using this tracker, aren't included here") and should be checked
+  against the user's own records. Editing it stores an override (`whatIfPoolOverride`, module-level,
+  not persisted); a "↺ use tracked value" button appears once overridden, to get back to the
+  auto-computed figure without manually re-typing it.
+- **A loss (negative or zero gain)** shows ₹0 tax and a note that it's a capital loss that could
+  offset gains elsewhere, pointing at ITRGenie's "Loss Set-off & Carry Forward" module for the
+  complete Sec 70 set-off ordering — deliberately not modeled here.
+
+**Explicit disclosures**, stated in the section's own intro text: this shows only the capital-
+gains-specific flat-rate tax (Sec 111A/112A) — no surcharge, cess, or interaction with the rest of
+the person's income/tax regime; ITRGenie remains the source of truth for the actual return. Also
+stated plainly: this tool doesn't model or evaluate what the money would be switched into — purely
+the tax cost of exiting the current holding.
+
+**Reachability**: a new "What-if" button sits next to the existing "Sell" button on every Holdings-
+table row (`openWhatIfSale(holdingId)`, mirrors `openSaleForm`'s scroll-into-view pattern), plus the
+section's own holding dropdown for picking any open holding directly.
+
+**No data mutation, by construction, not just by testing discipline.** Every input
+(qty/price/date/pool-override/note) lives only in module-level `whatIf*` state variables declared
+near the top of the file — the render function reads `data.holdings`/`data.soldLots` to compute
+defaults and the exemption pool, but never writes to either. Verified by test (see below): `data`
+is byte-identical (via `JSON.stringify` comparison) before and after fully filling out and
+"running" a simulation.
+
+**Testing.** Real headless Chromium (Playwright), system clock frozen to 2026-08-10 so financial-
+year math is deterministic and hand-checkable, 29 checks in the tax-logic suite + 14 in a full
+regression/mobile suite, all pass:
+- Clean equity STCG (held ~70 days): `computeWhatIfTax` and the rendered UI both match
+  `gain * 0.20` exactly for a hand-picked ₹5,000 gain → ₹1,000 tax.
+- Clean equity LTCG, zero prior sold lots this FY: a ₹60,000 gain (under the ₹1,25,000 exemption)
+  correctly showed ₹0 tax; a second case with a ₹2,00,000 gain correctly showed ₹9,375 tax
+  (`(200000-125000)*0.125`).
+- **Pooling scenario A** — seeded one prior Sec-112A sold lot with a ₹1,00,000 gain this FY: the
+  pool input auto-computed to exactly ₹1,00,000 (not a fresh ₹1,25,000); a new hypothetical
+  ₹20,000 gain (headroom is ₹25,000) correctly showed ₹0 tax; a new hypothetical ₹40,000 gain
+  (straddling the ₹25,000 headroom) correctly showed ₹1,875 tax
+  (`taxableAfter=15000, taxableBefore=0, 15000*0.125=1875`).
+- **Pooling scenario B** — seeded a prior sold lot with a ₹2,00,000 gain (already over the
+  exemption): pool auto-computed to ₹2,00,000; a new ₹50,000 hypothetical gain was fully taxed —
+  ₹6,250 (`50000*0.125`), confirming no exemption was double-applied.
+- **FY-boundary correctness**: `getFinancialYearRange('2026-03-31')` → `{2025-04-01..2026-03-31}`;
+  `getFinancialYearRange('2026-04-01')` → `{2026-04-01..2027-03-31}` — confirmed no off-by-one at
+  the actual April 1 boundary. A sold lot dated 2026-03-31 (relative to "today" 2026-08-10, current
+  FY = 2026-04-01..2027-03-31) was confirmed excluded from the pool (₹0); the same lot moved to
+  2026-04-01 was confirmed included. A sold lot from 13 months before "today" (a different FY
+  entirely) was confirmed excluded.
+- Mutual Fund holding: confirmed the exclusion `.notice` renders (naming CAS/CAMS), confirmed no
+  "Estimated capital-gains tax" figure is shown, confirmed the qty/price/date inputs aren't even
+  rendered for this case (blocked, not silently computed).
+- Foreign (Vested-US/USD) holding: confirmed the exclusion `.notice.warn` renders (naming Sec 112 /
+  slab-rate STCG / Schedule FA), confirmed no tax figure shown.
+- **Data-mutation guarantee**: filled in qty/sell price/sell date on a real holding, confirmed
+  `data.holdings`/`data.soldLots` were byte-identical before and after (via JSON comparison), and
+  the holding's `qty` was still its original value, not reduced.
+- Over-sell validation (qty > currently held) shows a real error message, not a tax figure.
+- Loss case (sell price below buy price): confirmed ₹0 tax and the capital-loss/Loss-Set-off-module
+  pointer text.
+- Full regression: guided "Add a holding" form, "Record a sale" (still creates a real sold lot and
+  reduces the source holding's qty), Realized gains section, capital-gains feed export card, Net
+  Worth feed card, Export/Import JSON round-trip, and the theme toggle all still work unchanged.
+  Opening the What-if panel via a holdings-row button was confirmed to not mutate `data.holdings`.
+- Mobile viewport (375×812): zero horizontal overflow (`scrollWidth` stayed at 375px) with the
+  What-if section rendered; its helptext read back ≥13px and labels ≥11px via computed-style
+  (matching this module's existing mobile type-size floor). Screenshots taken in both themes,
+  desktop and mobile, for visual review (not committed — matches this module's existing pattern of
+  passing screenshots back for review rather than checking them into the repo).
+
+**What's still explicitly out of scope, stated plainly in-UI, not silently done:** surcharge, cess,
+and slab-rate/other-income interaction (ITRGenie's job); Mutual Fund capital-gains tax (needs a real
+CAS/CAMS redemption statement, which a hypothetical sale can't have); foreign-holding capital-gains
+tax (needs ITRGenie's Foreign Assets/Schedule FA module — the real foreign-asset holding-period and
+rate rules weren't independently verified here beyond confirming the bucket split in ITRGenie's own
+code); loss set-off ordering across multiple gains/losses (ITRGenie's Loss Set-off & Carry Forward
+module); and what the sale proceeds would be switched into (the optional note field is for the
+user's own reference only, nothing about a destination is computed). **This closes
+`MASTER_ROADMAP.md`'s item 4** — see that file's updated entry.
+
 ## Known gaps — flagged deliberately, not resolved by guessing
 Per explicit instruction not to silently resolve these, and not to fabricate
 functionality to paper over them:
@@ -827,16 +975,23 @@ functionality to paper over them:
    (`showSaleError()` — update the feedback text node in place instead of
    calling `render()` on a validation failure) would very likely apply
    cleanly here too, in a future session.
+7. **The what-if sale simulator's foreign-holding exclusion (2026-08-10) states the real bucket
+   split (Sec 112 for LTCG, slab-rate for STCG) but does NOT independently verify the exact
+   long-term holding-period threshold for foreign shares.** `itrgenie/index.html`'s
+   `ForeignAssetsModule` takes the user's STCG/LTCG figures as direct manual entry — it never
+   computes a holding-period boundary for foreign assets itself, so there was no code to read this
+   threshold from (unlike the 365-day equity boundary and the 730-day/24-month House Property
+   boundary, both of which ARE computed in ITRGenie and were verified against directly). This
+   module's simulator sidesteps the question entirely by refusing to compute a foreign-holding tax
+   figure at all (see the dated 2026-08-10 entry above) rather than guessing at that threshold —
+   flagged here so a future session doesn't assume it was checked.
 
 ## Deliberately NOT done yet
-- **The what-if fund-switch tax-modeling UI itself** ("simulate switching Fund
-  A to Fund B and show the tax cost of that switch") — `MASTER_ROADMAP.md`'s
-  item 4 is explicit that this needs the sold-lot/cost-basis data (built
-  2026-08-10, see above) joined with ITRGenie's actual tax-rate/exemption
-  logic in a dedicated simulation UI, which is a distinct, sizeable piece of
-  work, not something to bundle into the same pass as the underlying data
-  model. This is now the actual next step for item 4, not the sell/capital-
-  gains tracking that used to block it.
+- **~~The what-if fund-switch tax-modeling UI itself~~ — built 2026-08-10 (see the dated entry
+  above), closing `MASTER_ROADMAP.md`'s item 4.** Scoped to "tax cost of exiting the current
+  holding," not "simulate switching Fund A to Fund B" literally — the destination-fund side was
+  deliberately left uncomputed (an optional free-text note only), per instruction, since evaluating
+  a destination investment is a different, unscoped problem from computing exit tax cost.
 - Sold-lot cost basis is this module's single per-holding Avg Price, not a
   true per-lot FIFO cost basis — if a holding was built up from multiple buys
   at different prices (this module only ever stores one buy price per
@@ -971,3 +1126,21 @@ functionality to paper over them:
   state change (holding qty/removal, new sold lot) correctly warrants resetting the form. Any new
   validation branch added to this form's submit handler must call `showSaleError()`, not set
   `saleFormFeedbackMsg` directly and call `render()`.
+- **The "Simulate a sale" what-if tax calculator (added 2026-08-10) must stay purely computational —
+  never write to `data.holdings`/`data.soldLots`, never call `saveData()`.** All of its state
+  (selected holding, qty/price/date, pool override, note) lives only in module-level `whatIf*`
+  variables, read fresh on every `render()`. Any future change to this section must preserve that —
+  it's the one feature in this module explicitly designed to have zero side effects on stored data.
+- **`isSec112AEligibleHolding()`/`isSec112AEligibleSoldLot()` (both MF-excluded AND non-INR-account-
+  excluded) gate both halves of the what-if simulator — the hypothetical sale itself and the
+  "already realized this FY" exemption pool it's computed against.** A future change that adds a
+  new non-INR account or a new MF-like assetType must keep both eligibility checks in sync (they're
+  intentionally two small separate functions, not one shared with the sold-lot/capital-gains-feed
+  code elsewhere in this file, since a holding and a sold lot are different shapes) — don't let one
+  learn about a new exclusion the other doesn't.
+- **`getFinancialYearRange()`/`isDateInFY()` are this module's own Indian-FY (April 1 – March 31)
+  helpers, separate from `holdingPeriodDays()`.** Don't conflate them — `holdingPeriodDays()`
+  computes a raw day-count for ST/LT classification (Sec 2(42A)), while `getFinancialYearRange()`
+  answers a completely different question ("which FY does this date fall in," for the Sec 112A
+  exemption-pool computation). Both are real, independently boundary-tested — see the 2026-08-10
+  entry above for the exact FY-boundary test cases (March 31 vs April 1).
