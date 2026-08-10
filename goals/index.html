@@ -115,15 +115,76 @@ function wireFileUpload(fileInputEl, textareaEl, parseBtnEl){
 }
 function newId(){ return 'g_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
 
+const GOAL_CATEGORIES = ['Retirement','Child education','House/property','Healthcare/Medical','Emergency fund','Travel','Vehicle','Other'];
+
+// Category-aware inflation presets — these are assumptions, not facts, so every value here
+// is just a starting point the user sees and can override (never applied silently).
+const INFLATION_PRESET_LIST = [
+  {rate:6.5, label:'General/lifestyle', sub:'6-7%', match:['Retirement','House/property','Emergency fund','Travel','Vehicle','Other']},
+  {rate:11,  label:'Education',         sub:'10-12%', match:['Child education']},
+  {rate:9,   label:'Healthcare',        sub:'8-10%', match:['Healthcare/Medical']},
+];
+function inflationPresetForCategory(cat){
+  return INFLATION_PRESET_LIST.find(p=>p.match.includes(cat)) || INFLATION_PRESET_LIST[0];
+}
+
+// Risk-profile presets for the SIP assumed-return field — pressing one fills the (still
+// editable) field rather than locking it, so a user with a different view can type their own.
+const RISK_PROFILES = [
+  {rate:6.5,  label:'Conservative/Debt', sub:'~6-7%'},
+  {rate:8.5,  label:'Balanced',          sub:'~8-9%'},
+  {rate:11.5, label:'Aggressive/Equity', sub:'~11-12%'},
+];
+
+function monthsUntil(dateStr){
+  if(!dateStr) return null;
+  const d = new Date(dateStr);
+  const today = new Date();
+  return Math.max(0, Math.round((d-today)/(1000*60*60*24*30.44)));
+}
+
+// Effective target for a goal: either the user's directly-entered target amount, or — if the
+// goal is in "calculate from today's cost" mode — the present-day cost inflated forward to the
+// target date at the chosen inflation rate. This is computed on the fly (not stored back into
+// targetAmount) so it always reflects the latest presentCost/inflationRate/targetDate inputs.
+function effectiveTarget(goal){
+  if(goal.costMode === 'inflate'){
+    const months = monthsUntil(goal.targetDate);
+    const years = months!==null ? months/12 : 0;
+    const rate = (+goal.inflationRate||0)/100;
+    const presentCost = +goal.presentCost || 0;
+    return presentCost * Math.pow(1+rate, years);
+  }
+  return +goal.targetAmount || 0;
+}
+
 // Projects a goal's outcome: current tagged corpus grows at the assumed rate, plus monthly
 // contributions compound alongside it (standard PV-growth + FV-of-annuity split, not a single
 // blended formula, so behind/ahead can be diagnosed from each component separately).
+//
+// SIP convention: annuity-due, not ordinary annuity — each month's contribution is treated as
+// invested at the START of that month (matches how Groww/ET Money-style SIP calculators compute
+// it), so the ordinary-annuity factor ((growthFactor-1)/monthlyRate) gets one extra period of
+// compounding via *(1+monthlyRate). This is a deliberate correctness fix — see PROGRESS.md for
+// before/after numbers.
+function requiredMonthlyAt(goal, annualReturnPct){
+  const currentValue = (goal.investments||[]).reduce((s,r)=>s+(+r.value||0),0);
+  const target = effectiveTarget(goal);
+  const monthsLeft = monthsUntil(goal.targetDate);
+  if(monthsLeft===null || monthsLeft<=0 || target<=0) return null;
+  const monthlyRate = annualReturnPct/12/100;
+  const growthFactor = Math.pow(1+monthlyRate, monthsLeft);
+  const fvCurrent = currentValue * growthFactor;
+  const shortfallFV = target - fvCurrent;
+  if(shortfallFV <= 0) return 0;
+  const annuityFactor = monthlyRate>0 ? ((growthFactor-1)/monthlyRate) * (1+monthlyRate) : monthsLeft;
+  return shortfallFV / annuityFactor;
+}
+
 function projectGoal(goal){
   const currentValue = (goal.investments||[]).reduce((s,r)=>s+(+r.value||0),0);
-  const target = +goal.targetAmount || 0;
-  const targetDate = goal.targetDate ? new Date(goal.targetDate) : null;
-  const today = new Date();
-  const monthsLeft = targetDate ? Math.max(0, Math.round((targetDate-today)/(1000*60*60*24*30.44))) : null;
+  const target = effectiveTarget(goal);
+  const monthsLeft = monthsUntil(goal.targetDate);
   const annualReturn = +goal.assumedReturn || 0;
   const monthlyRate = annualReturn/12/100;
   const pmt = +goal.monthlyContribution || 0;
@@ -133,14 +194,11 @@ function projectGoal(goal){
   if(monthsLeft!==null && monthsLeft>0){
     const growthFactor = Math.pow(1+monthlyRate, monthsLeft);
     const fvCurrent = currentValue * growthFactor;
-    const fvContrib = monthlyRate>0 ? pmt * ((growthFactor-1)/monthlyRate) : pmt*monthsLeft;
+    const annuityFactor = monthlyRate>0 ? ((growthFactor-1)/monthlyRate) * (1+monthlyRate) : monthsLeft;
+    const fvContrib = pmt * annuityFactor;
     projectedValue = fvCurrent + fvContrib;
     const shortfallFV = target - fvCurrent;
-    if(shortfallFV > 0){
-      requiredMonthly = monthlyRate>0 ? shortfallFV / ((growthFactor-1)/monthlyRate) : shortfallFV/monthsLeft;
-    } else {
-      requiredMonthly = 0;
-    }
+    requiredMonthly = shortfallFV > 0 ? shortfallFV / annuityFactor : 0;
   }
   const progressPct = target>0 ? Math.min(100, (currentValue/target)*100) : 0;
   const onTrack = target>0 && projectedValue >= target;
@@ -161,12 +219,12 @@ function renderGoalCard(container, goal){
     <div class="goal-title-row" data-toggle>
       <div>
         <h3 style="margin-bottom:2px;">${goal.name || 'Untitled goal'} ${statusTag}</h3>
-        <div class="helptext">${goal.category||'General'} · Target ₹${(+goal.targetAmount||0).toLocaleString('en-IN')} by ${goal.targetDate||'—'}</div>
+        <div class="helptext">${goal.category||'General'} · Target ₹${Math.round(proj.target).toLocaleString('en-IN')} by ${goal.targetDate||'—'}</div>
       </div>
       <button class="btn small ghost" data-del-goal>✕</button>
     </div>
     <div class="progress-track"><div class="progress-fill ${goal.targetDate ? (proj.onTrack?'ontrack':'behind') : ''}" style="width:${proj.progressPct.toFixed(1)}%;"></div></div>
-    <div class="helptext">₹${Math.round(proj.currentValue).toLocaleString('en-IN')} of ₹${(+goal.targetAmount||0).toLocaleString('en-IN')} tagged so far (${proj.progressPct.toFixed(1)}%)</div>
+    <div class="helptext">₹${Math.round(proj.currentValue).toLocaleString('en-IN')} of ₹${Math.round(proj.target).toLocaleString('en-IN')} tagged so far (${proj.progressPct.toFixed(1)}%)</div>
     <div id="goal_body_${goal.id}" style="display:${isExpanded?'block':'none'}; margin-top:14px;"></div>
   `;
   container.appendChild(card);
@@ -190,31 +248,112 @@ function renderGoalCard(container, goal){
 function renderGoalBody(container, goal){
   // ---- Goal parameters ----
   const paramsCard = document.createElement('div');
+  const costMode = goal.costMode === 'inflate' ? 'inflate' : 'direct';
+  const invPreset = inflationPresetForCategory(goal.category);
+  const monthsForCalc = monthsUntil(goal.targetDate);
+  const yearsForCalc = monthsForCalc!==null ? monthsForCalc/12 : null;
+  const inflatedTarget = costMode==='inflate' ? effectiveTarget(goal) : null;
+
+  const inflPresetBtns = INFLATION_PRESET_LIST.map(p=>{
+    const suggested = invPreset.rate === p.rate;
+    return `<button type="button" class="btn small ghost" data-infl-preset="${p.rate}">${p.label} · ${p.sub}${suggested?' (suggested)':''}</button>`;
+  }).join('');
+  const riskPresetBtns = RISK_PROFILES.map(p=>{
+    const active = (+goal.assumedReturn === p.rate);
+    return `<button type="button" class="btn small ${active?'primary':'ghost'}" data-risk-preset="${p.rate}">${p.label} (${p.sub})</button>`;
+  }).join('');
+
   paramsCard.innerHTML = `
     <div class="field-row">
       <div class="field"><label>Goal name</label><input id="g_name" value="${goal.name||''}"></div>
       <div class="field"><label>Category</label>
         <select id="g_cat">
-          ${['Retirement','Child education','House/property','Emergency fund','Travel','Vehicle','Other'].map(c=>`<option value="${c}" ${goal.category===c?'selected':''}>${c}</option>`).join('')}
+          ${GOAL_CATEGORIES.map(c=>`<option value="${c}" ${goal.category===c?'selected':''}>${c}</option>`).join('')}
         </select>
       </div>
     </div>
+
+    <div class="field-row">
+      <div class="field" style="flex-basis:100%;">
+        <label>Target amount — how do you know it?</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:2px;">
+          <button type="button" class="btn small ${costMode==='direct'?'primary':'ghost'}" data-cost-mode="direct">Enter amount directly</button>
+          <button type="button" class="btn small ${costMode==='inflate'?'primary':'ghost'}" data-cost-mode="inflate">Calculate from today's cost + inflation</button>
+        </div>
+      </div>
+    </div>
+
+    ${costMode==='direct' ? `
     <div class="field-row">
       <div class="field"><label>Target amount (₹)</label><input id="g_target" type="number" value="${goal.targetAmount||''}"></div>
       <div class="field"><label>Target date</label><input id="g_date" type="date" value="${goal.targetDate||''}"></div>
     </div>
+    ` : `
+    <div class="field-row">
+      <div class="field"><label>Present-day cost (₹)</label><input id="g_present" type="number" value="${goal.presentCost||''}" placeholder="e.g. 1500000"></div>
+      <div class="field"><label>Target date</label><input id="g_date" type="date" value="${goal.targetDate||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="flex-basis:100%;">
+        <label>Inflation rate assumption (%/yr)</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">${inflPresetBtns}</div>
+        <input id="g_infl" type="number" step="0.1" value="${goal.inflationRate||''}" placeholder="e.g. ${invPreset.rate}">
+        <div class="helptext">Suggested for "${goal.category||'Other'}": ${invPreset.label} (${invPreset.sub}) — an assumption, not a fact; adjust if you have a better estimate.</div>
+      </div>
+    </div>
+    <div class="helptext" style="margin-bottom:4px;">
+      ${yearsForCalc===null ? 'Set a target date to calculate the future cost.' :
+        `Over ${yearsForCalc.toFixed(1)} years: today's cost ₹${(+goal.presentCost||0).toLocaleString('en-IN')} → est. future cost <strong>₹${Math.round(inflatedTarget||0).toLocaleString('en-IN')}</strong> at the target date, at ${goal.inflationRate||invPreset.rate}%/yr.`}
+    </div>
+    `}
+
     <div class="field-row">
       <div class="field"><label>Planned monthly contribution (₹)</label><input id="g_pmt" type="number" value="${goal.monthlyContribution||''}"></div>
-      <div class="field"><label>Assumed annual return (%)</label><input id="g_ret" type="number" value="${goal.assumedReturn||''}" placeholder="e.g. 10"></div>
+      <div class="field"><label>Assumed annual return (%)</label><input id="g_ret" type="number" step="0.1" value="${goal.assumedReturn||''}" placeholder="e.g. 8.5"></div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="flex-basis:100%;">
+        <label>Or pick a risk-profile preset (fills the field above — still editable)</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:2px;">${riskPresetBtns}</div>
+      </div>
     </div>
   `;
   container.appendChild(paramsCard);
-  ['g_name','g_cat','g_target','g_date','g_pmt','g_ret'].forEach(id=>{
-    paramsCard.querySelector('#'+id).onchange = (e)=>{
-      const map = {g_name:'name', g_cat:'category', g_target:'targetAmount', g_date:'targetDate', g_pmt:'monthlyContribution', g_ret:'assumedReturn'};
-      goal[map[id]] = e.target.value;
+
+  const fieldMap = {g_name:'name', g_cat:'category', g_target:'targetAmount', g_date:'targetDate', g_pmt:'monthlyContribution', g_ret:'assumedReturn', g_present:'presentCost', g_infl:'inflationRate'};
+  // Commits whatever is currently typed in any params field into `goal` right now, without
+  // waiting for that field's own blur/change event. Needed because a preset button sits right
+  // next to a field a user just typed into — a full re-render on that field's blur can otherwise
+  // detach the button mid-click (the click event gets silently dropped by the browser since its
+  // mousedown/mouseup targets no longer match). Reading values directly off the still-attached
+  // DOM nodes here, and reacting on 'mousedown' (which fires *before* the blur-triggered
+  // re-render), keeps the click reliable regardless of ordering.
+  function syncParamsFields(){
+    Object.keys(fieldMap).forEach(id=>{
+      const el = paramsCard.querySelector('#'+id);
+      if(el) goal[fieldMap[id]] = el.value;
+    });
+  }
+  paramsCard.querySelectorAll('[data-cost-mode]').forEach(btn=>{
+    btn.onmousedown = ()=>{
+      syncParamsFields();
+      goal.costMode = btn.dataset.costMode;
+      if(goal.costMode==='inflate' && !goal.inflationRate){
+        goal.inflationRate = String(inflationPresetForCategory(goal.category).rate);
+      }
       saveData(); render();
     };
+  });
+  paramsCard.querySelectorAll('[data-infl-preset]').forEach(btn=>{
+    btn.onmousedown = ()=>{ syncParamsFields(); goal.inflationRate = btn.dataset.inflPreset; saveData(); render(); };
+  });
+  paramsCard.querySelectorAll('[data-risk-preset]').forEach(btn=>{
+    btn.onmousedown = ()=>{ syncParamsFields(); goal.assumedReturn = btn.dataset.riskPreset; saveData(); render(); };
+  });
+  Object.keys(fieldMap).forEach(id=>{
+    const el = paramsCard.querySelector('#'+id);
+    if(!el) return;
+    el.onchange = (e)=>{ goal[fieldMap[id]] = e.target.value; saveData(); render(); };
   });
 
   // ---- Tagged investments ----
@@ -278,19 +417,41 @@ function renderGoalBody(container, goal){
   const proj = projectGoal(goal);
   const projCard = document.createElement('div');
   projCard.className = 'result-box';
-  if(!goal.targetDate || !goal.targetAmount){
-    projCard.innerHTML = `<div class="verdict">Set a target amount and date above</div><div class="verdict-detail">Needed to project whether you're on track.</div>`;
+  if(!goal.targetDate || !proj.target){
+    const hint = goal.costMode==='inflate' ? 'enter a present-day cost, inflation rate and target date above' : 'enter a target amount and date above';
+    projCard.innerHTML = `<div class="verdict">Set a target</div><div class="verdict-detail">${hint} — needed to project whether you're on track.</div>`;
   } else {
+    const targetLine = goal.costMode==='inflate'
+      ? `Target (inflation-adjusted): ₹${Math.round(proj.target).toLocaleString('en-IN')} — today's cost ₹${(+goal.presentCost||0).toLocaleString('en-IN')} inflated at ${goal.inflationRate||0}%/yr over ${(proj.monthsLeft/12).toFixed(1)} years`
+      : `Target: ₹${Math.round(proj.target).toLocaleString('en-IN')}`;
     projCard.innerHTML = `
       <div class="verdict">${proj.onTrack ? 'On track' : 'Behind — needs attention'}</div>
-      <div class="verdict-detail">
-        Projected value at target date: ₹${Math.round(proj.projectedValue).toLocaleString('en-IN')} vs target ₹${(+goal.targetAmount).toLocaleString('en-IN')}
+      <div class="verdict-detail">${targetLine}</div>
+      <div class="verdict-detail" style="margin-top:4px;">
+        Projected value at target date: ₹${Math.round(proj.projectedValue).toLocaleString('en-IN')} vs target ₹${Math.round(proj.target).toLocaleString('en-IN')}
         (${proj.monthsLeft} months left, assuming ${goal.assumedReturn||0}% annual return and ₹${(+goal.monthlyContribution||0).toLocaleString('en-IN')}/month contribution)
       </div>
-      ${!proj.onTrack ? `<div class="verdict-detail" style="color:var(--rust); margin-top:8px;">To hit this target on time, you'd need roughly ₹${Math.round(proj.requiredMonthly).toLocaleString('en-IN')}/month instead — ₹${Math.round(proj.requiredMonthly-(+goal.monthlyContribution||0)).toLocaleString('en-IN')} more than currently planned.</div>` : ''}
+      ${!proj.onTrack ? `<div class="verdict-detail" style="color:var(--rust); margin-top:8px;">To hit this target on time at ${goal.assumedReturn||0}% return, you'd need roughly ₹${Math.round(proj.requiredMonthly).toLocaleString('en-IN')}/month instead — ₹${Math.round(proj.requiredMonthly-(+goal.monthlyContribution||0)).toLocaleString('en-IN')} more than currently planned.</div>` : ''}
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line);">
+        <div class="helptext" style="text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">Required monthly contribution by risk profile</div>
+        <table class="day-table">
+          <tr><th>Profile</th><th>Assumed return</th><th>Required monthly</th></tr>
+          ${RISK_PROFILES.map(p=>{
+            const req = requiredMonthlyAt(goal, p.rate);
+            return `<tr><td>${p.label}</td><td>${p.rate}%</td><td>${req===null?'—':'₹'+Math.round(req).toLocaleString('en-IN')+'/mo'}</td></tr>`;
+          }).join('')}
+        </table>
+        <div class="helptext" style="margin-top:6px;">Higher assumed return lowers the required monthly contribution — but comes with more risk. This isn't a recommendation to pick one profile over another.</div>
+      </div>
     `;
   }
   container.appendChild(projCard);
+
+  const disclaimer = document.createElement('div');
+  disclaimer.className = 'helptext';
+  disclaimer.style.marginTop = '10px';
+  disclaimer.innerHTML = `This is an illustrative projection based on your own assumed rate of return — not a guarantee, actual returns vary. Mutual fund investments are subject to market risks; read all scheme-related documents carefully.`;
+  container.appendChild(disclaimer);
 }
 
 function render(){
@@ -311,7 +472,7 @@ function render(){
   addCard.innerHTML = `<button class="btn primary" id="add_goal_btn">+ Add a goal</button>`;
   content.appendChild(addCard);
   addCard.querySelector('#add_goal_btn').onclick = ()=>{
-    const g = {id:newId(), name:'New goal', category:'Other', targetAmount:'', targetDate:'', monthlyContribution:'', assumedReturn:'10', investments:[]};
+    const g = {id:newId(), name:'New goal', category:'Other', costMode:'direct', targetAmount:'', presentCost:'', inflationRate:'', targetDate:'', monthlyContribution:'', assumedReturn:'8.5', investments:[]};
     data.goals.push(g);
     expandedGoalId = g.id;
     saveData(); render();
