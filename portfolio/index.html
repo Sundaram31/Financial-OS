@@ -431,9 +431,22 @@ function findDuplicateHoldingIndex(candidate){
 }
 
 // ---------- shared paste/file helpers, same pattern as every other module ----------
+// 2026-08-11: protectThousandsCommas() keeps a thousands-grouped price like "₹1,850" or
+// "1,20,000" from being sliced into fake extra columns when comma is the row separator (no tab)
+// -- same fix as itrgenie/goals/networth's shared paste helpers. parseNumericCell() (already
+// defined below for the Excel fuzzy importer) is reused for the plain paste box's own numeric
+// columns too, so "₹1,450" and "1450" both work there, not just in the Excel path.
+function protectThousandsCommas(line){
+  return line.replace(/(₹|\$)?\d{1,3}(,\d{1,3})+(\.\d+)?/g, m => m.replace(/,/g, ''));
+}
 function parsePastedRows(text){
   return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
-    .map(line=>{ const sep = line.includes('\t') ? '\t' : ','; return line.split(sep).map(c=>c.trim()); });
+    .map(line=>{
+      const hasTab = line.includes('\t');
+      const sep = hasTab ? '\t' : ',';
+      const workLine = hasTab ? line : protectThousandsCommas(line);
+      return workLine.split(sep).map(c=>c.trim());
+    });
 }
 // CSV/TXT still flow through the textarea + Parse&Add pipeline exactly as before (unchanged).
 // .xlsx/.xls are real binary Excel files -- readAsText on those produces garbage, so they're
@@ -480,6 +493,19 @@ function resolveBrokerId(text){
 }
 function accountOf(brokerId){
   return data.accounts.find(a=>a.id===brokerId) || {id:brokerId, name:brokerId, country:'IN', currency:'INR'};
+}
+// Normalizes free text (from a paste, not a strict dropdown value) to one of the 4 asset types
+// this module actually models. Returns null -- never a guess -- if nothing recognizable matches,
+// so a caller like the "Add a holding" quick-fill leaves the dropdown at its existing value
+// instead of silently picking the wrong type.
+function guessAssetTypeFromText(text){
+  const t = (text||'').trim().toLowerCase();
+  if(!t) return null;
+  if(/mutual|^mf$|\bmf\b/.test(t)) return 'Mutual Fund';
+  if(/etf/.test(t)) return 'ETF';
+  if(/stock|equity|share/.test(t)) return 'Stock';
+  if(/other/.test(t)) return 'Other';
+  return null;
 }
 
 // ---------- money formatting ----------
@@ -1760,6 +1786,10 @@ function renderAddHoldingForm(container){
     : (data.accounts[0] && data.accounts[0].id);
   card.innerHTML = `
     <h3>Add a holding</h3>
+    <div class="field-row" style="margin-bottom:2px;">
+      <div class="field" style="flex:3;"><label>Paste one line to fill in below <span style="text-transform:none;">(optional)</span></label><input id="af_quickpaste" placeholder="e.g. INFY, Axis Direct, Stock, 50, 1450, 2022-04-15 — from a trade confirmation, same order as the bulk-paste format further down"></div>
+      <div class="field" style="max-width:140px; display:flex; align-items:flex-end;"><button class="btn small ghost" id="af_quickfill_btn" type="button" style="width:100%;">Fill fields</button></div>
+    </div>
     <div class="field-row">
       <div class="field"><label>Symbol</label><input id="af_symbol" placeholder="e.g. INFY"></div>
       <div class="field"><label>Broker</label>
@@ -1782,6 +1812,58 @@ function renderAddHoldingForm(container){
     <div id="af_feedback" class="helptext" style="margin-top:2px; ${addFormFeedbackMsg.isError ? 'color:var(--rust);' : ''}">${addFormFeedbackMsg.text}</div>
   `;
   container.appendChild(card);
+
+  // "Paste one line to fill in below" -- lets someone with a trade confirmation, broker SMS/email,
+  // or a row already copied from a spreadsheet fill all 8 fields at once instead of tabbing
+  // through them one at a time, while still landing in the same editable inputs as manual entry --
+  // nothing is added to data.holdings until the existing "Add holding" click below, so every
+  // filled-in value stays fully reviewable/correctable first. Reuses the exact same column order
+  // as the bulk-paste box further down this page (Symbol, Broker, AssetType, Qty, BuyPrice,
+  // BuyDate, CurrentPrice, AsOf) so one mental model covers both entry paths. Broker/AssetType are
+  // matched against the real dropdown options (substring match, case-insensitive) and left
+  // unchanged -- never guessed -- if nothing recognizable is found; dates reuse excelDateToISO(),
+  // the same tolerant date parser already used for Excel import, rather than a third date-parsing
+  // implementation in this file.
+  card.querySelector('#af_quickfill_btn').onclick = ()=>{
+    const raw = card.querySelector('#af_quickpaste').value.trim();
+    if(!raw) return;
+    const cols = parsePastedRows(raw)[0] || [];
+    if(cols.length===0) return;
+    const [symbol, brokerTxt, assetTypeTxt, qty, buyPrice, buyDate, currentPrice, asOf] = cols;
+    if(symbol) card.querySelector('#af_symbol').value = symbol.trim();
+    if(brokerTxt){
+      const t = brokerTxt.trim().toLowerCase();
+      const match = data.accounts.find(a => a.name.toLowerCase()===t || a.id.toLowerCase()===t || a.name.toLowerCase().includes(t) || t.includes(a.name.toLowerCase()));
+      if(match) card.querySelector('#af_broker').value = match.id;
+    }
+    if(assetTypeTxt){
+      const guessed = guessAssetTypeFromText(assetTypeTxt);
+      if(guessed) card.querySelector('#af_type').value = guessed;
+    }
+    if(qty!==undefined && qty!==''){
+      const n = parseNumericCell(qty);
+      if(!isNaN(n)) card.querySelector('#af_qty').value = n;
+    }
+    if(buyPrice!==undefined && buyPrice!==''){
+      const n = parseNumericCell(buyPrice);
+      if(!isNaN(n)) card.querySelector('#af_buyprice').value = n;
+    }
+    if(buyDate){
+      const iso = excelDateToISO(buyDate);
+      if(iso) card.querySelector('#af_buydate').value = iso;
+    }
+    if(currentPrice!==undefined && currentPrice!==''){
+      const n = parseNumericCell(currentPrice);
+      if(!isNaN(n)) card.querySelector('#af_curprice').value = n;
+    }
+    if(asOf){
+      const iso = excelDateToISO(asOf);
+      if(iso) card.querySelector('#af_asof').value = iso;
+    }
+    const fb = card.querySelector('#af_feedback');
+    fb.textContent = 'Fields filled in below from the pasted line -- review (and complete Broker/Asset type if not recognized) before clicking Add holding.';
+    fb.style.color = '';
+  };
 
   card.querySelector('#af_add_btn').onclick = ()=>{
     const symbol = card.querySelector('#af_symbol').value.trim();
@@ -2460,7 +2542,7 @@ function renderHoldingsEntryCard(container){
   el.innerHTML = `
     <summary>Bulk add / advanced <span class="summary-hint">— paste multiple holdings, or upload a CSV/TXT file</span></summary>
     <div class="details-body">
-      <p class="helptext" style="margin-bottom:8px;">One holding per line: <code>Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf</code> — CurrentPrice and AsOf are optional (leave blank if you don't have a current price yet; it'll be flagged "stale" and gain/loss shown as zero until you fill it in). Dates as YYYY-MM-DD.</p>
+      <p class="helptext" style="margin-bottom:8px;">One holding per line: <code>Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf</code> — CurrentPrice and AsOf are optional (leave blank if you don't have a current price yet; it'll be flagged "stale" and gain/loss shown as zero until you fill it in). Dates as YYYY-MM-DD; ₹/$ symbols and thousands commas in the price columns are fine.</p>
       <p class="helptext" style="margin-bottom:8px;">Examples:<br>
         <code>INFY, Axis Direct, Equity, 50, 1450, 2022-04-15, 1850, 2026-08-01</code><br>
         <code>VOO, Vested-US, ETF, 10, 380.25, 2023-01-10, 512.40, 2026-08-01</code></p>
@@ -2495,19 +2577,21 @@ function renderHoldingsEntryCard(container){
     rows.forEach(cols=>{
       if(cols.length<6){ skipped++; return; }
       const [symbol, brokerTxt, assetType, qty, buyPrice, buyDate, currentPrice, asOf] = cols;
-      if(!symbol || !brokerTxt || isNaN(+qty) || +qty<=0 || isNaN(+buyPrice) || +buyPrice<0 || !buyDate){ skipped++; return; }
+      const qtyN = parseNumericCell(qty), buyPriceN = parseNumericCell(buyPrice);
+      if(!symbol || !brokerTxt || isNaN(qtyN) || qtyN<=0 || isNaN(buyPriceN) || buyPriceN<0 || !buyDate){ skipped++; return; }
       const brokerId = resolveBrokerId(brokerTxt);
       if(bulkPasteSkipDuplicates && findDuplicateHoldingIndex({ symbol, broker: brokerId }) >= 0){ dupSkipped++; return; }
-      const hasCurrentPrice = currentPrice!==undefined && currentPrice!=='' && !isNaN(+currentPrice);
+      const currentPriceN = parseNumericCell(currentPrice);
+      const hasCurrentPrice = currentPrice!==undefined && currentPrice!=='' && !isNaN(currentPriceN);
       data.holdings.push({
         id: newId('h'),
         symbol: symbol.toUpperCase(),
         broker: brokerId,
         assetType: assetType || 'Equity',
-        qty: +qty,
-        buyPrice: +buyPrice,
+        qty: qtyN,
+        buyPrice: buyPriceN,
         buyDate: buyDate,
-        currentPrice: hasCurrentPrice ? +currentPrice : '',
+        currentPrice: hasCurrentPrice ? currentPriceN : '',
         asOf: (asOf && asOf.trim()) ? asOf.trim() : (hasCurrentPrice ? new Date().toISOString().slice(0,10) : ''),
       });
       added++;

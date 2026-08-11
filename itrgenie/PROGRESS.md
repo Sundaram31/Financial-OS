@@ -288,3 +288,74 @@ console errors. `--muted`-colored text elements' actual rendered contrast (via `
 not assumed hex) computed against their real composited background — 0 pairs under 4.5:1.
 Functional regression: guided walkthrough, rail navigation, and the AIS/CSV upload paths
 re-verified working (no JS logic touched — CSS/inline-style value changes only).
+
+## Updated 2026-08-11 — Bulk-paste boxes made tolerant of real formatting noise
+Direct, blunt user feedback: even where paste/upload is already accepted, most of this app's
+paste boxes still demand data pre-shaped into an exact column order before they'll take it —
+"these were the softwares of 1980." AIS Auto-Import (module 00.3, see its own big comment block
+at ~line 917) already gets this right: it matches columns by KEYWORD (category/description/
+value) against a real header row, not fixed position. This pass generalizes that same
+"tolerate real-world variation, never silently misread a number" principle to every OTHER
+paste-and-parse module in this file — Salary, HRA, Clubbing (minor/spouse), Capital Gains
+Equity, Capital Gains MF, Crypto/VDA, Other Sources (interest/dividend), Business Income F&O,
+Foreign Assets (bank accounts), House Property (rent), Exempt Income, AMT credit carry-forward,
+and Assets & Liabilities (Schedule AL) — every module using the shared `parsePastedRows()`
+helper.
+
+**What changed, and what deliberately didn't.** These paste boxes have no header row the way
+AIS's real exported file does (a user types/pastes raw values, not a document with column
+titles) — so column-ORDER tolerance the way AIS does it would mean guessing which typed number
+means what, which the honesty rule explicitly rules out. What's genuinely safe to fix instead:
+**formatting noise around an already-correctly-positioned value.** Two shared helpers added
+right where `parsePastedRows()` already lived (~line 1589):
+- **`protectThousandsCommas(line)`** — when a line uses plain commas as the column separator (no
+  tab), a thousands-grouped price like "₹1,850" or "1,20,000" would otherwise get sliced into
+  several fake extra columns, corrupting every field after it (a genuinely severe failure mode
+  here, worse than in the simpler 2-column modules below, since it shifts dates/qty/prices out of
+  position for the rest of the row). Detected by shape — a run of 1-3-digit groups joined by
+  commas with NO space after the comma, since a real field separator in typed/pasted text is
+  reliably followed by a space while a thousands separator never is — and its internal commas are
+  stripped before the column split runs, so the split can't mistake them for a boundary.
+- **`toNum(s)`** — strips ₹/$ and thousands-separator commas/whitespace before parsing a cell as
+  a number, so "₹4,50,000" and "450000" parse identically. Replaces the bare `+field` /
+  `isNaN(+field)` numeric checks in all ~14 paste-consumer blocks listed above (`toNum(field)` /
+  `isNaN(toNum(field))`); a minus sign is preserved (F&O P/L can be a loss). Returns `NaN` —
+  never a guessed value — for anything that still isn't a clean number, so the caller's existing
+  `isNaN()` check honestly skips that row (counted in the visible "skipped N" feedback) instead of
+  pushing a fabricated figure. Found and fixed one real correctness gap while doing this: Capital
+  Gains — Equity's paste path previously let a genuinely unparseable qty/sell-price cell through
+  as `NaN` (only `entry.sellprice===null` was checked, not `isNaN`), which would have silently
+  shown a `NaN`-based fake gain/loss downstream — now explicitly `isNaN`-checked and skipped, same
+  as the Mutual Fund paste path was tightened to do too (added missing `isNaN` checks on `gain`/
+  `cost`/`tds` there as well, previously only `cost`/`tds`'s *sign* was checked, not whether they
+  parsed at all).
+- **NOT changed**: column order stays strictly positional in every one of these boxes — a
+  currency symbol or comma is a formatting detail this module can safely normalize, but which
+  number means "Qty" vs. "Buy Price" in a headerless typed row is not something it's safe to
+  infer, so that stays exactly as documented in each module's own helptext.
+- **Dates**: `parseFlexDate()` (already existed, unchanged) already tolerates DD/MM/YYYY,
+  MM/DD/YYYY, and ISO — re-verified still used everywhere it was before, no date-format gap found
+  in this pass.
+- **AIS Auto-Import itself** (the pattern this pass generalizes from) was not touched — it
+  already does everything this pass adds, and more (real keyword header-matching), since it reads
+  a genuine exported file with real column headers.
+
+**Verified with real headless-Chromium (Playwright)**: constructed inputs shaped differently
+than the old strict format (currency symbols, Indian thousands-grouping commas, extra
+whitespace) for Salary (`Acme Corp, 1,200,000, 50,000, 2,400` and `Beta LLP, ₹8,50,000`), HRA
+(`Apr-2025, 55000, 25000, ₹22,000, metro`), Capital Gains Equity (`Reliance, 10, 15/06/2021,
+1,850.50, 20/07/2025, 2,100.75` — the highest-risk case, a 6-column row with comma-grouped
+prices in the middle of the row — confirmed it parses to exactly `qty:10, buyprice:1850.50,
+sellprice:2100.75` rather than the comma corrupting the column count), Capital Gains MF
+(`Parag Parikh Flexi Cap Fund, 112A, 03/10/2025, 94,689.14, 2,55,314.35, 31,914`), and Foreign
+Assets bank accounts (`Chase Bank, USA, $250,000, $180,000`) — all now parse correctly where the
+old strict `+field` parsing would have produced `NaN` and silently skipped the row. Also
+confirmed a genuinely ambiguous/malformed row (a Capital Gains Equity row with non-numeric qty
+AND sell price) is honestly skipped, not misparsed, and a stray header row pasted by mistake
+(`Employer, Gross, Exempt, ProfTax`) is skipped the same way (neither cell parses as a number, so
+nothing is silently misassigned). Full regression: plain already-working formats (`Gamma Inc,
+900000, 40000, 2000`, `Muthoot Finance, 275, 21/07/2022, 105.14, 21/05/2025, 207.14`) still parse
+identically to before. Full-app smoke pass: clicked through all 27 modules plus Dashboard/
+Checklist/Help after these changes — 0 console errors, matching the same sweep the 2026-08-11
+font-size pass above already ran. `node --check` confirmed no syntax errors in the extracted
+script after every edit.

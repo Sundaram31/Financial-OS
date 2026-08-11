@@ -333,3 +333,32 @@ light — already passes WCAG AA (4.5:1) in both themes.
 **Tested with real headless-Chromium (Playwright)**: full DOM text-node sweep at 375px and 1280px,
 both themes — 0 nodes under 13px, 0 console errors. Functional regression: "+ Add a goal" flow
 re-verified (new goal card renders with editable fields) — no JS logic touched, CSS values only.
+
+## Updated 2026-08-11 — Tagged-investments paste made tolerant of currency formatting and column order
+Part of an app-wide pass (see `itrgenie/PROGRESS.md`'s matching 2026-08-11 entry for the full
+rationale) responding to direct feedback that paste boxes across the app still demand data
+pre-shaped exactly before they'll accept it. The tagged-investments paste box
+(`Label, Current Value`, used via "Parse & add" on every goal card) was strictly two-column
+positional and silently skipped anything else.
+
+**What changed**: `parsePastedRows()` gained `protectThousandsCommas()` — a thousands-grouped
+value like "₹4,50,000" no longer gets sliced into fake extra columns when comma is the row
+separator (detected by shape: no space after an internal grouping comma, unlike a real field
+separator, which always has one in typed/pasted text). A new `parseLabelValueRow(cols)` replaced
+the old rigid `[label, value] = cols; isNaN(+value)` check: with exactly 2 columns, whichever
+cell parses as a non-negative number (after `toNum()` strips ₹/$/commas/whitespace) is treated as
+the Value and the other as the Label — **column order no longer matters** ("450000, PPF account"
+now works exactly like "PPF account, 450000"). This is safe specifically because there are only 2
+columns and their content type (text vs. number) is self-distinguishing, unlike ITRGenie's
+6-column paste boxes where reordering would be a real guess. If both or neither cell looks
+numeric — an accidental header row ("Label, Value") or a genuinely ambiguous line — the row is
+honestly skipped (counted in the existing "N added, M skipped" feedback), never guessed at.
+Helptext updated to say so ("either order works, and ₹/commas in the amount are fine").
+
+**Verified with real headless-Chromium (Playwright), 6 checks**: regression — plain
+`PPF account, 450000` still adds correctly; tolerant — `FD - HDFC, ₹4,50,000` parses to
+₹4,50,000; tolerant — reversed order `275000, Liquid fund` parses to Liquid fund / ₹2,75,000;
+honesty — a stray `Label, Value` header row is skipped, not added as a fake row; tolerant — extra
+whitespace around both cells trimmed correctly; honesty — a genuinely ambiguous both-numeric row
+(`100, 200`) is skipped rather than guessed. 0 console errors. `node --check` confirmed no syntax
+errors after the edit.

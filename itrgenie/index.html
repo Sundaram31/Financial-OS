@@ -1300,12 +1300,12 @@ const PriorYearsModule = {
         if(cols.length < 2){ skipped++; return; }
         const [fy, status, days, cfST, cfLT] = cols;
         if(!fy || !status){ skipped++; return; }
-        if((days && +days < 0) || (cfST && +cfST < 0) || (cfLT && +cfLT < 0)){ skipped++; return; }
+        if((days && toNum(days) < 0) || (cfST && toNum(cfST) < 0) || (cfLT && toNum(cfLT) < 0)){ skipped++; return; }
         p.priorYears[fy.trim()] = {
           residencyStatus: status.trim(),
-          daysInIndia: days ? +days : null,
-          carriedForwardLossST: cfST ? +cfST : 0,
-          carriedForwardLossLT: cfLT ? +cfLT : 0,
+          daysInIndia: days ? toNum(days) : null,
+          carriedForwardLossST: cfST ? toNum(cfST) : 0,
+          carriedForwardLossLT: cfLT ? toNum(cfLT) : 0,
         };
         added++;
       });
@@ -1408,8 +1408,8 @@ const PriorYearsModule = {
         const [stock, qty, buydateRaw, buyprice, notes] = cols;
         const buydate = parseFlexDate(buydateRaw);
         if(!stock || !qty || !buydate || buyprice===''){ skipped++; return; }
-        if(+qty <= 0 || +buyprice < 0 || buydate.startsWith('INVALID:')){ skipped++; return; }
-        p.openingHoldings.push({stock, qty:+qty, buydate, buyprice:+buyprice, notes: notes||''});
+        if(isNaN(toNum(qty)) || isNaN(toNum(buyprice)) || toNum(qty) <= 0 || toNum(buyprice) < 0 || buydate.startsWith('INVALID:')){ skipped++; return; }
+        p.openingHoldings.push({stock, qty:toNum(qty), buydate, buyprice:toNum(buyprice), notes: notes||''});
         added++;
       });
       save();
@@ -1588,13 +1588,57 @@ function holdingPeriodDays(d1, d2){
 
 /* ---- Shared paste-import helpers: cuts down on-mobile typing across
    modules. User copies rows straight from Excel/Sheets/Notes (tab-
-   separated) or types comma-separated -- either works. ---- */
+   separated) or types comma-separated -- either works.
+
+   2026-08-11: made more tolerant of real-world formatting noise, following
+   the same "match content, don't demand a rigid shape" principle the AIS
+   Auto-Import module already applies to its own column headers (see that
+   module's comment block above). Two additions:
+   (1) protectThousandsCommas() -- when a pasted line uses plain commas as
+   the column separator (no tab), a thousands-grouped amount like
+   "₹4,50,000" or "1,200,000" would otherwise get sliced into several fake
+   columns, corrupting every field after it. Detected by shape (a run of
+   1-3-digit groups joined by commas with NO space after the comma, unlike
+   a real field separator which is always followed by a space in practice)
+   and its internal commas stripped before the column split runs, so the
+   split can't mistake them for a field boundary -- not guessed, since a
+   genuine field separator and a thousands separator are reliably
+   distinguishable this way in real pasted text.
+   (2) toNum() (defined below) -- strips ₹/$ and thousands commas from a
+   cell before parsing it as a number, so numeric columns work the same
+   whether typed as "450000" or "₹4,50,000". Both changes only affect
+   whether a column is *read* correctly -- they never change WHICH column a
+   value ends up in (that stays strictly positional, since these paste
+   boxes have no header row to keyword-match against the way AIS's real
+   exported file does; reordering columns without a header to identify them
+   would be guessing, not detecting). ---- */
+function protectThousandsCommas(line){
+  // Matches an optional ₹/$ prefix followed by 1-3 digits, then one or more
+  // ",digits(1-3)" groups with no space after the comma, optionally a decimal
+  // tail -- e.g. "₹4,50,000", "1,200,000.50", "50,000" -- and strips the
+  // internal commas so the split below can't mistake them for a separator.
+  return line.replace(/(₹|\$)?\d{1,3}(,\d{1,3})+(\.\d+)?/g, m => m.replace(/,/g, ''));
+}
 function parsePastedRows(text){
   return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
     .map(line=>{
-      const sep = line.includes('\t') ? '\t' : ',';
-      return line.split(sep).map(c=>c.trim());
+      const hasTab = line.includes('\t');
+      const sep = hasTab ? '\t' : ',';
+      const workLine = hasTab ? line : protectThousandsCommas(line);
+      return workLine.split(sep).map(c=>c.trim());
     });
+}
+// Tolerant numeric parsing for a pasted cell: strips currency symbols (₹, $) and thousands-
+// separator commas/whitespace before parsing, so "₹4,50,000" or "$1,234.50" parse identically to
+// "450000"/"1234.50". A minus sign (for a loss/negative figure) is preserved. Returns NaN --
+// never a guessed value -- for anything that still isn't a clean number after stripping, so a
+// header row someone forgot to remove or a genuinely malformed cell is honestly skipped by the
+// caller's existing isNaN() check rather than silently misread.
+function toNum(s){
+  if(s===undefined || s===null) return NaN;
+  const cleaned = String(s).replace(/[₹$,\s]/g,'');
+  if(cleaned==='') return NaN;
+  return Number(cleaned);
 }
 // Wires a file input so CSV/TXT/XLSX/PDF all flow into the same textarea + Parse&Add
 // pipeline as manual paste -- one parser to trust for structured data, not several.
@@ -1948,9 +1992,9 @@ const SalaryModule = {
         rows.forEach(cols=>{
           if(cols.length<2){ skipped++; return; }
           const [name, gross, exempt, profTax] = cols;
-          if(!name || gross===''||isNaN(+gross)){ skipped++; return; }
-          if(+gross < 0 || (exempt && +exempt < 0) || (profTax && +profTax < 0)){ skipped++; return; }
-          si.employers.push({name, gross:+gross, exempt: exempt?+exempt:0, profTax: profTax?+profTax:0});
+          if(!name || gross===''||isNaN(toNum(gross))){ skipped++; return; }
+          if(toNum(gross) < 0 || (exempt && toNum(exempt) < 0) || (profTax && toNum(profTax) < 0)){ skipped++; return; }
+          si.employers.push({name, gross:toNum(gross), exempt: exempt?toNum(exempt):0, profTax: profTax?toNum(profTax):0});
           added++;
         });
         save(); renderRows(); renderSummary();
@@ -2081,10 +2125,10 @@ const HRAModule = {
       rows.forEach(cols=>{
         if(cols.length<5){ skipped++; return; }
         const [month, basicDA, hra, rent, city] = cols;
-        if(!month || isNaN(+basicDA) || isNaN(+hra) || isNaN(+rent)){ skipped++; return; }
-        if(+basicDA<0 || +hra<0 || +rent<0){ skipped++; return; }
+        if(!month || isNaN(toNum(basicDA)) || isNaN(toNum(hra)) || isNaN(toNum(rent))){ skipped++; return; }
+        if(toNum(basicDA)<0 || toNum(hra)<0 || toNum(rent)<0){ skipped++; return; }
         const cityNorm = /metro/i.test(city) && !/non/i.test(city) ? 'metro' : 'nonmetro';
-        p.hraRows.push({month, basicDA:+basicDA, hra:+hra, rent:+rent, city:cityNorm});
+        p.hraRows.push({month, basicDA:toNum(basicDA), hra:toNum(hra), rent:toNum(rent), city:cityNorm});
         added++;
       });
       save(); renderRows(); renderSummary();
@@ -2245,8 +2289,8 @@ const ClubbingModule = {
         if(cols.length<3){ skipped++; return; }
         const [name, type, amount] = cols;
         const typeNorm = /skill/i.test(type) ? 'skill' : (/disab/i.test(type) ? 'disabled' : 'investment');
-        if(!name || isNaN(+amount) || +amount<0){ skipped++; return; }
-        p.clubbingMinor.push({name, type:typeNorm, amount:+amount});
+        if(!name || isNaN(toNum(amount)) || toNum(amount)<0){ skipped++; return; }
+        p.clubbingMinor.push({name, type:typeNorm, amount:toNum(amount)});
         added++;
       });
       save(); renderMinorRows(); renderSummary();
@@ -2261,8 +2305,8 @@ const ClubbingModule = {
       rows.forEach(cols=>{
         if(cols.length<2){ skipped++; return; }
         const [desc, amount] = cols;
-        if(!desc || isNaN(+amount) || +amount<0){ skipped++; return; }
-        p.clubbingSpouse.push({desc, amount:+amount});
+        if(!desc || isNaN(toNum(amount)) || toNum(amount)<0){ skipped++; return; }
+        p.clubbingSpouse.push({desc, amount:toNum(amount)});
         added++;
       });
       save(); renderSpouseRows(); renderSummary();
@@ -2481,15 +2525,19 @@ const CapitalGainsEquityModule = {
         let entry;
         if(cols.length >= 6){
           entry = {
-            stock, qty:+qty,
-            buydate: parseFlexDate(buydateRaw), buyprice: buypriceRaw==='' ? null : +buypriceRaw,
-            selldate: parseFlexDate(selldateRaw), sellprice: sellpriceRaw==='' ? null : +sellpriceRaw,
+            stock, qty: toNum(qty),
+            buydate: parseFlexDate(buydateRaw), buyprice: buypriceRaw==='' ? null : toNum(buypriceRaw),
+            selldate: parseFlexDate(selldateRaw), sellprice: toNum(sellpriceRaw),
             source: ''
           };
         } else {
           skipped++; return;
         }
-        if(!entry.stock || !entry.qty || !entry.selldate || entry.sellprice===null){ skipped++; return; }
+        // NaN-aware (not just falsy/null) -- a currency-symbol or otherwise unparseable qty/price
+        // cell must be honestly skipped here, not silently pushed through as NaN and shown as a
+        // fabricated "gain" or blank figure downstream.
+        if(!entry.stock || !entry.qty || isNaN(entry.qty) || !entry.selldate || entry.sellprice===null || isNaN(entry.sellprice)){ skipped++; return; }
+        if(entry.buyprice!==null && isNaN(entry.buyprice)){ skipped++; return; }
         if(entry.qty <= 0){ skipped++; return; }
         if(entry.sellprice < 0 || (entry.buyprice!==null && entry.buyprice < 0)){ skipped++; return; }
         if(entry.buydate && entry.buydate.startsWith('INVALID:')){ skipped++; return; }
@@ -2677,9 +2725,11 @@ const CapitalGainsMFModule = {
         const [scheme, typeRaw, rdateRaw, cost, gain, tds] = cols;
         const type = /112a/i.test(typeRaw) ? '112A' : '112';
         const rdate = parseFlexDate(rdateRaw);
-        if(!scheme || !rdate || gain===''){ skipped++; return; }
-        if((tds!==undefined && tds!=='' && +tds < 0) || (cost!=='' && +cost < 0)){ skipped++; return; }
-        p.cgMFRows.push({scheme, type, rdate, cost: cost==='' ? null : +cost, gain:+gain, tds: (tds===undefined||tds==='') ? 0 : +tds});
+        if(!scheme || !rdate || gain===''|| isNaN(toNum(gain))){ skipped++; return; }
+        if(cost!=='' && isNaN(toNum(cost))){ skipped++; return; }
+        if(tds!==undefined && tds!=='' && isNaN(toNum(tds))){ skipped++; return; }
+        if((tds!==undefined && tds!=='' && toNum(tds) < 0) || (cost!=='' && toNum(cost) < 0)){ skipped++; return; }
+        p.cgMFRows.push({scheme, type, rdate, cost: cost==='' ? null : toNum(cost), gain:toNum(gain), tds: (tds===undefined||tds==='') ? 0 : toNum(tds)});
         added++;
       });
       save();
@@ -2819,9 +2869,9 @@ const VDAModule = {
           if(cols.length<4){ skipped++; return; }
           const [asset, selldateRaw, cost, saleValue] = cols;
           const selldate = parseFlexDate(selldateRaw);
-          if(!asset || !selldate || cost===''||saleValue===''|| isNaN(+cost) || isNaN(+saleValue)){ skipped++; return; }
-          if(+cost < 0 || +saleValue < 0 || selldate.startsWith('INVALID:')){ skipped++; return; }
-          p.vdaTransactions.push({asset, selldate, cost:+cost, saleValue:+saleValue});
+          if(!asset || !selldate || cost===''||saleValue===''|| isNaN(toNum(cost)) || isNaN(toNum(saleValue))){ skipped++; return; }
+          if(toNum(cost) < 0 || toNum(saleValue) < 0 || selldate.startsWith('INVALID:')){ skipped++; return; }
+          p.vdaTransactions.push({asset, selldate, cost:toNum(cost), saleValue:toNum(saleValue)});
           added++;
         });
         save(); renderRows(); renderSummary();
@@ -3078,9 +3128,9 @@ const OtherSourcesModule = {
       rows.forEach(cols=>{
         if(cols.length<3){ skipped++; return; }
         const [source, type, amount] = cols;
-        if(!source || amount==='' || isNaN(+amount)){ skipped++; return; }
-        if(+amount < 0){ skipped++; return; }
-        os.interestRows.push({source, type: type||'Other', amount:+amount});
+        if(!source || amount==='' || isNaN(toNum(amount))){ skipped++; return; }
+        if(toNum(amount) < 0){ skipped++; return; }
+        os.interestRows.push({source, type: type||'Other', amount:toNum(amount)});
         added++;
       });
       save(); renderIntRows();
@@ -3147,9 +3197,9 @@ const OtherSourcesModule = {
       rows.forEach(cols=>{
         if(cols.length<2){ skipped++; return; }
         const [company, amount] = cols;
-        if(!company || amount==='' || isNaN(+amount)){ skipped++; return; }
-        if(+amount < 0){ skipped++; return; }
-        os.dividendRows.push({company, amount:+amount});
+        if(!company || amount==='' || isNaN(toNum(amount))){ skipped++; return; }
+        if(toNum(amount) < 0){ skipped++; return; }
+        os.dividendRows.push({company, amount:toNum(amount)});
         added++;
       });
       save(); renderDivRows();
@@ -3310,8 +3360,8 @@ const BusinessIncomeModule = {
         rows.forEach(cols=>{
           if(cols.length<2){ skipped++; return; }
           const [contract, pl] = cols;
-          if(!contract || pl===''||isNaN(+pl)){ skipped++; return; }
-          bi.fnoTrades.push({contract, pl:+pl});
+          if(!contract || pl===''||isNaN(toNum(pl))){ skipped++; return; }
+          bi.fnoTrades.push({contract, pl:toNum(pl)});
           added++;
         });
         save(); renderFNORows(); renderFNOSummary();
@@ -3550,8 +3600,8 @@ const ForeignAssetsModule = {
       rows.forEach(cols=>{
         if(cols.length<4){ skipped++; return; }
         const [bank, country, peak, closing] = cols;
-        if(!bank || !country || isNaN(+peak) || isNaN(+closing) || +peak<0 || +closing<0){ skipped++; return; }
-        p.foreignBankAccounts.push({bank, country, peak:+peak, closing:+closing});
+        if(!bank || !country || isNaN(toNum(peak)) || isNaN(toNum(closing)) || toNum(peak)<0 || toNum(closing)<0){ skipped++; return; }
+        p.foreignBankAccounts.push({bank, country, peak:toNum(peak), closing:toNum(closing)});
         added++;
       });
       save(); renderBankRows();
@@ -3898,9 +3948,9 @@ const HousePropertyModule = {
             const date = parseFlexDate(cols[0]);
             const amount = cols[1];
             const label = cols[2] || '';
-            if(!date || amount==='' || isNaN(+amount)){ skipped++; return; }
-            if(+amount < 0 || date.startsWith('INVALID:')){ skipped++; return; }
-            prop.rentRows.push({date, amount:+amount, label});
+            if(!date || amount==='' || isNaN(toNum(amount))){ skipped++; return; }
+            if(toNum(amount) < 0 || date.startsWith('INVALID:')){ skipped++; return; }
+            prop.rentRows.push({date, amount:toNum(amount), label});
             added++;
           });
           save();
@@ -4259,8 +4309,8 @@ const ScheduleEIModule = {
       rows.forEach(cols=>{
         if(cols.length<2){ skipped++; return; }
         const [category, amount, note] = cols;
-        if(!category || isNaN(+amount) || +amount<0){ skipped++; return; }
-        ei.rows.push({category: category.trim(), amount:+amount, note: note||''});
+        if(!category || isNaN(toNum(amount)) || toNum(amount)<0){ skipped++; return; }
+        ei.rows.push({category: category.trim(), amount:toNum(amount), note: note||''});
         added++;
       });
       save(); renderEIRows();
@@ -4486,8 +4536,8 @@ const AMTModule = {
       rows.forEach(cols=>{
         if(cols.length<3){ skipped++; return; }
         const [fy, generated, utilized] = cols;
-        if(!fy || isNaN(+generated) || isNaN(+utilized) || +generated<0 || +utilized<0){ skipped++; return; }
-        amt.creditRows.push({fy: fy.trim(), generated:+generated, utilized:+utilized});
+        if(!fy || isNaN(toNum(generated)) || isNaN(toNum(utilized)) || toNum(generated)<0 || toNum(utilized)<0){ skipped++; return; }
+        amt.creditRows.push({fy: fy.trim(), generated:toNum(generated), utilized:toNum(utilized)});
         added++;
       });
       save(); renderCreditRows();
@@ -4728,7 +4778,7 @@ const AssetsLiabilitiesModule = {
         rows.forEach(cols_=>{
           if(cols_.length < cols.length){ skipped++; return; }
           const amountCol = cols_[cols.length-1]; // last column is always the amount (cost / outstanding)
-          if(isNaN(+amountCol) || +amountCol < 0){ skipped++; return; }
+          if(isNaN(toNum(amountCol)) || toNum(amountCol) < 0){ skipped++; return; }
           al[key].push(cols_.slice(0,cols.length));
           added++;
         });

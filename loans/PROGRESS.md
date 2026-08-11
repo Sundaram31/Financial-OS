@@ -72,3 +72,43 @@ module -- already identical, no drift found there.
 1280px, both themes -- 0 nodes under 13px, 0 console errors. Functional regression: "+ Add a
 loan" flow re-verified (new loan card renders with editable fields, hover state now present) --
 no JS logic touched, CSS values only.
+
+## Updated 2026-08-11 -- Statement paste made tolerant of date-format variation; a real amount-misread bug found and fixed
+Same app-wide audit as `itrgenie/`, `goals/`, `networth/` (see `itrgenie/PROGRESS.md`'s matching
+entry for the full rationale). This module's "Auto-detect EMI/prepayment" box was audited first
+and found to already be UNUSUALLY tolerant compared to the other modules' paste boxes: it doesn't
+split the pasted text into fixed columns at all -- `classifyLoanTxn()` scans the raw description
+text for EMI/prepayment keywords, and separate regexes scan the same raw line for a date and an
+amount wherever they appear. That means it was never dependent on a particular column ORDER in
+the first place; a real bank statement's actual layout (columns in any order, extra columns, no
+columns at all) already worked.
+
+**What was genuinely missing**: `dateRe` only matched numeric date formats (`DD/MM/YYYY`,
+`DD-MM-YYYY`, `YYYY-MM-DD`) -- not the month-name format many real Indian bank e-statements use
+(`01-Jan-2026`, `01 January 2026`), and not 2-digit years (`01/01/26`). Broadened to
+`/(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}|\d{4}[-\/.]\d{1,2}[-\/.]\d{1,2}|\d{1,2}[-\/
+](?:jan|feb|...|dec)[a-z]*[-\/ ]\d{2,4})/i` -- also now accepts dot-separated dates
+(`01.01.2026`). Amount matching (`[\d,]+\.\d{2}|\b[\d,]{4,}\b`) was already tolerant of
+thousands-separator commas and any digit-run length; left unchanged.
+
+**Real correctness bug found and fixed during this same audit** (not caused by the date-format
+widening above -- pre-existing, confirmed via `git diff` that the amount-matching code was
+untouched): the amount regex scanned the ENTIRE line for candidate amounts, including the
+already-matched date substring. A line like `"05/04/2025 NACH LOAN DEBIT 1,25,000.00"` would pick
+up **both** `2025` (from the date) and `125000` (the real EMI figure) as candidate amounts --
+since EMI picks `Math.min(...amounts)` (documented as "EMI is usually the smaller recurring
+figure"), `2025` would silently win and get recorded as the payment amount instead of ₹1,25,000.
+Fixed at the root: amounts are now scanned only in the line with the matched date substring
+removed (`line.replace(dateMatch[0], ' ')`), so a date's own digits can never be mistaken for a
+payment amount. This exactly matches the standard this whole audit is held to -- "never silently
+misread a number" -- and would have produced a wrong-but-confident figure exactly like the kind
+this task explicitly warns against.
+
+**Verified with real headless-Chromium (Playwright), 5 checks**: regression -- numeric
+`01/04/2025` date still detected with the EMI classifier; tolerant -- month-name date
+`01-Jan-2026` now detected (previously would have failed to match `dateRe` at all, so the whole
+line would have been silently dropped); tolerant -- space-separated month name `01 Jan 2026`
+detected; honesty -- an unrelated transaction with no EMI/prepayment keyword (`ATM WITHDRAWAL`)
+stays un-added; regression + bug-fix combined -- `1,25,000.00` (comma-grouped amount, adjacent to
+a numeric date) now correctly records ₹1,25,000 as the payment amount, not the date's `2025`. 0
+console errors. `node --check` confirmed no syntax errors after the edit.

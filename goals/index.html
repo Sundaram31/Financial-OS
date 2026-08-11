@@ -109,9 +109,53 @@ let data = loadData();
 function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 let expandedGoalId = null;
 
+// 2026-08-11: made more tolerant of real-world formatting noise -- a stray thousands-grouped
+// value like "₹4,50,000" no longer gets sliced into fake extra columns when comma is the row
+// separator (protectThousandsCommas, same fix as itrgenie/index.html's shared paste helpers),
+// and parseLabelValueRow (below, used where this is actually consumed) tolerates currency
+// symbols, commas, and either column order (Label,Value or Value,Label) -- detected by which
+// cell actually looks like a plausible number, not guessed. Column ORDER tolerance is safe here
+// specifically because there are only two columns and their content (text vs number) is
+// self-distinguishing; a stray header row ("Label, Value") is honestly skipped since neither
+// cell looks numeric, same "don't guess, skip and let the user see it" rule as everywhere else.
+function protectThousandsCommas(line){
+  return line.replace(/(₹|\$)?\d{1,3}(,\d{1,3})+(\.\d+)?/g, m => m.replace(/,/g, ''));
+}
 function parsePastedRows(text){
   return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
-    .map(line=>{ const sep = line.includes('\t') ? '\t' : ','; return line.split(sep).map(c=>c.trim()); });
+    .map(line=>{
+      const hasTab = line.includes('\t');
+      const sep = hasTab ? '\t' : ',';
+      const workLine = hasTab ? line : protectThousandsCommas(line);
+      return workLine.split(sep).map(c=>c.trim());
+    });
+}
+function toNum(s){
+  if(s===undefined || s===null) return NaN;
+  const cleaned = String(s).replace(/[₹$,\s]/g,'');
+  if(cleaned==='') return NaN;
+  return Number(cleaned);
+}
+// Given one pasted row's cells, finds the Label and the Value regardless of which column they're
+// in. With exactly 2 columns (the documented "Label, Value" shape), whichever cell parses as a
+// non-negative number after stripping currency noise is the value -- the other is the label. If
+// both or neither cell look numeric (an accidental header row, or a row this can't confidently
+// read), returns null so the caller counts it as honestly skipped rather than misassigned. Rows
+// with more than 2 columns keep the original strict "first column is Label, second is Value"
+// assumption (currency-symbol/comma-tolerant) -- picking a different column there would be
+// guessing, not detecting, once more than one column could plausibly be the value.
+function parseLabelValueRow(cols){
+  if(cols.length<2) return null;
+  if(cols.length===2){
+    const aNum = toNum(cols[0]), bNum = toNum(cols[1]);
+    const aOk = !isNaN(aNum) && aNum>=0, bOk = !isNaN(bNum) && bNum>=0;
+    if(bOk && !aOk) return {label: cols[0].trim(), value: bNum};
+    if(aOk && !bOk) return {label: cols[1].trim(), value: aNum};
+    return null;
+  }
+  const value = toNum(cols[1]);
+  if(isNaN(value) || value<0) return null;
+  return {label: cols[0].trim(), value};
 }
 // Handles CSV/TXT (read as text, unchanged) and Excel .xlsx/.xls (converted to the same
 // CSV-shaped text via the vendored SheetJS lib, same pattern as itrgenie/'s py_file/oh_file
@@ -543,7 +587,7 @@ function renderGoalBody(container, goal){
   if(invFb !== undefined) setTimeout(()=>{ delete invFeedback[goal.id]; }, 0);
   investCard.innerHTML = `
     <h3>Existing investments tagged to this goal</h3>
-    <p class="helptext" style="margin-bottom:8px;">Only count holdings you've actually earmarked for this goal — the same fund can only be tagged to one goal at a time if you want the numbers to stay honest. One per line: <code>Label, Current Value</code></p>
+    <p class="helptext" style="margin-bottom:8px;">Only count holdings you've actually earmarked for this goal — the same fund can only be tagged to one goal at a time if you want the numbers to stay honest. One per line: <code>Label, Current Value</code> (either order works, and ₹/commas in the amount are fine)</p>
     <textarea id="inv_paste" rows="2" placeholder="PPF account, 450000">${escapeHtml(pasteDrafts[goal.id]||'')}</textarea>
     <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
       <button class="btn small" id="inv_btn">Parse &amp; add</button>
@@ -596,10 +640,9 @@ function renderGoalBody(container, goal){
     const rows = parsePastedRows(raw);
     let added=0, skipped=0;
     rows.forEach(cols=>{
-      if(cols.length<2){ skipped++; return; }
-      const [label, value] = cols;
-      if(!label || isNaN(+value) || +value<0){ skipped++; return; }
-      goal.investments.push({label: label.trim(), value:+value});
+      const parsed = parseLabelValueRow(cols);
+      if(!parsed || !parsed.label){ skipped++; return; }
+      goal.investments.push(parsed);
       added++;
     });
     invFeedback[goal.id] = buildInvFeedbackMsg(added, skipped);

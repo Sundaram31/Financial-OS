@@ -79,6 +79,46 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
   left untouched. The other two flagged items (root landing page's missing
   light theme, `portfolio/index.html`'s off-palette `.match-tag.isin` blue)
   remain open -- genuine feature/design decisions, not contrast bugs.
+- 2026-08-11 (same day): App-wide pass making paste/upload entry tolerant of
+  real-world formatting variation, in direct response to blunt user feedback
+  that even where paste/upload is already accepted, most parsers still
+  demand data pre-shaped into an exact column order/count first -- "these
+  were the softwares of 1980... programme will handle everything" was the
+  stated bar. `itrgenie/`'s AIS Auto-Import already met that bar (matches
+  columns by keyword against a real header row, not fixed position) --
+  generalized the same "tolerate variation, never silently misread a
+  number" principle to `itrgenie/`'s other ~14 paste boxes (Salary, HRA,
+  Clubbing, Capital Gains Equity/MF, VDA, Other Sources, F&O, Foreign
+  Assets, Rent, Exempt Income, AMT, Schedule AL), `goals/` and `networth/`'s
+  Label/Value paste boxes, `loans/`' statement parser, and `portfolio/`'s
+  bulk-paste box + a new "paste one line to fill in" quick-fill on its
+  guided "Add a holding" form. Two kinds of tolerance, applied only where
+  honestly safe: (1) currency-symbol/thousands-comma stripping everywhere
+  (a shared `toNum()`/`parseNumericCell()` pattern per module, plus a
+  `protectThousandsCommas()` fix so a comma-grouped value like "₹4,50,000"
+  doesn't get sliced into fake extra columns when comma is the row
+  separator); (2) column-ORDER tolerance only in `goals/`/`networth/`'s
+  2-column Label/Value boxes, where which cell "looks like a number"
+  reliably identifies the Value column -- ITRGenie's other, longer paste
+  boxes deliberately keep strict column order since they have no header row
+  to key off the way AIS's real exported file does, so reordering there
+  would be guessing, not detecting. Two real correctness bugs found and
+  fixed during this same audit (not the pass's original goal): ITRGenie's
+  Capital Gains -- Equity paste path could let an unparseable qty/sell-price
+  cell through as `NaN` instead of being honestly skipped; `loans/`'
+  amount-extraction regex could pick up a transaction date's own year
+  digits as a candidate payment amount, which could silently win as the
+  recorded EMI figure (fixed by excluding the matched date substring before
+  scanning for amounts). No OCR or new document-type parsing added anywhere
+  -- this is strictly about tolerating variation within already-supported
+  structured formats (CSV/Excel/pasted text), matching the boundary AIS
+  Auto-Import's own author already drew. Verified with 51 targeted
+  real-headless-Chromium (Playwright) checks across the 5 touched modules
+  plus a full regression smoke pass (all 27 ITRGenie modules + Dashboard/
+  Checklist/Help, all 5 touched modules at 375px/1280px) -- 0 console errors
+  throughout. No cross-module data contract changed. See `INDEX.md`'s
+  matching "App-wide pass" entry and each module's own `PROGRESS.md` for
+  full before/after detail.
 
 ## How to run a session against this roadmap
 1. Say "check the Financial-OS repo" — Claude reads this file directly from

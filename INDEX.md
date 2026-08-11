@@ -15,11 +15,11 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 ## Module status at a glance
 | Module | Path | Status | Last touched |
 |---|---|---|---|
-| ITRGenie | `/itrgenie/` | 27 modules, AIS auto-import (now accepts CSV or Excel) + Prior Years fix; app-wide font-size/contrast pass (2026-08-11) | 2026-08-11 |
-| Portfolio Tracker | `/portfolio/` | Live, guided form + paste/CSV/Excel entry + CAS (NSDL/CDSL) PDF import (dedup/refresh-safe, lazy-loaded libs) + live prices (Yahoo + Stooq no-setup, optional Twelve Data key) — holdings, allocation, performance across 4 accounts + sold-lot/realized-gains tracking (ST/LT classification, capital-gains feed export to ITRGenie) + "Simulate a sale" what-if tax calculator (Sec 111A/112A, pooled ₹1,25,000 LTCG exemption, MF/foreign-holding excluded with honest explanation) — closes roadmap item 4; mobile UX pass done; reorganized into Dashboard/Holdings/Gains & What-If/Accounts & Settings tabs; Dashboard adds a Top Gainers & Losers widget and a plain-language concentration/diversification flag (both honesty-gated, no fabricated numbers), sold-lots table collapses to 10 most recent past a threshold, Accounts/FX/Live-price settings rebalanced onto the Accounts & Settings tab; app-wide font-size/contrast pass (2026-08-11) closed out the remaining sub-13px stragglers this module's own 2026-08-09 UX pass missed | 2026-08-11 |
-| Net Worth Dashboard | `/networth/` | Live, manual entry + paste/CSV/Excel file upload; app-wide font-size/contrast pass (2026-08-11) | 2026-08-11 |
-| Goals | `/goals/` | Live, manual entry + paste/CSV/Excel file upload — inflation-adjusted target calculator, risk-profile SIP presets (Debt/Balanced/Equity), annuity-due SIP math, second-pass reviewer fixes; Emergency fund adequacy calculator added (Life Confidence pillar item 1 — monthly-expenses + months-wanted inputs, recommended target, "months covered" stat with red/amber/green tiering); app-wide font-size/contrast pass (2026-08-11) | 2026-08-11 |
-| Debt & Loan Tracker | `/loans/` | Live, auto-detects from bank statement, paste/CSV/Excel file upload; app-wide font-size/contrast pass (2026-08-11) also fixed a missing `.btn.primary:hover` state this module had drifted from the rest of the app | 2026-08-11 |
+| ITRGenie | `/itrgenie/` | 27 modules, AIS auto-import (now accepts CSV or Excel) + Prior Years fix; app-wide font-size/contrast pass (2026-08-11); bulk-paste boxes (Salary/HRA/Capital Gains/MF/VDA/Other Sources/F&O/Foreign Assets/Rent/Exempt Income/AMT/Schedule AL) made tolerant of currency symbols, thousands commas, and stray header rows (2026-08-11) | 2026-08-11 |
+| Portfolio Tracker | `/portfolio/` | Live, guided form + paste/CSV/Excel entry + CAS (NSDL/CDSL) PDF import (dedup/refresh-safe, lazy-loaded libs) + live prices (Yahoo + Stooq no-setup, optional Twelve Data key) — holdings, allocation, performance across 4 accounts + sold-lot/realized-gains tracking (ST/LT classification, capital-gains feed export to ITRGenie) + "Simulate a sale" what-if tax calculator (Sec 111A/112A, pooled ₹1,25,000 LTCG exemption, MF/foreign-holding excluded with honest explanation) — closes roadmap item 4; mobile UX pass done; reorganized into Dashboard/Holdings/Gains & What-If/Accounts & Settings tabs; Dashboard adds a Top Gainers & Losers widget and a plain-language concentration/diversification flag (both honesty-gated, no fabricated numbers), sold-lots table collapses to 10 most recent past a threshold, Accounts/FX/Live-price settings rebalanced onto the Accounts & Settings tab; app-wide font-size/contrast pass (2026-08-11) closed out the remaining sub-13px stragglers this module's own 2026-08-09 UX pass missed; bulk paste made currency-tolerant + guided "Add a holding" form gained a "paste one line to fill in" quick-fill option (2026-08-11) | 2026-08-11 |
+| Net Worth Dashboard | `/networth/` | Live, manual entry + paste/CSV/Excel file upload; app-wide font-size/contrast pass (2026-08-11); category-card paste tolerant of currency symbols, commas, and either column order (2026-08-11) | 2026-08-11 |
+| Goals | `/goals/` | Live, manual entry + paste/CSV/Excel file upload — inflation-adjusted target calculator, risk-profile SIP presets (Debt/Balanced/Equity), annuity-due SIP math, second-pass reviewer fixes; Emergency fund adequacy calculator added (Life Confidence pillar item 1 — monthly-expenses + months-wanted inputs, recommended target, "months covered" stat with red/amber/green tiering); app-wide font-size/contrast pass (2026-08-11); tagged-investments paste tolerant of currency symbols, commas, and either column order (2026-08-11) | 2026-08-11 |
+| Debt & Loan Tracker | `/loans/` | Live, auto-detects from bank statement, paste/CSV/Excel file upload; app-wide font-size/contrast pass (2026-08-11) also fixed a missing `.btn.primary:hover` state this module had drifted from the rest of the app; statement paste now also detects month-name dates (e.g. "01-Jan-2026"), and a real amount-misread bug (a date's own year digits could be picked up as a payment amount) found and fixed (2026-08-11) | 2026-08-11 |
 | Insurance Tracker | `/insurance/` | Live, mis-selling checks; app-wide font-size/contrast pass (2026-08-11) | 2026-08-11 |
 | Synthesis | `/synthesis/` | Live, read-only cross-module view (net worth, goals, portfolio, debt, insurance adequacy) — first pass; Goals card surfaces Emergency-fund months-covered figure; Financial independence card added (Life Confidence pillar item 2) — combined projection with an explicit assets-source picker (Portfolio vs Net Worth vs manual, never summed) and Emergency-fund-sourced expenses suggestion; reviewer-found negative-expected-return bug in the FI date math fixed same day; app-wide font-size/contrast pass (2026-08-11) closed out this module's own twice-flagged `.tag` known gap | 2026-08-11 |
 | Retirement/Pension Planner | — | Not started | — |
@@ -70,6 +70,54 @@ its own — see this entry and the git history for what changed there).
   policy, parse-and-add a Net Worth row) — 0 text nodes under 13px anywhere, 0 console errors.
   `--muted` contrast checked via actual rendered `getComputedStyle` colors, not assumed hex.
   Screenshotted every module in both themes at both viewports for visual review.
+
+## App-wide pass: paste/upload tolerance for real-world formatting (2026-08-11, same day)
+Direct, blunt user feedback: even where paste/upload is already accepted, most parsers still
+require the data pre-shaped into an exact column order/count before they'll take it — "these were
+the softwares of 1980... programme will handle everything" was the stated bar. `itrgenie/`'s AIS
+Auto-Import already met that bar (matches columns by KEYWORD against a real header row, not fixed
+position) — this pass generalized that same "tolerate real variation, never silently misread a
+number" principle everywhere else it was honestly safe to apply. Touched `itrgenie/`, `goals/`,
+`networth/`, `loans/`, `portfolio/`.
+
+- **Currency-symbol/thousands-comma tolerance**: every `parsePastedRows()`-based paste box across
+  all 5 modules now strips ₹/$ symbols and thousands-grouping commas before parsing a numeric
+  cell (`toNum()`/`parseNumericCell()`), and a shared `protectThousandsCommas()` fix stops a
+  comma-grouped value like "₹4,50,000" from being sliced into fake extra columns when comma is
+  the row separator (detected by shape — no space after an internal grouping comma, unlike a real
+  field separator, which always has one in typed/pasted text — not guessed at).
+- **Column-order tolerance where it's actually safe**: `goals/` and `networth/`'s 2-column
+  `Label, Value` paste boxes now accept either order (`450000, PPF account` works the same as
+  `PPF account, 450000`), since with only 2 columns, which one "looks like a number" reliably
+  identifies the Value column. ITRGenie's other paste boxes (Salary, Capital Gains, HRA, etc.)
+  deliberately keep strict column order — they have no header row to key off of the way AIS's
+  real exported file does, so reordering there would be guessing which typed number means what,
+  not detecting it. `loans/`' statement parser was found to already be column-order-agnostic (it
+  scans raw description text, not fixed columns) — widened instead to recognize more real-world
+  DATE formats (month-name dates like "01-Jan-2026", not just numeric).
+- **A "paste one line to fill in" quick-entry option** added to Portfolio Tracker's guided "Add a
+  holding" form (6+ separate typed fields for one record) — fills the existing form fields from
+  one pasted line, still requiring the explicit "Add holding" click before anything is saved, so
+  every value stays reviewable. "Record a sale" was audited and left unchanged — already only 3
+  typed fields plus a dropdown, not the multi-field pattern the complaint described.
+- **Two real correctness bugs found and fixed during this same audit** (not the pass's original
+  goal, found while reading the code closely): ITRGenie's Capital Gains — Equity paste path could
+  let an unparseable qty/sell-price cell through as `NaN` instead of being skipped (now
+  `isNaN`-checked); `loans/`' amount-extraction regex could pick up a transaction date's own year
+  digits as a candidate payment amount, which could silently win as the recorded EMI figure on
+  certain real statement layouts (fixed by excluding the matched date substring before scanning
+  for amounts).
+- **Deliberately NOT done**: no OCR or PDF-to-structured-data parsing was added anywhere — this
+  pass is about tolerating variation WITHIN already-supported structured formats (CSV/Excel/
+  pasted text), not new document types, per the same reasoning AIS Auto-Import's own author
+  already applied when scoping that module to CSV/Excel only.
+- **Tested with real headless-Chromium (Playwright)**: 51 targeted checks across the 5 touched
+  modules (currency symbols, Indian thousands-grouping, reversed columns, stray header rows,
+  genuinely ambiguous both-numeric rows, extra whitespace, month-name dates), each confirming both
+  the new tolerant behavior AND that every existing already-working input format still parses
+  identically. Full regression smoke pass: all 27 ITRGenie modules + Dashboard/Checklist/Help
+  clicked through with 0 console errors; all 5 touched modules loaded at 375px and 1280px with 0
+  console errors. See each module's own `PROGRESS.md` for its exact before→after examples.
 
 ## Current phase: Synthesis Layer, first pass (built 2026-08-09)
 `/synthesis/` is live — a read-only page joining Net Worth, Goals, Portfolio,

@@ -113,3 +113,32 @@ both themes, on initial load and after populating a category row via the paste-a
 (`Axis Direct equity+MF, 850000` → Investments) — 0 nodes under 13px, 0 console errors. Functional
 regression: paste-and-parse add flow re-verified working end-to-end (row renders, totals update) —
 no JS logic touched, CSS values only.
+
+## Updated 2026-08-11 — Category-card paste made tolerant of currency formatting and column order
+Same app-wide pass as `itrgenie/` and `goals/` (see `itrgenie/PROGRESS.md`'s matching entry for
+the full rationale). Every category card's paste box (`Label, Value[, OutstandingAsOf]` for
+Liabilities), used via each card's own "Parse & add" button, was strictly positional and
+currency-symbol-intolerant.
+
+**What changed**: `parsePastedRows()` gained `protectThousandsCommas()` (a thousands-grouped
+value like "₹4,50,000" no longer splits into fake extra columns when comma is the row separator —
+detected by the absence of a space after an internal grouping comma, which a real field separator
+always has). A new `parseLabelValueRow(cols)` replaced the old rigid `[label, value] = cols;
+isNaN(+value)` check, applied to every asset category card and the Liabilities card alike: with
+exactly 2 columns, whichever cell parses as a non-negative number (via `toNum()`, stripping
+₹/$/commas/whitespace) is the Value, the other the Label — column order no longer matters for the
+common 2-column case. Liabilities' optional 3rd column (`OutstandingAsOf`) keeps the original
+strict first-column-is-Label assumption (now currency/comma-tolerant too) since reordering a
+3-column row without a header would be a genuine guess, not a detection. A stray header row or
+genuinely ambiguous line (both or neither cell numeric) is honestly skipped, not guessed at, same
+as before but now correctly distinguishing "ambiguous" from "just has a ₹ symbol." Helptext
+updated on the asset-category cards to say "either column order works, and ₹/commas in the amount
+are fine."
+
+**Verified with real headless-Chromium (Playwright), 7 checks**: regression — plain
+`Axis Direct equity+MF, 850000` still adds correctly; tolerant — `HDFC FD, ₹4,50,000` parses to
+₹4,50,000; tolerant — reversed order `275000, Liquid fund` parses to Liquid fund / ₹2,75,000;
+honesty — a stray `Label, Value` header row skipped; tolerant — extra whitespace trimmed; the
+Liabilities card exists and its own paste box works; tolerant — a Liabilities row with a currency
+symbol and an OutstandingAsOf date (`Home loan (SBI), ₹32,00,000, 2026-08-01`) parses correctly.
+0 console errors. `node --check` confirmed no syntax errors after the edit.

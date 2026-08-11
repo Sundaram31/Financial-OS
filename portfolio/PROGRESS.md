@@ -1555,3 +1555,58 @@ populating real data: added a holding via the guided "Add a holding" form (INFY,
 render at ≥13px with the pill/badge shapes intact in both themes at both viewports. Functional
 regression: guided "Add a holding" form re-verified end-to-end (feedback message, holding appears
 in the list, value/gain computed correctly) — no JS logic touched, CSS/inline-style values only.
+
+## Updated 2026-08-11 — Bulk-paste currency tolerance, plus a "paste one line to fill in" option for the guided Add-a-holding form
+Same app-wide audit as `itrgenie/`, `goals/`, `networth/`, `loans/` (see `itrgenie/PROGRESS.md`'s
+matching entry for the full rationale). Audited both this module's entry paths per the task's
+specific instruction:
+
+**1. Bulk paste/CSV box (`Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice,
+AsOf`)** — already reasonably good (the module was built with real CAS statements in mind, and
+the separate Excel upload already does real fuzzy header-matching, see the 2026-08-10 entry
+above), but the plain-text/paste path itself used bare `+qty`/`+buyPrice`/`+currentPrice`
+conversions with no currency-symbol tolerance, and `parsePastedRows()` had the same
+thousands-comma-splits-into-fake-columns risk already found and fixed in the other modules. Fixed
+by reusing `parseNumericCell()` (already defined in this file for the Excel fuzzy importer's own
+numeric parsing — one implementation, not a new duplicate) for the plain paste path's Qty/
+BuyPrice/CurrentPrice columns, and adding the same `protectThousandsCommas()` shape-detection fix
+to `parsePastedRows()`. Column order stays strictly positional here too, same reasoning as the
+other modules — 8 columns with no header row to key off of, so reordering would be guessing.
+
+**2. Guided "Add a holding" form** — this is the one the user's complaint most directly
+describes: 6+ separate typed fields (Symbol, Broker select, Asset type select, Qty, Buy price,
+Buy date) for what's fundamentally one record someone often already has written down in one
+place (a trade confirmation, broker SMS/email, or a line copied from a spreadsheet). Added a
+"Paste one line to fill in below" input + "Fill fields" button directly above the existing field
+grid, reusing the exact same column order as the bulk-paste box (`Symbol, Broker, AssetType, Qty,
+BuyPrice, BuyDate, CurrentPrice, AsOf`) so one mental model covers both entry paths. Critically,
+this only **fills the existing DOM inputs** — nothing is written to `data.holdings` until the
+user reviews/edits the now-pre-filled fields and clicks the pre-existing "Add holding" button,
+exactly matching the task's "review before submit" requirement. Broker and Asset type are
+`<select>` dropdowns, not free text, so they're matched against the real options (case-insensitive
+substring match against account names, and a small `guessAssetTypeFromText()` normalizer for
+Stock/ETF/Mutual Fund/Other) — if nothing recognizable is found, the dropdown is left at its
+existing value rather than guessed at, and the feedback message says so ("review... complete
+Broker/Asset type if not recognized"). Dates reuse `excelDateToISO()` (already defined for Excel
+import) rather than adding a third date-parsing implementation to this file.
+
+**Deliberately not extended to "Record a sale"**: that form only has 3 typed fields (Qty, Sell
+date, Sell price) plus one dropdown (which open holding) — already low-friction, not the
+"five separate fields for one holding" pattern the task specifically flagged. Adding a
+paste-to-fill option there would add complexity for a form that isn't actually the source of the
+complaint.
+
+**Verified with real headless-Chromium (Playwright), 11 checks**: bulk paste — regression (plain
+numbers `INFY, Axis Direct, Equity, 50, 1450, 2022-04-15, 1850, 2026-08-01` still work), tolerant
+($ symbol: `VOO, Vested-US, ETF, 10, $380.25, ...`), tolerant (₹ symbol + Indian
+thousands-grouping: `RELIANCE, Axis Direct, Equity, 25, ₹12,50,000, 2021-03-01` parses to
+`buyPrice: 1250000, qty: 25` — confirmed the comma-grouping doesn't corrupt the column count),
+honesty (a row with a non-numeric Qty is skipped, not pushed as `NaN`); quick-fill — Symbol field
+filled from a pasted line, Broker select correctly matched "Axis Direct" by name, Asset type
+correctly guessed "Stock" from the word "Stock", Qty/Buy price/Buy date fields all filled
+correctly (buy price `₹3,500` → field shows `3500`, currency symbol/comma stripped), and —
+critically — confirmed `data.holdings` is unchanged immediately after "Fill fields" (nothing
+written until the explicit "Add holding" click, which then does add exactly one holding with the
+reviewed values). 0 console errors. Full-app smoke pass (both viewports, both this module and the
+other 3 touched modules) — 0 console errors. `node --check` confirmed no syntax errors after
+every edit.

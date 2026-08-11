@@ -214,7 +214,7 @@ function renderLoanBody(container, loan){
   importCard.style.marginTop = '14px';
   importCard.innerHTML = `
     <h3>Auto-detect EMI/prepayment from a bank statement</h3>
-    <p class="helptext" style="margin-bottom:8px;">Paste raw statement text (or upload CSV/TXT) — classifies from the transaction description only, same validated approach as the AIS Reconciliation module. One per line: <code>Date, Description, Amount</code> works too if pre-extracted.</p>
+    <p class="helptext" style="margin-bottom:8px;">Paste raw statement text as-is (or upload CSV/TXT/Excel) — column order doesn't matter, since this reads the transaction description and scans for a date and amount anywhere on the line, same validated approach as the AIS Reconciliation module. Dates in DD/MM/YYYY, YYYY-MM-DD, or "01-Jan-2026"-style formats all work; amounts with ₹ symbols or thousands commas are fine too.</p>
     <textarea id="l_import_paste" rows="3" placeholder="Paste statement rows here"></textarea>
     <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
       <button class="btn small primary" id="l_import_btn">Scan &amp; add detected payments</button>
@@ -250,15 +250,31 @@ function renderLoanBody(container, loan){
 
   importCard.querySelector('#l_import_btn').onclick = ()=>{
     const raw = importCard.querySelector('#l_import_paste').value;
-    const dateRe = /(\d{2}[-\/]\d{2}[-\/]\d{4}|\d{4}[-\/]\d{2}[-\/]\d{2})/;
+    // 2026-08-11: broadened beyond DD/MM/YYYY and YYYY-MM-DD (numeric only) to also match the
+    // month-name date format many real Indian bank e-statements use (e.g. "01-Jan-2026",
+    // "01 January 2026") and 2-digit years (e.g. "01/01/26") -- this classifier already scans
+    // raw description text rather than splitting into fixed columns, so it was never dependent
+    // on a particular column ORDER; the real gap here was date-FORMAT coverage, not column
+    // position. Amount matching (below) was already tolerant of thousands-separator commas and
+    // any digit-run length -- unchanged, since that was already reading real statement formatting
+    // fine.
+    const dateRe = /(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}|\d{4}[-\/.]\d{1,2}[-\/.]\d{1,2}|\d{1,2}[-\/ ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-\/ ]\d{2,4})/i;
     const amtRe = /([\d,]+\.\d{2}|\b[\d,]{4,}\b)/g;
     let added = 0;
     raw.split('\n').forEach(line=>{
       const kind = classifyLoanTxn(line);
       if(!kind) return;
       const dateMatch = line.match(dateRe);
-      const amounts = [...line.matchAll(amtRe)].map(m=>parseFloat(m[1].replace(/,/g,''))).filter(n=>n>100);
-      if(!dateMatch || amounts.length===0) return;
+      if(!dateMatch) return;
+      // Found during this same audit (pre-existing, not introduced by the date-format widening
+      // above): scanning the whole line for amounts let a date's own digits (e.g. the "2025" in
+      // "05/04/2025") get picked up as a candidate amount, which could then win Math.min() for an
+      // EMI line and silently record the date's year as the payment amount instead of the real
+      // figure. Fixed at the root by scanning for amounts only in the line with the matched date
+      // substring removed, so a date can never be mistaken for an amount.
+      const lineWithoutDate = line.replace(dateMatch[0], ' ');
+      const amounts = [...lineWithoutDate.matchAll(amtRe)].map(m=>parseFloat(m[1].replace(/,/g,''))).filter(n=>n>100);
+      if(amounts.length===0) return;
       const amount = kind==='emi' ? Math.min(...amounts) : Math.max(...amounts); // EMI is usually the smaller recurring figure; prepayment the larger lump sum
       loan.payments.push({date: dateMatch[1], type: kind, amount});
       added++;
