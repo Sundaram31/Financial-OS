@@ -103,7 +103,15 @@
   /* Tab sub-navigation (added 2026-08-11) -- mirrors this module's existing hairline/gold-accent
      language rather than a generic pill-tab component. Horizontally scrollable so it stays usable
      at 375px without wrapping or overflowing off-screen. */
-  .tab-bar{ display:flex; gap:4px; overflow-x:auto; border-bottom:1px solid var(--line); margin-bottom:22px; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+  /* Reviewer-found gap (2026-08-11): at 375px the tab bar overflows (Export & Settings was 0%
+     visible) with nothing hinting more tabs exist beyond a mid-word cut. .tab-bar-wrap's ::after is a
+     right-edge fade shown only while the bar actually overflows (JS toggles .has-overflow), so wide
+     screens where every tab already fits show no fade at all. */
+  .tab-bar-wrap{ position:relative; margin-bottom:22px; }
+  /* var(--bg) is the actual page background in both themes (body's own background, which
+     main.content never overrides) -- not var(--panel), which is only for cards. */
+  .tab-bar-wrap.has-overflow::after{ content:''; position:absolute; top:0; right:0; bottom:1px; width:28px; background:linear-gradient(to right, transparent, var(--bg) 85%); pointer-events:none; }
+  .tab-bar{ display:flex; gap:4px; overflow-x:auto; border-bottom:1px solid var(--line); -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
   .tab-btn{ flex:0 0 auto; background:transparent; border:none; border-bottom:2px solid transparent; color:var(--muted); font-family:var(--mono); font-size:13px; padding:10px 16px; cursor:pointer; white-space:nowrap; transition:color .12s, border-color .12s; }
   .tab-btn:hover{ color:var(--text); }
   .tab-btn.active{ color:var(--gold); border-bottom-color:var(--gold); font-weight:600; }
@@ -237,10 +245,12 @@ let activeTab = 'dashboard';
 const TABS = [
   { id:'dashboard', label:'Dashboard' },
   { id:'holdings',  label:'Holdings' },
-  { id:'gains',     label:'Realized Gains & What-If' },
+  { id:'gains',     label:'Gains & What-If' },
   { id:'export',    label:'Export & Settings' },
 ];
 function renderTabBar(container){
+  const wrap = document.createElement('div');
+  wrap.className = 'tab-bar-wrap';
   const bar = document.createElement('div');
   bar.className = 'tab-bar';
   bar.setAttribute('role','tablist');
@@ -255,7 +265,16 @@ function renderTabBar(container){
     btn.onclick = ()=> switchTab(t.id);
     bar.appendChild(btn);
   });
-  container.appendChild(bar);
+  wrap.appendChild(bar);
+  container.appendChild(wrap);
+  updateTabBarOverflow(wrap, bar);
+  // Re-check on resize (rotating a phone, or a desktop window shrinking) rather than only at
+  // first render -- an overflow state computed once could go stale.
+  window.addEventListener('resize', ()=> updateTabBarOverflow(wrap, bar));
+}
+function updateTabBarOverflow(wrap, bar){
+  const overflowing = bar.scrollWidth > bar.clientWidth + 1;
+  wrap.classList.toggle('has-overflow', overflowing);
 }
 function switchTab(tabId){
   if(tabId === activeTab) return;

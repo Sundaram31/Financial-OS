@@ -1009,6 +1009,13 @@ functionality to paper over them:
    module's simulator sidesteps the question entirely by refusing to compute a foreign-holding tax
    figure at all (see the dated 2026-08-10 entry above) rather than guessing at that threshold —
    flagged here so a future session doesn't assume it was checked.
+8. **The Holdings tab is noticeably heavier than the other three** (1246px tall across table,
+   add-form, bulk/CSV entry, CAS import, live-price settings, accounts, and FX — 7 cards) **vs.
+   Export & Settings at 237px with just one card** (2026-08-11 reviewer finding, tab restructure).
+   Accounts/FX and Live-price settings read more like account configuration than day-to-day
+   holdings entry — moving them to Export & Settings (maybe renamed "Accounts & Settings") would
+   balance the two tabs better. Not fixed in this pass (reviewer's own recommendation was "a
+   reasonable next iteration," not a blocker) — flagged for whoever next touches the tab grouping.
 
 ## Deliberately NOT done yet
 - **~~The what-if fund-switch tax-modeling UI itself~~ — built 2026-08-10 (see the dated entry
@@ -1308,3 +1315,21 @@ changed here, only the container each one's render function (`renderCasImportCar
 was confirmed structurally and via the "Live prices" text/element check above, but a real
 password-protected PDF and a real network fetch were not re-run in this session — reasonable given
 this was a structural move only, but noted so it isn't assumed to have been re-verified end-to-end.
+
+### Fix (2026-08-11, same day) — reviewer-found mobile tab-bar discoverability gap
+`financial-os-reviewer` confirmed the restructure structurally sound (all 17 sections accounted
+for, no lost input across any form/tab combination tried, no stuck states) but found one real,
+non-blocking gap: at 375px the tab bar overflowed (`scrollWidth` 611px vs `clientWidth` 343px) with
+**"Export & Settings" 0% visible** and nothing hinting more tabs existed beyond a mid-word cut on
+"Realized Gains & What-If" — a first-time phone user had a real chance of never finding the Net
+Worth feed export, which only lives on that tab. Fixed two ways: (1) shortened the label to "Gains
+& What-If" (saves ~70px); (2) added a right-edge fade-gradient cue (`.tab-bar-wrap.has-overflow`,
+toggled by comparing `scrollWidth`/`clientWidth` in JS, re-checked on window resize) that only
+renders when the bar actually overflows — confirmed absent at 1280px where all 4 tabs already fit,
+present at 375px in both themes with the correct `--bg` color per theme. Verified via Playwright:
+overflow correctly detected (536px vs 343px after the label shortening), the fade renders with the
+right gradient stops, and scrolling the bar fully right brings "Export & Settings" completely
+within the 375px viewport. The tab-grouping-imbalance observation from the same review (Holdings
+pane much taller than Export & Settings) was left as a follow-up per the reviewer's own
+recommendation, not fixed here — noted in Known gaps for whoever next touches this file's tab
+grouping.
