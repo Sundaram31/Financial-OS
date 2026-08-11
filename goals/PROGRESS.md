@@ -17,6 +17,18 @@ projection are computed.
 - Export/Import JSON, own storage key (`goals_data_v1`), shared theme key
   with ITRGenie/Net Worth Dashboard.
 
+## Updated 2026-08-11 — file upload widened to accept Excel
+`inv_file` (the tagged-investments file upload) now accepts
+`.csv,.txt,.xlsx,.xls`, not just CSV/TXT. Vendored a module-own copy of
+SheetJS (`lib/xlsx.core.min.js`, ~427KB, self-hosted, no CDN -- same pattern
+already used by `itrgenie/` and `portfolio/`) and extended `wireFileUpload`
+to convert an uploaded `.xlsx`/`.xls` file's first sheet to CSV text via
+`XLSX.utils.sheet_to_csv` before handing it to the exact same "Label, Value"
+row parser the paste box and plain-CSV upload already use -- no new parsing
+logic, same rows either way. Tested end-to-end (Playwright): an Excel file
+with two Label/Value rows imports identically to the equivalent CSV; CSV/TXT
+path re-verified unchanged.
+
 ## Deliberately NOT done yet
 - No cross-goal validation that the same holding isn't tagged to two goals
   (documented as a user responsibility in the UI copy for now).

@@ -57,6 +57,11 @@
   ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
   @media (max-width:760px){ main.content{ padding:18px; } }
 </style>
+<!-- Vendored SheetJS (xlsx.core.min.js), self-hosted, no CDN -- lets Excel (.xlsx/.xls)
+     imports convert to CSV in-browser via the same pattern already used in
+     itrgenie/ and portfolio/. Own copy in this module's own lib/ folder, not a
+     cross-module reference, per the repo's self-contained-module convention. -->
+<script src="./lib/xlsx.core.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -105,13 +110,30 @@ function parsePastedRows(text){
   return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
     .map(line=>{ const sep = line.includes('\t') ? '\t' : ','; return line.split(sep).map(c=>c.trim()); });
 }
+// Handles CSV/TXT (read as text, unchanged) and Excel .xlsx/.xls (converted to the same
+// CSV-shaped text via the vendored SheetJS lib, same pattern as itrgenie/'s py_file/oh_file
+// and portfolio/'s holdings upload) -- either way onText() receives the identical row-shaped
+// text the existing parser already expects, so parsing logic is untouched.
 function wireFileUpload(fileInputEl, onText){
-  fileInputEl.onchange = (e)=>{
+  fileInputEl.onchange = async (e)=>{
     const file = e.target.files[0];
     if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev)=>{ onText(ev.target.result); fileInputEl.value=''; };
-    reader.readAsText(file);
+    const name = file.name.toLowerCase();
+    try{
+      if(name.endsWith('.xlsx') || name.endsWith('.xls')){
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, {type:'array'});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        onText(XLSX.utils.sheet_to_csv(sheet));
+      } else {
+        const reader = new FileReader();
+        const txt = await new Promise((res,rej)=>{ reader.onload=(ev)=>res(ev.target.result); reader.onerror=rej; reader.readAsText(file); });
+        onText(txt);
+      }
+    }catch(err){
+      alert('Could not read that file: ' + err.message);
+    }
+    fileInputEl.value = '';
   };
 }
 
@@ -196,8 +218,8 @@ function renderLoanBody(container, loan){
     <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
       <button class="btn small primary" id="l_import_btn">Scan &amp; add detected payments</button>
       <span class="helptext" style="margin:0;">or</span>
-      <button class="btn small ghost" id="l_file_btn">Choose file</button>
-      <input type="file" id="l_file" accept=".csv,.txt" style="display:none">
+      <button class="btn small ghost" id="l_file_btn">Choose file (CSV/TXT/Excel)</button>
+      <input type="file" id="l_file" accept=".csv,.txt,.xlsx,.xls" style="display:none">
     </div>
     <div id="l_import_feedback" class="helptext" style="margin:6px 0;"></div>
     <div id="l_payment_rows"></div>

@@ -198,6 +198,34 @@ retracted as unconfirmed. Neither was caught until a deliberate re-check.
   Only meaningful under old regime — explicitly says so under new regime
   rather than showing a misleading zero-impact result.
 
+## Built this session, AIS Auto-Import widened to accept Excel (2026-08-11)
+- **AIS Auto-Import (`ais_file`) now accepts `.csv,.txt,.xlsx,.xls`**, not
+  just CSV. This was proposed earlier the same session as part of a broader
+  "widen upload formats" push, got deprioritized, and was correctly called
+  out as not actually done when the user checked -- this entry closes that
+  gap. An uploaded `.xlsx`/`.xls` file is read via the vendored SheetJS
+  (`XLSX.read`), its first sheet converted to CSV text with
+  `XLSX.utils.sheet_to_csv`, then fed through the exact same
+  `parseCSVProper` + `classifyAISRows` path the native CSV upload already
+  used -- so the keyword-based column matching (Category/Description/Value)
+  and the review-with-checkboxes-before-commit safety net behave identically
+  regardless of source format. This is reuse of an already-proven pattern:
+  Prior Years' `py_file`/`oh_file` imports in this same file, and
+  Portfolio's holdings upload, already parse Excel the same way.
+- **PDF/JSON deliberately still NOT accepted for AIS**, unchanged from the
+  original reasoning documented in the module's header comment: AIS's real
+  PDF/JSON structure has never been verified against a live sample, and
+  rigid parsing without that verification risks silently mis-extracting
+  data. That risk doesn't apply to Excel (same tabular shape as CSV,
+  converted losslessly) but does apply to PDF/JSON, so they stay out.
+- Tested end-to-end with real headless-Chromium (Playwright): a synthetic
+  AIS-shaped `.xlsx` (Category/Description/Name/Value columns, one salary +
+  one interest + one dividend row) uploads, parses into the same 3 reviewable
+  buckets as an equivalent `.csv`, checkboxes default to checked, and
+  "Add to Salary module" correctly commits the checked row. CSV path
+  re-verified unchanged (regression). Mobile 375px viewport: upload button
+  and copy fit cleanly, no overflow.
+
 ## Known gaps (still open, ranked)
 1. TDS/26AS line-by-line reconciliation — manual entry only, no structured import.
 2. E-verification date tracking — not computed from actual filing date yet.

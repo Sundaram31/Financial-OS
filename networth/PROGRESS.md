@@ -56,6 +56,17 @@ now-convertible row and leaves the first row's value updated in place
 (no duplicate); a plain full-object Net Worth backup still restores exactly
 as before.
 
+## Updated 2026-08-11 — file upload widened to accept Excel
+`file_${key}` (every category card's file upload, including Liabilities)
+now accepts `.csv,.txt,.xlsx,.xls`, not just CSV/TXT. Vendored a module-own
+copy of SheetJS (`lib/xlsx.core.min.js`, self-hosted, no CDN -- same pattern
+as `itrgenie/` and `portfolio/`). `wireFileUpload` now converts an uploaded
+`.xlsx`/`.xls` file's first sheet to CSV text via `XLSX.utils.sheet_to_csv`
+before handing it to the same "Label, Value" row parser the paste box and
+plain-CSV upload already use. Tested end-to-end (Playwright): an Excel file
+with two Label/Value rows imports identically to the equivalent CSV into the
+Investments category; CSV/TXT path re-verified unchanged.
+
 ## Known gap — the actual point of this module isn't finished
 This currently requires manual entry for Investments, same as everything
 else. The real value unlocks once **Portfolio Tracker** is migrated into

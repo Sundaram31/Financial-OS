@@ -920,10 +920,19 @@ registerModule(FormDeterminationModule);
    out of scope for this browser tool for the reasons already established).
    AIS is a structured file, not a scan, so parsing it is legitimate.
 
-   Deliberately CSV, not .xlsx: the income tax portal's own AIS download
-   page offers PDF/JSON/CSV natively -- CSV is an official export format,
-   not a third-party conversion, so parsing it needs no bundled library and
-   no format guessing. If you only have an Excel copy, "Save As CSV" first.
+   CSV and Excel (.xlsx/.xls) both accepted. CSV is the income tax portal's
+   own official AIS export format -- needs no format guessing. Excel is
+   accepted too (2026-08-11): the exact same keyword-based column matching
+   below already handles AIS's real-world header variation, and this file
+   already parses Excel reliably elsewhere (Prior Years' py_file/oh_file,
+   via the vendored xlsx.core.min.js) -- an .xlsx upload is converted to the
+   same CSV text via XLSX.utils.sheet_to_csv and fed through the identical
+   parseCSVProper + classifyAISRows path, so review-before-commit behaves
+   identically regardless of source format. PDF/JSON stay out deliberately:
+   AIS's actual PDF/JSON structure has never been verified against a live
+   sample, and rigid parsing without that verification risks silently
+   mis-extracting data -- that risk doesn't apply to Excel since it's just
+   the same tabular shape as CSV, converted losslessly.
 
    Column headers are matched by keyword (category/description/value),
    not fixed positions -- AIS's exact header wording isn't something I can
@@ -970,7 +979,7 @@ const AISImportModule = {
   hasStarted: (p) => !!(p._aisImportDone),
   isComplete: (p) => !!(p._aisImportDone),
   requiredDocs: () => ([
-    {id:'ais_csv', name:'AIS downloaded as CSV', note:'From the income tax portal: AIS section → Download → CSV. PDF/JSON are also offered but CSV is what this module reads.'},
+    {id:'ais_csv', name:'AIS downloaded as CSV or Excel', note:'From the income tax portal: AIS section → Download → CSV (or Excel). PDF/JSON are also offered but not yet supported here.'},
   ]),
   fallbackDocs: () => ({}),
   render(container, p, save){
@@ -979,16 +988,16 @@ const AISImportModule = {
     header.innerHTML = `
       <div class="eyebrow">Module 00.3 · Reads your actual AIS file — genuinely automatic, not another paste box</div>
       <h2>AIS Auto-Import</h2>
-      <p class="desc">Upload your AIS CSV once, review what it found, and confirm what goes where — Salary, Interest, Dividends, or flagged for cross-check against Capital Gains. This is optional; skip it and fill modules manually if you'd rather, or come back to it later.</p>
+      <p class="desc">Upload your AIS CSV or Excel export once, review what it found, and confirm what goes where — Salary, Interest, Dividends, or flagged for cross-check against Capital Gains. This is optional; skip it and fill modules manually if you'd rather, or come back to it later.</p>
     `;
     container.appendChild(header);
 
     const uploadCard = document.createElement('div');
     uploadCard.className = 'card';
     uploadCard.innerHTML = `
-      <h3>Upload AIS CSV</h3>
-      <button class="btn primary" id="ais_file_btn">Choose AIS CSV file</button>
-      <input type="file" id="ais_file" accept=".csv" style="display:none">
+      <h3>Upload AIS file</h3>
+      <button class="btn primary" id="ais_file_btn">Choose AIS file (CSV or Excel)</button>
+      <input type="file" id="ais_file" accept=".csv,.txt,.xlsx,.xls" style="display:none">
       <div id="ais_upload_feedback" class="helptext" style="margin-top:8px;"></div>
     `;
     container.appendChild(uploadCard);
@@ -997,21 +1006,39 @@ const AISImportModule = {
     container.appendChild(resultsWrap);
 
     uploadCard.querySelector('#ais_file_btn').onclick = ()=> uploadCard.querySelector('#ais_file').click();
-    uploadCard.querySelector('#ais_file').onchange = (e)=>{
+    uploadCard.querySelector('#ais_file').onchange = async (e)=>{
       const file = e.target.files[0];
       if(!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev)=>{
-        try{
-          const rows = parseCSVProper(ev.target.result);
-          const parsed = classifyAISRows(rows);
-          renderReview(resultsWrap, parsed);
-          uploadCard.querySelector('#ais_upload_feedback').textContent = `Parsed ${rows.length} rows from the file.`;
-        }catch(err){
-          uploadCard.querySelector('#ais_upload_feedback').textContent = `Couldn't parse that file — make sure it's the CSV export, not PDF or JSON.`;
+      const feedback = uploadCard.querySelector('#ais_upload_feedback');
+      const name = file.name.toLowerCase();
+      try{
+        let csvText;
+        if(name.endsWith('.xlsx') || name.endsWith('.xls')){
+          // Same conversion py_file/oh_file already use: read the workbook, take the
+          // first sheet, convert to CSV text, then feed it through the exact same
+          // parseCSVProper + classifyAISRows path the native CSV upload uses -- so
+          // the row/column shape and the review-before-commit step are identical
+          // regardless of which format the file came in as.
+          const buf = await file.arrayBuffer();
+          const wb = XLSX.read(buf, {type:'array'});
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          csvText = XLSX.utils.sheet_to_csv(sheet);
+        } else {
+          csvText = await new Promise((res,rej)=>{
+            const reader = new FileReader();
+            reader.onload = (ev)=> res(ev.target.result);
+            reader.onerror = rej;
+            reader.readAsText(file);
+          });
         }
-      };
-      reader.readAsText(file);
+        const rows = parseCSVProper(csvText);
+        const parsed = classifyAISRows(rows);
+        renderReview(resultsWrap, parsed);
+        feedback.textContent = `Parsed ${rows.length} rows from the file.`;
+      }catch(err){
+        uploadCard.querySelector('#ais_upload_feedback').textContent = `Couldn't parse that file — make sure it's the CSV or Excel export, not PDF or JSON.`;
+      }
+      e.target.value = '';
     };
 
     function classifyAISRows(rows){
@@ -1054,7 +1081,7 @@ const AISImportModule = {
     function renderReview(wrap, parsed){
       wrap.innerHTML = '';
       if(parsed.error){
-        wrap.innerHTML = `<div class="card"><h3 style="color:var(--rust);">Couldn't find the expected columns</h3><p class="helptext">Looking for columns with "Category" and "Description" in the header — this file's headers don't match. Fall back to manually filling Salary/Other Sources, or check that this is the unmodified AIS CSV export.</p></div>`;
+        wrap.innerHTML = `<div class="card"><h3 style="color:var(--rust);">Couldn't find the expected columns</h3><p class="helptext">Looking for columns with "Category" and "Description" in the header — this file's headers don't match. Fall back to manually filling Salary/Other Sources, or check that this is the unmodified AIS CSV/Excel export.</p></div>`;
         return;
       }
       const { buckets } = parsed;

@@ -16,6 +16,18 @@ source data for security-level detail).
 - Amortization-based payoff projection from outstanding balance + EMI.
 - Export/Import JSON, own storage key (loans_data_v1), shared theme.
 
+## Updated 2026-08-11 — file upload widened to accept Excel
+`l_file` (bank-statement file upload) now accepts `.csv,.txt,.xlsx,.xls`,
+not just CSV/TXT. Vendored a module-own copy of SheetJS
+(`lib/xlsx.core.min.js`, self-hosted, no CDN -- same pattern as `itrgenie/`
+and `portfolio/`). `wireFileUpload` now converts an uploaded `.xlsx`/`.xls`
+file's first sheet to CSV text via `XLSX.utils.sheet_to_csv` before handing
+it to the same callback the CSV/TXT path already used -- the pattern-based
+EMI/prepayment classifier downstream is completely untouched. Tested
+end-to-end (Playwright): CSV and Excel versions of the same statement row
+land in the paste textarea as byte-identical text, and "Scan & add" detects
+the same payment either way; CSV/TXT path re-verified unchanged.
+
 ## Known limitations, stated plainly in the UI
 - Payoff projection doesn't re-amortize after each prepayment -- directional
   estimate, not exact.
