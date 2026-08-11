@@ -15,10 +15,10 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 ## Module status at a glance
 | Module | Path | Status | Last touched |
 |---|---|---|---|
-| ITRGenie | `/itrgenie/` | 27 modules, AIS auto-import (now accepts CSV or Excel) + Prior Years fix; app-wide font-size/contrast pass (2026-08-11); bulk-paste boxes (Salary/HRA/Capital Gains/MF/VDA/Other Sources/F&O/Foreign Assets/Rent/Exempt Income/AMT/Schedule AL) made tolerant of currency symbols, thousands commas, and stray header rows (2026-08-11); paste-parsing rewritten safe-by-construction after a third round found live corruption on ordinary two-amount CSV rows (2026-08-11) | 2026-08-11 |
-| Portfolio Tracker | `/portfolio/` | Live, guided form + paste/CSV/Excel entry + CAS (NSDL/CDSL) PDF import (dedup/refresh-safe, lazy-loaded libs) + live prices (Yahoo + Stooq no-setup, optional Twelve Data key) — holdings, allocation, performance across 4 accounts + sold-lot/realized-gains tracking (ST/LT classification, capital-gains feed export to ITRGenie) + "Simulate a sale" what-if tax calculator (Sec 111A/112A, pooled ₹1,25,000 LTCG exemption, MF/foreign-holding excluded with honest explanation) — closes roadmap item 4; mobile UX pass done; reorganized into Dashboard/Holdings/Gains & What-If/Accounts & Settings tabs; Dashboard adds a Top Gainers & Losers widget and a plain-language concentration/diversification flag (both honesty-gated, no fabricated numbers), sold-lots table collapses to 10 most recent past a threshold, Accounts/FX/Live-price settings rebalanced onto the Accounts & Settings tab; app-wide font-size/contrast pass (2026-08-11) closed out the remaining sub-13px stragglers this module's own 2026-08-09 UX pass missed; bulk paste made currency-tolerant + guided "Add a holding" form gained a "paste one line to fill in" quick-fill option (2026-08-11); paste-parsing rewritten safe-by-construction, third round (2026-08-11) | 2026-08-11 |
-| Net Worth Dashboard | `/networth/` | Live, manual entry + paste/CSV/Excel file upload; app-wide font-size/contrast pass (2026-08-11); category-card paste tolerant of currency symbols, commas, and either column order (2026-08-11); paste-parsing rewritten safe-by-construction, third round (2026-08-11) | 2026-08-11 |
-| Goals | `/goals/` | Live, manual entry + paste/CSV/Excel file upload — inflation-adjusted target calculator, risk-profile SIP presets (Debt/Balanced/Equity), annuity-due SIP math, second-pass reviewer fixes; Emergency fund adequacy calculator added (Life Confidence pillar item 1 — monthly-expenses + months-wanted inputs, recommended target, "months covered" stat with red/amber/green tiering); app-wide font-size/contrast pass (2026-08-11); tagged-investments paste tolerant of currency symbols, commas, and either column order (2026-08-11); paste-parsing rewritten safe-by-construction, third round (2026-08-11) | 2026-08-11 |
+| ITRGenie | `/itrgenie/` | 27 modules, AIS auto-import (now accepts CSV or Excel) + Prior Years fix; app-wide font-size/contrast pass (2026-08-11); bulk-paste boxes (Salary/HRA/Capital Gains/MF/VDA/Other Sources/F&O/Foreign Assets/Rent/Exempt Income/AMT/Schedule AL) made tolerant of currency symbols, thousands commas, and stray header rows (2026-08-11); paste-parsing rewritten safe-by-construction after a third round found live corruption on ordinary two-amount CSV rows (2026-08-11); fourth round fixed a live negative-thousands-grouped-number safety bug (Capital Gains MF losses) and investigated-then-reverted a false-ambiguity fix after fuzzing proved it unsafe (2026-08-11) | 2026-08-11 |
+| Portfolio Tracker | `/portfolio/` | Live, guided form + paste/CSV/Excel entry + CAS (NSDL/CDSL) PDF import (dedup/refresh-safe, lazy-loaded libs) + live prices (Yahoo + Stooq no-setup, optional Twelve Data key) — holdings, allocation, performance across 4 accounts + sold-lot/realized-gains tracking (ST/LT classification, capital-gains feed export to ITRGenie) + "Simulate a sale" what-if tax calculator (Sec 111A/112A, pooled ₹1,25,000 LTCG exemption, MF/foreign-holding excluded with honest explanation) — closes roadmap item 4; mobile UX pass done; reorganized into Dashboard/Holdings/Gains & What-If/Accounts & Settings tabs; Dashboard adds a Top Gainers & Losers widget and a plain-language concentration/diversification flag (both honesty-gated, no fabricated numbers), sold-lots table collapses to 10 most recent past a threshold, Accounts/FX/Live-price settings rebalanced onto the Accounts & Settings tab; app-wide font-size/contrast pass (2026-08-11) closed out the remaining sub-13px stragglers this module's own 2026-08-09 UX pass missed; bulk paste made currency-tolerant + guided "Add a holding" form gained a "paste one line to fill in" quick-fill option (2026-08-11); paste-parsing rewritten safe-by-construction, third round (2026-08-11); fourth round added a negative-grouped-number safety fix and a `currentPrice >= 0` guard on both entry paths (2026-08-11) | 2026-08-11 |
+| Net Worth Dashboard | `/networth/` | Live, manual entry + paste/CSV/Excel file upload; app-wide font-size/contrast pass (2026-08-11); category-card paste tolerant of currency symbols, commas, and either column order (2026-08-11); paste-parsing rewritten safe-by-construction, third round (2026-08-11); fourth round added the same negative-grouped-number safety fix (2026-08-11) | 2026-08-11 |
+| Goals | `/goals/` | Live, manual entry + paste/CSV/Excel file upload — inflation-adjusted target calculator, risk-profile SIP presets (Debt/Balanced/Equity), annuity-due SIP math, second-pass reviewer fixes; Emergency fund adequacy calculator added (Life Confidence pillar item 1 — monthly-expenses + months-wanted inputs, recommended target, "months covered" stat with red/amber/green tiering); app-wide font-size/contrast pass (2026-08-11); tagged-investments paste tolerant of currency symbols, commas, and either column order (2026-08-11); paste-parsing rewritten safe-by-construction, third round (2026-08-11); fourth round added the same negative-grouped-number safety fix (2026-08-11) | 2026-08-11 |
 | Debt & Loan Tracker | `/loans/` | Live, auto-detects from bank statement, paste/CSV/Excel file upload; app-wide font-size/contrast pass (2026-08-11) also fixed a missing `.btn.primary:hover` state this module had drifted from the rest of the app; statement paste now also detects month-name dates (e.g. "01-Jan-2026"), and a real amount-misread bug (a date's own year digits could be picked up as a payment amount) found and fixed (2026-08-11) | 2026-08-11 |
 | Insurance Tracker | `/insurance/` | Live, mis-selling checks; app-wide font-size/contrast pass (2026-08-11) | 2026-08-11 |
 | Synthesis | `/synthesis/` | Live, read-only cross-module view (net worth, goals, portfolio, debt, insurance adequacy) — first pass; Goals card surfaces Emergency-fund months-covered figure; Financial independence card added (Life Confidence pillar item 2) — combined projection with an explicit assets-source picker (Portfolio vs Net Worth vs manual, never summed) and Emergency-fund-sourced expenses suggestion; reviewer-found negative-expected-return bug in the FI date math fixed same day; app-wide font-size/contrast pass (2026-08-11) closed out this module's own twice-flagged `.tag` known gap | 2026-08-11 |
@@ -198,6 +198,58 @@ correction. See each of the 4 touched modules' own `PROGRESS.md` for the full ad
 matrix (tab-separated variants, the original motivating case, a constructed genuinely-ambiguous
 row, and a per-box regression sweep with two independently-formatted currency amounts in every
 paste box across all 4 files).
+
+## Fourth-round fix: negative-grouped-number safety bug fixed; a second proposed fix investigated and reverted (2026-08-11, same day)
+A fourth reviewer pass on the paste-parsing safety work above confirmed the round-3 rewrite's core
+mechanism is sound (its own 40,000-trial fuzz against positive numbers found zero silently-wrong
+results) but found one live, reproduced, blocking safety bug and one reliability complaint.
+
+**Fixed**: `GROUPED_WESTERN`/`GROUPED_INDIAN`/`spanValid()` only ever allowed an optional `₹`/`$`
+prefix on a grouped-number span, never a leading `-`. Capital Gains — Mutual Funds' Gain field
+legitimately allows negative values (a real capital LOSS), and that box's TDS column is genuinely
+optional — so a real loss like `-1,25,000` with TDS omitted was never recognized as a merge
+candidate at all, and the leftover pieces could coincidentally still land on a valid column count,
+getting silently saved wrong (e.g. `-1,25,000` saved as `gain:-1, tds:25000` instead of
+`gain:-125000`). Fixed by accepting an optional leading `-` the same way `₹`/`$` already are,
+applied identically across `itrgenie/`, `portfolio/`, `goals/`, `networth/`. Live-re-tested all 3
+reviewer variants (Indian/Western grouping, with/without TDS present): all three moved from
+**silently wrong** to an **honest skip** — a confirmed safety improvement, though not all three
+resolve to a fully-correct parse (two of the three turned out to be genuinely, structurally
+ambiguous once the negative merge is recognized — worked through by hand and confirmed against the
+live DFS output, not assumed).
+
+**Investigated, a fix was built, then reverted**: the same review also found ordinary "complete"
+rows (e.g. `TCS,Axis Direct,Equity,10,200,01/01/2024,2600,10/08/2026`, `Acme Corp,100,200,300`,
+`PPF interest,100,200`) wrongly flagged ambiguous by a coincidental adjacent pair that also looks
+like a grouped number. Two implementations of the review's proposed fix ("prefer the untouched
+reading whenever it already reaches a valid target") were built and each re-verified with a
+60,000-trial fuzz covering positive AND negative numbers across every optional-trailing-field box
+in the app — both produced real silently-wrong results (7,462/60,000 and 2,267/60,000
+respectively, not rare edge cases: e.g. `Acme Corp,64,150,1262730` genuinely means `Gross:64150`
+with `ProfTax` omitted, which a naive-preferring shortcut would silently misread as
+`Gross:64, Exempt:150, ProfTax:1262730`). No purely structural rule can safely tell "coincidental
+collision" apart from "genuine field omission" — both are structurally valid, differing only in
+real-world plausibility a shared, field-type-agnostic helper has no way to judge. Re-running the
+same fuzz with this fix fully removed confirmed 0/60,000 silently wrong. Given the negative-number
+fix above is the safety-blocking item and this fuzz evidence shows any naive-preference shortcut
+reopens exactly the silent-corruption class rounds 1–3 exist to close, **the fix was reverted
+rather than shipped partially-safe** — TCS/Acme/PPF-shaped rows remain an honest skip, same as
+before this round. Flagged as a genuinely open item needing a properly-scoped future fix (per-field
+type/semantic awareness threaded into the ambiguity check — a materially bigger change than a
+narrow patch).
+
+Also added, defense in depth: Portfolio's `currentPrice` field now has the same `>= 0` guard its
+sibling fields (`qty`, `buyPrice`) already had, on both entry paths.
+
+**Tested with real headless Chromium** (`@sparticuz/chromium` + `playwright-core` — the sandboxed
+build environment has no direct route to Playwright's own browser-download CDN, so the browser
+binary came via an npm-published package instead, over the already-allowed npm registry route),
+driving the actual pages, saving to real `localStorage`, reading it back — not Node-level
+unit tests alone. Full regression re-run of every case from rounds 1–3 confirmed none regressed;
+5 additional ITRGenie paste boxes beyond Salary/HRA/CG-MF spot-checked live with realistic
+no-space multi-amount rows (Clubbing, Crypto/VDA, Other Sources, F&O — including a real
+negative-decimal loss figure, AMT), all parsing correctly. See each touched module's own
+`PROGRESS.md` for the full before/after tables and fuzz breakdown.
 
 ## Current phase: Synthesis Layer, first pass (built 2026-08-09)
 `/synthesis/` is live — a read-only page joining Net Worth, Goals, Portfolio,

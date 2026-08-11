@@ -397,3 +397,25 @@ lakh-grouping, Portfolio's grouped-number-glued-to-a-quantity shape) using this 
 `splitPastedLine` — confirms a thousands-grouped value like `1,50,000` still collapses correctly
 to `150000` and a plain `10,20` never fuses. No regression in either column-order tolerance or the
 honest-skip-on-ambiguous-both-numeric-row behavior from the first pass.
+
+## FOURTH ROUND — negative-grouped-number safety fix (2026-08-11, same day)
+See `itrgenie/PROGRESS.md`'s matching entry for the full writeup, live-browser results, and fuzz
+evidence — this module shares the exact same `resolveThousandsMerge`/`spanValid` code shape.
+
+- **`GROUPED_WESTERN`/`GROUPED_INDIAN`/`spanValid()` now accept an optional leading `-`**, same as
+  the existing `₹`/`$` prefix support, so a genuinely negative grouped number is found as a merge
+  candidate instead of never being considered. This module's own tagged-investments box
+  (`Label, Value`, expectedCols 2, no optional field) has no live risk from the specific
+  vulnerability the review found (which needed BOTH a negative field AND an optional trailing
+  field) — applied here for shared-code consistency across all 4 touched files, re-verified with
+  the same 60,000-trial fuzz (0/60,000 silently wrong).
+- **A "prefer the naive/untouched reading over a coincidental merge" fix was attempted and
+  reverted** after the same fuzz proved it reopens real silent corruption elsewhere (see
+  `itrgenie/PROGRESS.md` for the exact numbers: 7,462/60,000 and 2,267/60,000 wrong across two
+  attempted implementations, vs. 0/60,000 with it removed). Not directly reproducible in this
+  module's own 2-column box (no optional field means no ambiguity of this shape can arise here at
+  all), but reverted everywhere for one consistent, provably-safe shared implementation rather than
+  a per-file fork.
+- **Regression, live-evaluated**: `PPF account,450000` and `450000,PPF account` (both column
+  orders) still resolve to the same `{label, value}`; `PPF account,12,34,567.89` (Indian-grouped)
+  still collapses to `1234567.89`; `10,20,30,40`-shaped rows still never fuse.

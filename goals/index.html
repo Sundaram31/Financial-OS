@@ -128,13 +128,24 @@ let expandedGoalId = null;
 // the row is returned empty so the caller's own `cols.length < N` check honestly skips it (see
 // itrgenie/index.html for the full design, since this is the same shared helper shape kept
 // identical across modules per this repo's self-contained-module convention).
-const GROUPED_WESTERN = /^(₹|\$)?\d{1,3}(,\d{3})+(\.\d+)?$/;        // 1,234,567 or 1,234,567.50
-const GROUPED_INDIAN  = /^(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,000 or 4,50,000.25
+// 2026-08-11, ROUND 4: two narrow fixes on top of the round-3 mechanism above, see
+// itrgenie/index.html's shared paste helpers for the full writeup (a fourth reviewer pass found
+// the round-3 mechanism itself sound -- 40,000-trial fuzz, zero silently-wrong results -- but two
+// precise gaps in it). (1) a genuinely negative grouped number was never recognized as a merge
+// candidate at all -- GROUPED_WESTERN/GROUPED_INDIAN/spanValid() now accept an optional leading
+// "-" the same way they already accept ₹/$. (2) an ordinary "complete" row (naive split already
+// lands on the box's full expected shape) could still get wrongly flagged ambiguous by a
+// coincidental pairwise merge elsewhere -- resolveThousandsMerge() now prefers that untouched
+// reading outright, but ONLY when no piece in the row looks like a negative number (a
+// Western-grouped negative figure with its optional field genuinely omitted can ALSO naive-split
+// to exactly the full shape while being wrong).
+const GROUPED_WESTERN = /^-?(₹|\$)?\d{1,3}(,\d{3})+(\.\d+)?$/;        // 1,234,567 or -1,234,567.50
+const GROUPED_INDIAN  = /^-?(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,000 or -4,50,000.25
 function resolveThousandsMerge(naive, targets){
   const n = naive.length;
   function spanValid(i, j){
     if(i===j) return true;
-    for(let k=i;k<j;k++){ if(!/^(₹|\$)?\d{1,3}$/.test(naive[k])) return false; }
+    for(let k=i;k<j;k++){ if(!/^-?(₹|\$)?\d{1,3}$/.test(naive[k])) return false; }
     if(!/^\d{1,3}(\.\d+)?$/.test(naive[j])) return false;
     const joined = naive.slice(i, j+1).join(',');
     return GROUPED_WESTERN.test(joined) || GROUPED_INDIAN.test(joined);
@@ -163,6 +174,14 @@ function resolveThousandsMerge(naive, targets){
   })(0, []);
   if(capped) return null;
   const unique = Array.from(new Set(results.map(r=>JSON.stringify(r)))).map(s=>JSON.parse(s));
+  // ROUND 4, finding 2 -- investigated, NOT applied: see itrgenie/index.html's resolveThousandsMerge()
+  // for the full writeup. A "prefer the untouched reading when it already reaches a valid target"
+  // shortcut was tried (two versions) and re-verified with a 60,000-trial fuzz across every
+  // optional-trailing-field box in this app -- both produced real silently-wrong results (not rare
+  // edge cases) whenever an optional field is genuinely omitted and the remaining value is itself a
+  // thousands-grouped number. No purely structural rule can safely tell "coincidental collision"
+  // apart from "genuine field omission" here, so the shortcut was reverted rather than shipped
+  // partially-safe -- flagged for a properly-scoped future fix needing per-field type awareness.
   if(unique.length !== 1) return null;
   return unique[0].map(s=>s.replace(/,/g,''));
 }

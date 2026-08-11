@@ -1660,16 +1660,90 @@ function holdingPeriodDays(d1, d2){
       than guessed.
    toNum() (below) still strips ₹/$ and thousands commas from a cell before
    parsing it as a number, so numeric columns work the same whether typed as
-   "450000" or "₹4,50,000" once they've been split into the right column. ---- */
+   "450000" or "₹4,50,000" once they've been split into the right column.
+
+   2026-08-11, FOURTH ROUND: a third reviewer pass confirmed the round-3
+   mechanism above is sound (a 40,000-trial fuzz against positive numbers
+   found zero silently-wrong results) but found one live, blocking safety bug
+   and one reliability complaint -- FIXED the first, INVESTIGATED and
+   REVERTED an attempted fix for the second after fuzzing proved it unsafe.
+
+   FINDING 1 (safety, FIXED): a genuinely NEGATIVE thousands-grouped number
+   was never recognized as a merge candidate at all -- GROUPED_WESTERN/
+   GROUPED_INDIAN/spanValid() only ever allowed an optional ₹/$ prefix, never
+   a leading "-". Capital Gains MF's Gain field legitimately allows negative
+   values (a real capital LOSS), and that box's TDS column is also optional
+   (expectedCols 6, minCols 5) -- so a real loss like "-1,25,000" with TDS
+   omitted could naive-split down to a column count that coincidentally still
+   looked "in range", and get silently accepted with the wrong value (e.g.
+   Gain read as "-1" instead of "-125000", the rest fused into a fabricated
+   TDS). Fix: GROUPED_WESTERN/GROUPED_INDIAN/spanValid() now accept an
+   optional leading "-" the same way they already accept ₹/$, so a negative
+   grouped number is found as one merge candidate like any other. Live
+   re-tested against all 3 reviewer variants: each moved from silently wrong
+   to an honest skip (see itrgenie/PROGRESS.md's round-4 entry for the exact
+   before/after and why two of the three don't resolve to a full correct
+   parse -- they're genuinely, structurally ambiguous once the negative
+   merge is recognized, confirmed by hand against the live DFS output).
+
+   FINDING 2 (reliability, INVESTIGATED THEN REVERTED): whenever the
+   naive/untouched split ALREADY landed exactly on a box's full expected
+   shape (every field present, nothing omitted -- an "ordinary complete
+   row"), but ALSO happened to contain an adjacent pair that coincidentally
+   LOOKED like a grouped number once joined (e.g. a share qty "10" next to a
+   sub-1000 price "200" -> "10,200"), the search treated the untouched
+   reading and the coincidental merge as two competing valid combinations and
+   honestly-but-wrongly skipped the row as ambiguous. Real examples:
+   "TCS,Axis Direct,Equity,10,200,01/01/2024,2600,10/08/2026" (Portfolio, all
+   8 fields ordinary), "Acme Corp,100,200,300" (Salary), "PPF interest,100,200"
+   (Exempt Income) -- all three wrongly skipped, confirmed live.
+
+   Two implementations of the review's proposed fix ("prefer the untouched
+   reading whenever it already reaches a valid target") were built and each
+   re-verified with a 60,000-trial fuzz covering positive AND negative
+   numbers across every optional-trailing-field box in this app -- both
+   produced REAL silently-wrong results, not rare edge cases: whenever an
+   optional field is genuinely omitted AND the remaining value is itself a
+   thousands-grouped number (extremely common for real Indian financial
+   amounts), the untouched reading can coincidentally reach the exact same
+   valid target as the correct merged reading while assigning the wrong
+   value to the wrong field -- e.g. "Acme Corp,64,150,1262730" genuinely
+   means Gross=64,150 (merged) with ProfTax omitted, which a naive-preferring
+   shortcut silently misreads as Gross=64/Exempt=150/ProfTax=1262730. No
+   purely structural (column-count or merge-position) rule can safely tell
+   "coincidental collision" (TCS/Acme/PPF, where naive is right) apart from
+   "genuine field omission" (the fuzz-found shape above, where the merge is
+   right) -- both are structurally valid, differing only in real-world
+   plausibility a shared, field-type-agnostic helper has no way to judge.
+   This is also why round 3's own confirmed-ambiguous Portfolio case
+   ("RELIANCE,Zerodha,Equity,10,2,450,01/01/2024", naive one field short of
+   expectedCols) stays correctly ambiguous -- it's the exact same shape.
+
+   Re-running the SAME fuzz with this fix fully removed (Finding 1 alone)
+   confirmed 0/60,000 silently wrong -- the round-3 mechanism plus Finding
+   1's negative-sign support is sound on its own. Given Finding 1 is the
+   safety-blocking item and this fuzz evidence shows any naive-preference
+   shortcut reopens exactly the silent-corruption class rounds 1-3 exist to
+   close, the fix below was written, fuzz-tested, found unsafe, and REVERTED
+   rather than shipped partially-safe: resolveThousandsMerge() (below) still
+   ends with the same strict "unique.length !== 1 -> don't guess" rule round
+   3 shipped with, unchanged. TCS/Acme/PPF-shaped rows remain an honest
+   "couldn't tell where the columns split" skip -- not a new regression, just
+   not resolved. See itrgenie/PROGRESS.md's round-4 entry for the exact fuzz
+   result counts (7,462/60,000 and 2,267/60,000 wrong across the two
+   attempts) and the case for why a real fix needs per-field type/semantic
+   awareness threaded into the ambiguity check -- a materially bigger change
+   than this round's mandate, flagged there for a future session. ---- */
 
 // A COMPLETE, well-formed grouped number, anchored start-to-end -- this is
 // what keeps a merge from ever crossing a real column separator just because
 // the next field also happens to start with 1-3 digits: a span only merges
 // when EVERY piece in it has exactly the width one real grouping convention
-// requires, not merely "looks short". Optional ₹/$ prefix on the first
+// requires, not merely "looks short". Optional ₹/$ prefix, and (round 4) an
+// optional leading "-" for a genuine negative/loss figure, on the first
 // digit-group only.
-const GROUPED_WESTERN = /^(₹|\$)?\d{1,3}(,\d{3})+(\.\d+)?$/;        // 1,234,567 or 1,234,567.50
-const GROUPED_INDIAN  = /^(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,000 or 4,50,000.25
+const GROUPED_WESTERN = /^-?(₹|\$)?\d{1,3}(,\d{3})+(\.\d+)?$/;        // 1,234,567 or -1,234,567.50
+const GROUPED_INDIAN  = /^-?(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,000 or -4,50,000.25
 
 // Finds every way to merge adjacent pieces of a naive comma-split row into spans that are each a
 // complete grouped number, and accepts the result ONLY if exactly one combination of merges lands
@@ -1680,12 +1754,13 @@ const GROUPED_INDIAN  = /^(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,0
 function resolveThousandsMerge(naive, targets){
   const n = naive.length;
   // A span naive[i..j] is only a candidate merge if every piece from i up to (but not including)
-  // j is a bare 1-3 digit group (optionally ₹/$-prefixed at i), the last piece (j) is a bare 1-3
-  // digit group with an optional decimal tail, AND the whole reconstructed string is a complete
-  // match for one of the two real grouping conventions above -- not just "these look numeric".
+  // j is a bare 1-3 digit group (optionally ₹/$-prefixed, or "-"-prefixed for a genuine negative
+  // figure, at i), the last piece (j) is a bare 1-3 digit group with an optional decimal tail, AND
+  // the whole reconstructed string is a complete match for one of the two real grouping
+  // conventions above -- not just "these look numeric".
   function spanValid(i, j){
     if(i===j) return true; // a lone piece is always fine left as-is
-    for(let k=i;k<j;k++){ if(!/^(₹|\$)?\d{1,3}$/.test(naive[k])) return false; }
+    for(let k=i;k<j;k++){ if(!/^-?(₹|\$)?\d{1,3}$/.test(naive[k])) return false; }
     if(!/^\d{1,3}(\.\d+)?$/.test(naive[j])) return false;
     const joined = naive.slice(i, j+1).join(',');
     return GROUPED_WESTERN.test(joined) || GROUPED_INDIAN.test(joined);
@@ -1714,6 +1789,30 @@ function resolveThousandsMerge(naive, targets){
   })(0, []);
   if(capped) return null; // too complex to prove unambiguous -- treat like any other unresolved row
   const unique = Array.from(new Set(results.map(r=>JSON.stringify(r)))).map(s=>JSON.parse(s));
+  // ROUND 4, finding 2 -- investigated, NOT applied: the review proposed preferring the untouched
+  // reading outright whenever it already lands exactly on a valid target (fixing false-ambiguity
+  // skips like "TCS,Axis Direct,Equity,10,200,01/01/2024,2600,10/08/2026" or "Acme Corp,100,200,300"
+  // -- see itrgenie/PROGRESS.md's round-4 entry for the reproduction). Two attempted
+  // implementations (a version scoped to "no negative number in the row", then a more careful
+  // version scoped to "no competing merge reaches the row's own last piece") were each re-verified
+  // with a 60,000-trial fuzz across every optional-trailing-field box in this app (Salary, CG-MF,
+  // Portfolio, Net Worth liabilities, Exempt Income, Prior Years carry-forward) -- both produced
+  // real silently-wrong results (7,462/60,000 and 2,267/60,000 respectively), not rare edge cases:
+  // whenever an optional field is genuinely omitted AND the remaining value is itself a
+  // thousands-grouped number (extremely common for real Indian financial amounts), the untouched
+  // reading can coincidentally reach the SAME valid target as the correct merged reading while
+  // assigning the wrong value to the wrong field -- e.g. "Acme Corp,64,150,1262730" genuinely
+  // means Gross=64,150 (merged) with ProfTax omitted, not Gross=64/Exempt=150/ProfTax=1262730. No
+  // purely structural (column-count/position) rule can safely tell "coincidental collision" apart
+  // from "genuine field omission" in general -- both produce two structurally valid readings that
+  // differ only in real-world plausibility, which this shared, field-type-agnostic helper has no
+  // way to judge. Given Finding 1 above is the safety-blocking item and this fuzz evidence shows
+  // any naive-preference shortcut reopens exactly the silent-corruption class rounds 1-3 exist to
+  // close, this fix was reverted rather than shipped partially-safe -- the rows it targeted remain
+  // an honest "couldn't tell where the columns split" skip, same as before this round. Flagged for
+  // a properly-scoped future fix that would need per-field type/semantic awareness (e.g. knowing a
+  // field is a date vs an amount) threaded into the ambiguity check, which is a materially bigger
+  // change than this round's mandate.
   if(unique.length !== 1) return null; // 0 = no clean reading at all, >1 = genuinely ambiguous
   return unique[0].map(s=>s.replace(/,/g,''));
 }

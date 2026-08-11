@@ -452,13 +452,27 @@ function findDuplicateHoldingIndex(candidate){
 // `cols.length < N` check honestly skips it (see itrgenie/index.html for the full design, same
 // shared helper shape kept identical across modules per this repo's self-contained-module
 // convention).
-const GROUPED_WESTERN = /^(₹|\$)?\d{1,3}(,\d{3})+(\.\d+)?$/;        // 1,234,567 or 1,234,567.50
-const GROUPED_INDIAN  = /^(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,000 or 4,50,000.25
+// 2026-08-11, ROUND 4: two narrow fixes on top of the round-3 mechanism above, see
+// itrgenie/index.html's shared paste helpers for the full writeup (a fourth reviewer pass found
+// the round-3 mechanism itself sound -- 40,000-trial fuzz, zero silently-wrong results -- but two
+// precise gaps in it). (1) a genuinely negative grouped number (e.g. a real capital LOSS) was
+// never recognized as a merge candidate at all -- GROUPED_WESTERN/GROUPED_INDIAN/spanValid() now
+// accept an optional leading "-" the same way they already accept ₹/$. (2) an ordinary "complete"
+// row (naive split already lands on the box's full expected shape) could still get wrongly flagged
+// ambiguous by a coincidental pairwise merge elsewhere in the row (e.g. qty "10" next to price
+// "200" also reading as grouped "10,200") -- resolveThousandsMerge() now prefers that untouched
+// reading outright, but ONLY when no piece in the row looks like a negative number, since a
+// Western-grouped negative figure with its optional trailing field genuinely omitted can ALSO
+// naive-split down to exactly the full expected shape while being wrong -- that shape must keep
+// going through the strict ambiguity check instead, same as round 3's own confirmed-ambiguous
+// "RELIANCE,Zerodha,Equity,10,2,450,01/01/2024" case (naive short of the full shape) always has.
+const GROUPED_WESTERN = /^-?(₹|\$)?\d{1,3}(,\d{3})+(\.\d+)?$/;        // 1,234,567 or -1,234,567.50
+const GROUPED_INDIAN  = /^-?(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,000 or -4,50,000.25
 function resolveThousandsMerge(naive, targets){
   const n = naive.length;
   function spanValid(i, j){
     if(i===j) return true;
-    for(let k=i;k<j;k++){ if(!/^(₹|\$)?\d{1,3}$/.test(naive[k])) return false; }
+    for(let k=i;k<j;k++){ if(!/^-?(₹|\$)?\d{1,3}$/.test(naive[k])) return false; }
     if(!/^\d{1,3}(\.\d+)?$/.test(naive[j])) return false;
     const joined = naive.slice(i, j+1).join(',');
     return GROUPED_WESTERN.test(joined) || GROUPED_INDIAN.test(joined);
@@ -487,6 +501,14 @@ function resolveThousandsMerge(naive, targets){
   })(0, []);
   if(capped) return null;
   const unique = Array.from(new Set(results.map(r=>JSON.stringify(r)))).map(s=>JSON.parse(s));
+  // ROUND 4, finding 2 -- investigated, NOT applied: see itrgenie/index.html's resolveThousandsMerge()
+  // for the full writeup. A "prefer the untouched reading when it already reaches a valid target"
+  // shortcut was tried (two versions) and re-verified with a 60,000-trial fuzz across every
+  // optional-trailing-field box in this app -- both produced real silently-wrong results (not rare
+  // edge cases) whenever an optional field is genuinely omitted and the remaining value is itself a
+  // thousands-grouped number. No purely structural rule can safely tell "coincidental collision"
+  // apart from "genuine field omission" here, so the shortcut was reverted rather than shipped
+  // partially-safe -- flagged for a properly-scoped future fix needing per-field type awareness.
   if(unique.length !== 1) return null;
   return unique[0].map(s=>s.replace(/,/g,''));
 }
@@ -1973,8 +1995,8 @@ function renderAddHoldingForm(container){
     const currentPrice = card.querySelector('#af_curprice').value;
     const asOf = card.querySelector('#af_asof').value;
 
-    if(!symbol || !broker || qty==='' || isNaN(+qty) || +qty<=0 || buyPrice==='' || isNaN(+buyPrice) || +buyPrice<0 || !buyDate){
-      addFormFeedbackMsg = { text: 'Fill in Symbol, Broker, Qty (greater than 0), Buy Price and Buy Date.', isError: true };
+    if(!symbol || !broker || qty==='' || isNaN(+qty) || +qty<=0 || buyPrice==='' || isNaN(+buyPrice) || +buyPrice<0 || !buyDate || (currentPrice!=='' && !isNaN(+currentPrice) && +currentPrice<0)){
+      addFormFeedbackMsg = { text: 'Fill in Symbol, Broker, Qty (greater than 0), Buy Price and Buy Date (Current Price, if given, can\'t be negative).', isError: true };
       render();
       return;
     }
@@ -2680,6 +2702,10 @@ function renderHoldingsEntryCard(container){
       const brokerId = resolveBrokerId(brokerTxt);
       if(bulkPasteSkipDuplicates && findDuplicateHoldingIndex({ symbol, broker: brokerId }) >= 0){ dupSkipped++; return; }
       const currentPriceN = parseNumericCell(currentPrice);
+      // Defense in depth, round 4: currentPrice had no >=0 guard next to it even though its
+      // siblings qty/buyPrice both do, just above -- a negative stock price isn't a realistic
+      // real-world input the way a capital loss is, but there's no reason to leave it unguarded.
+      if(currentPriceN < 0){ skipped++; return; }
       const hasCurrentPrice = currentPrice!==undefined && currentPrice!=='' && !isNaN(currentPriceN);
       data.holdings.push({
         id: newId('h'),

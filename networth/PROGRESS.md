@@ -198,3 +198,26 @@ have the multi-optional-field structure that produces the ambiguity above. A syn
 two-independently-grouped-amount liability row with the date present
 (`Home loan (SBI),32,00,000,15/06/2026`) parses correctly. `10,20`-shaped plain rows still never
 fuse. 0 console errors after the edit (`node --check` clean).
+
+## FOURTH ROUND — negative-grouped-number safety fix (2026-08-11, same day)
+See `itrgenie/PROGRESS.md`'s matching entry for the full writeup, live-browser results, and fuzz
+evidence — this module shares the exact same `resolveThousandsMerge`/`spanValid` code shape.
+
+- **`GROUPED_WESTERN`/`GROUPED_INDIAN`/`spanValid()` now accept an optional leading `-`**, same as
+  the existing `₹`/`$` prefix support. This module's liabilities box (`Label, Value, OutstandingAsOf`,
+  expectedCols 3, minCols 2) is exactly the shape of box the review's vulnerability needs (an
+  optional trailing field) but none of its own fields are legitimately negative (a loan/liability
+  Value is validated `>= 0` already), so it was never at live risk the way Capital Gains MF's Gain
+  field was — applied for shared-code consistency, re-verified with the same 60,000-trial fuzz
+  (0/60,000 silently wrong).
+- **A "prefer the naive/untouched reading over a coincidental merge" fix was attempted and
+  reverted.** This module's own liabilities box is directly in the risk class the fuzz found real
+  corruption in (optional trailing field + thousands-grouped required amount): a synthetic case
+  like `X,15,297` (Value=15297 with OutstandingAsOf genuinely omitted, Western-grouped) would have
+  been silently misread as `Value:15, OutstandingAsOf:"297"` under the attempted shortcut — "297"
+  isn't even a valid date, but the shared parser has no per-field type awareness to catch that.
+  Reverted for safety; see `itrgenie/PROGRESS.md` for the full fuzz numbers.
+- **Full regression, live browser**: `Home loan (SBI),3,20,000` (date genuinely omitted,
+  round-3's own confirmed-ambiguous case) still comes back as the same honest skip, not reopened by
+  either fix; `Home loan (SBI),3,20,000,15/06/2026` (date present) still parses correctly and
+  unambiguously.

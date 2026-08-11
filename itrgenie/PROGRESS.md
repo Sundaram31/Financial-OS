@@ -565,3 +565,130 @@ is the deliberate cost of "safe by construction" — the alternative would be gu
 reading "looks more sensible," which is exactly the kind of silent misjudgment this whole rewrite
 exists to close off. The skip message now says why (`skipNote()`) and suggests the two ways around
 it that always work: a tab-separated paste, or a space after each comma.
+
+## FOURTH ROUND — negative-grouped-number safety fix; false-ambiguity fix investigated and reverted (2026-08-11, same day)
+A third reviewer pass confirmed the round-3 rewrite above is mechanically sound (a 40,000-trial
+fuzz against positive numbers found zero silently-wrong results) but found two gaps: one live,
+reproduced, blocking safety bug, and one reliability/ease-of-use complaint.
+
+**Finding 1 (blocking, safety) — fixed.** `GROUPED_WESTERN`/`GROUPED_INDIAN`/`spanValid()` only
+ever allowed an optional `₹`/`$` prefix on a grouped-number span, never a leading `-`. Capital
+Gains — Mutual Funds' Gain field legitimately allows negative values (a real capital LOSS), and
+that box's TDS column is genuinely optional (`expectedCols` 6, `minCols` 5) — so a real loss like
+`-1,25,000` with TDS omitted was never recognized as one merge candidate at all, and the leftover
+unmerged pieces could coincidentally still land on a valid column count, getting silently accepted
+wrong. Live-reproduced before the fix, exactly as the review described:
+```
+Input:  Parag Parikh Flexi Cap,112A,03/10/2025,95000,-1,25,000
+Saved (WRONG, silent):  {"cost":95000,"gain":-1,"tds":25000}
+```
+**Fix**: `GROUPED_WESTERN`/`GROUPED_INDIAN`/`spanValid()` now accept an optional leading `-` the
+same way they already accept `₹`/`$`, so a negative grouped number is found as one merge candidate
+like any other. Applied identically in `itrgenie/index.html`, `portfolio/index.html`,
+`goals/index.html`, `networth/index.html`.
+
+**Live-browser re-test of all 3 reviewer variants, real `itr_advisor_profile_v1` localStorage,
+headless Chromium (not just Node-level unit tests):**
+| Input | Before this fix | After this fix |
+|---|---|---|
+| `...,95000,-1,25,000` (Indian, no TDS) | Silently saved `gain:-1, tds:25000` (wrong) | **Honest skip** — `cgMFRows: []`, feedback explains "couldn't tell where the columns split" |
+| `...,95000,-125,000` (Western, no TDS) | Silently saved `gain:-125, tds:0` (1000x wrong) | **Honest skip** |
+| `...,95000,-1,25,000,500` (Indian, TDS present) | Silently saved `gain:-1, tds:25000500` (fabricated TDS) | **Honest skip** |
+
+None of the three resolve to the fully-correct parse (`gain:-125000, tds omitted/500`) — each turns
+out to be genuinely, structurally ambiguous once the negative merge is recognized as a candidate
+(worked through by hand and confirmed against the live DFS output: more than one distinct valid
+merge combination reaches a valid column-count target, e.g. for the with-TDS case, `"-1,25,000"` +
+`TDS=500` competes with `Gain="-1"` + `TDS="25,000,500"` — both structurally valid, differing only
+in real-world plausibility this shared, field-type-agnostic helper has no way to judge). This
+matches the pre-stated acceptance bar exactly: "parses correctly, or — if genuinely still
+ambiguous — is honestly skipped, never silently wrong." All three moved from **silently wrong** to
+**honestly skipped** — a real, confirmed safety improvement, even though not a full resolution.
+
+**Also done (defense in depth, not live-reproduced as a real bug)**: Portfolio's `currentPrice`
+field lacked the `>= 0` guard its sibling numeric fields (`qty`, `buyPrice`) both have right next
+to it, in both entry paths — the bulk-paste handler and the guided "Add a holding" form's submit
+handler. Added to both, live-tested: a negative Current Price is now rejected with a clear message
+on both paths (`portfolio_data_v1` stays empty), matching the existing `qty`/`buyPrice` pattern.
+
+**Finding 2 (reliability) — investigated, a fix was attempted, then reverted after fuzzing proved
+it unsafe.** The review's reproduction was real: an ordinary "complete" row (naive comma-split
+already lands exactly on a box's full expected column count) could still get wrongly flagged
+ambiguous by a coincidental adjacent pair that also happens to look like a grouped number once
+joined — e.g. `TCS,Axis Direct,Equity,10,200,01/01/2024,2600,10/08/2026` (a share qty "10" next to
+a sub-1000 price "200", reading as coincidental "10,200"), `Acme Corp,100,200,300` (Salary), `PPF
+interest,100,200` (Exempt Income) — all three wrongly skipped, confirmed live before any fix.
+
+Two implementations of the review's proposed fix ("prefer the untouched/naive reading outright
+whenever it already reaches a valid target") were built and each re-verified with a 60,000-trial
+fuzz (adapted from the round-3 reviewer's own methodology, this time covering positive AND negative
+numbers across every optional-trailing-field box in this app — Salary, Capital Gains MF, Portfolio,
+Net Worth liabilities, Exempt Income, Prior Years carry-forward):
+- **v1** (skip the shortcut only when the row contains a negative-looking piece): **7,462 of
+  60,000 trials (12.4%) silently wrong.**
+- **v2** (skip the shortcut only when a competing merge reaches the row's own last piece —
+  "tail-anchored"): **2,267 of 60,000 (3.8%) still silently wrong.**
+
+Both failure modes are real, not synthetic noise: whenever an optional field is genuinely omitted
+AND the remaining value is itself a thousands-grouped number — extremely common for real Indian
+financial amounts — the untouched/naive reading can coincidentally reach the exact same valid
+target as the correct merged reading while assigning the wrong value to the wrong field. Example
+caught by the fuzz: `Acme Corp,64,150,1262730` genuinely means `Gross:64150` (merged, "64,150")
+with `ProfTax` omitted — not `Gross:64, Exempt:150, ProfTax:1262730` as a naive-preferring shortcut
+would silently produce. No purely structural (column-count or merge-position) rule can safely tell
+"coincidental collision" (TCS/Acme/PPF, where naive is right) apart from "genuine field omission"
+(this fuzz-found shape, where the merge is right) — both are structurally valid, differing only in
+real-world plausibility that a shared, field-type-agnostic parsing helper has no way to judge.
+Re-running the SAME fuzz with Finding 2 fully removed (Finding 1 alone) confirmed **0 of 60,000
+silently wrong** — the round-3 mechanism plus Finding 1's negative-sign support is sound on its own.
+
+Given Finding 1 is the explicitly safety-blocking item and this fuzz evidence shows any
+naive-preference shortcut reopens exactly the silent-corruption class rounds 1–3 exist to close,
+**Finding 2's fix was reverted rather than shipped partially-safe.** TCS/Acme/PPF-shaped rows
+remain an honest "couldn't tell where the columns split" skip — same as before this round, not a
+new regression, just not resolved. This is flagged here as a genuinely open item: a real fix would
+need per-field type/semantic awareness (e.g. knowing a specific column is a date vs. an amount)
+threaded into the ambiguity check, which is a materially bigger change than a "narrow, precisely
+diagnosed fix" — a future session should scope it properly rather than attempt it as a quick patch.
+
+**Full regression re-run, live browser, confirming neither fix (the one kept, or the one reverted)
+broke anything previously working:**
+- `Acme Corp,1200000,50000,2400` (Salary, plain) — still correct.
+- `Acme Corp,12,00,000,50,000,2,400` (Salary, Indian-grouped, round-2/3 case) — still correct.
+- `Apr-2025,1,00,000,40,000,25,000,Mumbai` (HRA, round-2/3 case) — still correct.
+- `RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026` (Portfolio, all 8 fields) — still
+  correct (`buyPrice:2450`).
+- `RELIANCE,Zerodha,Equity,10,2,450,01/01/2024` (Portfolio, optional fields genuinely omitted,
+  round-3's own confirmed-ambiguous case) — still an honest skip, exactly as round 3 left it. This
+  one mattered specifically: it's structurally the same shape Finding 2 would have broken (naive
+  reading landing one field short of the max, competing with a genuine merge) — confirming the
+  revert didn't quietly leave a half-applied version of the unsafe shortcut anywhere.
+- `Home loan (SBI),3,20,000` (Net Worth liability, date omitted, round-3's confirmed-ambiguous
+  case) — still an honest skip.
+- Tab-delimited paste (Salary) — still bypasses the comma-collapse machinery entirely, unaffected.
+- `10,20,30,40` (generic, no complete grouped-number span) — still never fuses.
+- Goals `"PPF account,450000"` and `"450000,PPF account"` — both column orders still resolve to
+  the same `{label, value}`.
+- Capital Gains — Equity: an unparseable qty cell (`Muthoot Finance,ABC,21/07/2022,105.14,...`) is
+  still honestly skipped, not accepted as `NaN`.
+- Portfolio's "paste one line to fill in" quick-fill still visibly outlines the Broker dropdown
+  (rust, 2px) when a pasted broker name doesn't match any account.
+
+**5 additional paste boxes spot-checked live, beyond Salary/HRA/CG-MF, with realistic no-space
+multi-amount rows** (per the review's request for broader coverage given how many rounds this has
+taken): Clubbing of Income (`Ananya,investment,12,00,000` → `1200000`), Crypto/VDA
+(`Bitcoin,15/06/2025,1,00,000,1,50,000` → cost `100000`, sale `150000`), Other Sources
+(`Axis Bank NRO,SB,1,81,100` → `181100`), Business & Professional Income/F&O
+(`AARTIIND-FUTSTK-23Feb2023,-30,599.62` → `-30599.62`, a real negative-decimal loss figure,
+directly exercising Finding 1's fix), Alternate Minimum Tax
+(`2023-24,4,50,000,20,000` → `generated:450000, utilized:20000`) — all five parsed correctly,
+zero console errors.
+
+**Testing method**: real headless Chromium (`@sparticuz/chromium` + `playwright-core`, since the
+sandboxed build environment has no direct internet access to Playwright's own browser-download CDN
+— its npm-published tarball bundles a real Linux binary, downloaded through the allowed npm
+registry instead) driving the actual pages at `http://localhost:8977/`, saving to real
+`localStorage`, reading the saved data back out, not a Node-level re-implementation. Screenshots
+taken of the CG-MF honest-skip state and the Portfolio quick-fill broker-flag. Full 4-module smoke
+pass (itrgenie/portfolio/goals/networth) at both 375px and 1280px confirmed 0 console/page errors
+after all changes.

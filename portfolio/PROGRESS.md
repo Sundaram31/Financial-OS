@@ -1686,3 +1686,36 @@ fuse. `node --check` clean after every edit; 0 console errors expected (code-lev
 the extracted parsing functions, not a fresh live-browser pass this round — see the
 "third round" verification note in `itrgenie/PROGRESS.md` for the shared testing methodology used
 across all four touched modules).
+
+## FOURTH ROUND — negative-grouped-number safety fix; currentPrice guard added (2026-08-11, same day)
+See `itrgenie/PROGRESS.md`'s matching entry for the full writeup, live-browser test results, and
+fuzz evidence — this module shares the exact same `resolveThousandsMerge`/`spanValid` code shape.
+
+- **`GROUPED_WESTERN`/`GROUPED_INDIAN`/`spanValid()` now accept an optional leading `-`** (same as
+  the existing `₹`/`$` prefix support), so a genuinely negative grouped number is found as a merge
+  candidate instead of never being considered. Portfolio itself has no direct negative-typed field
+  in its bulk-paste shape (Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf —
+  none of which legitimately go negative), so this specific box was never at live risk the way
+  Capital Gains MF's Gain field was — applied here purely for shared-code consistency across all 4
+  touched files, re-verified with the same 60,000-trial fuzz (0/60,000 silently wrong).
+- **`currentPrice` now has the same `>= 0` guard its sibling numeric fields (`qty`, `buyPrice`)
+  already had right next to it**, in both entry paths: the bulk-paste handler (`#h_btn`'s onclick)
+  and the guided "Add a holding" form's submit handler (`#af_add_btn`'s onclick). Not a
+  live-reproduced bug — a negative stock price isn't a realistic real-world input the way a capital
+  loss is — but there was no reason to leave it unguarded when every sibling field is. Live-tested:
+  a negative Current Price on either path is now rejected with a clear message, `portfolio_data_v1`
+  stays unchanged.
+- **A "prefer the naive/untouched reading over a coincidental merge" shortcut was attempted and
+  reverted** (this module's own bulk-add box was one of the reviewer's reproduction cases —
+  `TCS,Axis Direct,Equity,10,200,01/01/2024,2600,10/08/2026`, a share qty "10" next to a sub-1000
+  price "200" wrongly flagged ambiguous). A 60,000-trial fuzz proved the shortcut reopens real
+  silent corruption for other rows in this exact box (e.g. a genuinely-omitted AsOf/CurrentPrice
+  combined with a thousands-grouped Qty or BuyPrice can coincidentally naive-split to the same
+  column count as a fully-populated row). Reverted for safety — the TCS-shaped row remains an
+  honest skip, same as before this round. See `itrgenie/PROGRESS.md` for the full fuzz numbers and
+  reasoning.
+- **Full regression, live browser**: `RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026`
+  (all 8 fields) still parses correctly (`buyPrice:2450`); the same row with CurrentPrice/AsOf
+  omitted still comes back as the same honest skip round 3 confirmed (not reopened by either
+  fix); the Broker-dropdown mismatch flag on quick-fill still shows (rust outline, 2px) for an
+  unrecognized broker name.
