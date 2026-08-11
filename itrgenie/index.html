@@ -2300,8 +2300,8 @@ const HRAModule = {
     addCard.className = 'card';
     addCard.innerHTML = `
       <h3>Monthly figures</h3>
-      <p class="helptext" style="margin-bottom:8px;">One per line: <code>Month, Basic+DA, HRA received, Rent paid, City(metro/nonmetro)</code></p>
-      <textarea id="hra_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="Apr-2025, 55000, 25000, 22000, metro&#10;May-2025, 55000, 25000, 22000, metro"></textarea>
+      <p class="helptext" style="margin-bottom:8px;">One per line: <code>Month, Basic+DA, HRA received, Rent paid, City</code> — type the real city (Mumbai, Bengaluru, ...) or just "metro"/"nonmetro".</p>
+      <textarea id="hra_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="Apr-2025, 55000, 25000, 22000, Mumbai&#10;May-2025, 55000, 25000, 22000, Mumbai"></textarea>
       <button class="btn small" id="hra_paste_btn" style="margin-top:8px;">Parse &amp; add</button>
       <div id="hra_feedback" class="helptext" style="margin:6px 0;"></div>
       <div id="hra_rows"></div>
@@ -2367,7 +2367,21 @@ const HRAModule = {
         const [month, basicDA, hra, rent, city] = cols;
         if(!month || isNaN(toNum(basicDA)) || isNaN(toNum(hra)) || isNaN(toNum(rent))){ skipped++; return; }
         if(toNum(basicDA)<0 || toNum(hra)<0 || toNum(rent)<0){ skipped++; return; }
-        const cityNorm = /metro/i.test(city) && !/non/i.test(city) ? 'metro' : 'nonmetro';
+        // Reviewer-found bug (2026-08-11): this used to only recognize the literal word "metro" in
+        // the City column, so a real metro city name (e.g. "Mumbai") silently fell through to
+        // 'nonmetro' -- a genuine, silently-understated Sec 10(13A) exemption (40% instead of the
+        // correct 50%), not a display issue. The metro-city list is a closed, known set this filing
+        // year (HRAModule.ruleSet.metroCities) -- not ambiguous the way the paste-column-merging
+        // problem elsewhere in this file is, since the rule itself defines every OTHER city as
+        // non-metro. Fix: match the real city name against that list first (case-insensitive,
+        // substring match so "Mumbai" / "mumbai city" both hit), fall back to the literal
+        // metro/nonmetro keyword for anyone still using that placeholder format, and only skip the
+        // row outright when the City field is blank (nothing to classify from).
+        const cityRaw = (city||'').trim().toLowerCase();
+        if(!cityRaw){ skipped++; return; }
+        const isMetroCityName = HRAModule.ruleSet.metroCities.some(c=>cityRaw.includes(c));
+        const isMetroKeyword = /metro/i.test(cityRaw) && !/non/i.test(cityRaw);
+        const cityNorm = (isMetroCityName || isMetroKeyword) ? 'metro' : 'nonmetro';
         p.hraRows.push({month, basicDA:toNum(basicDA), hra:toNum(hra), rent:toNum(rent), city:cityNorm});
         added++;
       });

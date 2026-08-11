@@ -692,3 +692,55 @@ registry instead) driving the actual pages at `http://localhost:8977/`, saving t
 taken of the CG-MF honest-skip state and the Portfolio quick-fill broker-flag. Full 4-module smoke
 pass (itrgenie/portfolio/goals/networth) at both 375px and 1280px confirmed 0 console/page errors
 after all changes.
+
+## Post-round-4 cleanup (2026-08-11, same day) — stale comment fix + real HRA city bug
+
+A fourth `financial-os-reviewer` pass confirmed round 4 safe to push (80,000+ independent fuzz
+trials, zero silent corruption) and gave the final go-ahead — but surfaced two things worth fixing
+while already in this code:
+
+1. **Stale/contradictory round-4 comment in `goals/index.html`, `networth/index.html`,
+   `portfolio/index.html`** (not `itrgenie/index.html`, which already had the correct wording). The
+   comment above `resolveThousandsMerge()` in those three files claimed Finding 2's fix ("prefer the
+   untouched reading, but only when no piece looks negative") was actually applied — it wasn't; it
+   was investigated, fuzz-tested unsafe, and reverted, same as this file's own accurate comment
+   already said. Runtime behavior was correct and identical across all four files (confirmed live by
+   the reviewer) — this was a documentation-only bug, but a real one, since a future session's only
+   memory of *why* a design choice was made is what's written down, and the wrong comment sat more
+   prominently than the right one. Fixed by replacing the stale block in all three files with the
+   itrgenie-accurate wording.
+
+2. **Real, pre-existing, out-of-scope bug found by the same review: HRA's City field silently
+   defaulted to "nonmetro" for any real city name.** `cityNorm` only ever checked whether the pasted
+   text literally contained the word "metro" — so someone typing their actual city ("Mumbai",
+   "Chennai", ...) instead of the placeholder keyword got silently classified nonmetro, understating
+   their Sec 10(13A) exemption at the 40% rate instead of the correct 50%, with zero warning. This
+   predates all four rounds of the paste-safety work above (confirmed via `git log -p` on the
+   `cityNorm` line) — not a regression from any of them, but a real, live, silently-wrong-number bug
+   of exactly the kind this whole effort exists to catch, so fixed immediately rather than left as a
+   dangling "known gap" nobody circles back to.
+
+   The fix is narrower than it might look: `HRAModule.ruleSet.metroCities` (`['delhi','mumbai',
+   'kolkata','chennai']`) already existed and is already used correctly by the *computation* — the
+   *parser* just never checked a real city name against it. This isn't the same class of "genuinely
+   ambiguous" problem the paste-merge logic wrestles with elsewhere in this file: the metro-city list
+   is a closed, known set for this filing year, and the tax rule itself defines every OTHER city as
+   non-metro — so there's no ambiguity to preserve, just a real name to recognize. `cityNorm` now
+   matches the raw city text against `metroCities` first (case-insensitive substring, so "Mumbai" and
+   "mumbai city" both hit), falls back to the literal `metro`/`nonmetro` keyword for existing users of
+   that placeholder format, and only skips the row when the City field is genuinely blank. Updated the
+   box's helptext/placeholder to show a real city name instead of the bare keyword, so new users are
+   naturally guided to the safer input shape.
+
+   **Verified live** (headless Chromium, real `itr_advisor_profile_v1` localStorage): `Apr-2025,
+   55000, 25000, 22000, Mumbai` → `city:"metro"` (previously silently `"nonmetro"`). Regression:
+   `Bengaluru` → `nonmetro` (correct — this module's own description text already states Bengaluru/
+   Hyderabad/Pune are 40% this filing year, and the fix doesn't change that), literal `metro`/
+   `nonmetro` keywords still classify correctly, `Chennai` → `metro`, and a blank City field is
+   honestly skipped (`"Added 0 month(s), skipped 1."`) rather than silently defaulted. Zero console
+   errors.
+
+Files touched: `/home/user/Financial-OS/itrgenie/index.html` (HRA parser + helptext/placeholder),
+`/home/user/Financial-OS/goals/index.html`, `/home/user/Financial-OS/networth/index.html`,
+`/home/user/Financial-OS/portfolio/index.html` (comment corrections only, no runtime change in
+those three).
