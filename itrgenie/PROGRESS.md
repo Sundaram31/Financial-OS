@@ -244,3 +244,47 @@ retracted as unconfirmed. Neither was caught until a deliberate re-check.
 - Browser localStorage key intentionally kept as `itr_advisor_profile_v1`
   (pre-rename name) so existing saved user data isn't lost by the rename —
   don't change this key without a migration step.
+
+## Updated 2026-08-11 — App-wide font-size/contrast/consistency pass
+Direct, blunt user feedback: font sizing hard to see "in places," color scheme needs
+improvement, across the whole app — not a single-module fix, and this had been deferred as
+out-of-scope in earlier review cycles this session. This pass is the exhaustive fix, covering
+every module including this one.
+
+**Raised every sub-13px `font-size` declaration in this file to 13px** — a full grep sweep of
+the `<style>` block plus every inline `style="font-size:...px"` in the render functions found 32
+declarations below the visual-design skill's stated mobile-readability floor (13-14px), all now
+at 13px:
+- `.brand .sub` 11px→13px, `nav.rail .rail-label` 10px→13px, `.panel-header .eyebrow`
+  11px→13px, `.field label` 11px→13px, `.btn` 12px→13px, `.btn.small` 11px→13px,
+  `table.day-table th` 11.5px→13px, `.basis code` 11.5px→13px, `.tag` 10px→13px,
+  `.checklist-item .doc-fallback` 12.5px→13px, `.checklist-item .doc-toggle` 11px→13px,
+  `.helptext` 12.5px→13px.
+- All 17 bulk-paste `<textarea>` inline styles (one per module — Prior Years, Salary, HRA,
+  Clubbing ×2, Capital Gains ×2, VDA, Other Sources ×2, Business F&O, Foreign Assets, House
+  Property rent, Exempt Income, AMT credit, Assets & Liabilities) 12px→13px.
+- The guided-walkthrough "Step X of Y" footer, the 234C interest breakdown detail lines, and the
+  Tax Saving Advisor's tip body paragraph: 11-12.5px→13px.
+
+**Supersedes a 2026-08-09 decision** (see the "Font sizes increased" entry above): that pass
+explicitly kept field labels small on the reasoning that "they're uppercase category tags, not
+body text." Per this session's explicit, repeated instruction that labels are in scope for the
+readability floor regardless of styling (uppercase/letter-spaced or not), `.field label` and
+`.panel-header .eyebrow` are now 13px like everything else — the letter-spacing/uppercase
+treatment that visually distinguished them as labels is unchanged, only the size.
+
+**Cross-module consistency**: this file's `--bg/--panel/--panel-2/--line/--text/--muted/--gold/
+--gold-dim/--green/--rust` hex values (both themes) were compared byte-for-byte against every
+other module — already identical, no drift found here.
+
+**Contrast**: `--muted` (`#9BA0A8` dark, `#6B6660` light) against `--bg`/`--panel`/`--panel-2` in
+both themes computed at 6.5:1–7.4:1 (dark) and 4.9:1–5.7:1 (light) — both comfortably pass WCAG AA
+(4.5:1 normal text) already; no change needed.
+
+**Tested with real headless-Chromium (Playwright)**: every visible text node's computed
+`font-size` swept at 375px and 1280px, both themes, on the Dashboard *and* by clicking through
+all 25 rail items (every module + Document checklist + Help) — 0 nodes under 13px anywhere, 0
+console errors. `--muted`-colored text elements' actual rendered contrast (via `getComputedStyle`,
+not assumed hex) computed against their real composited background — 0 pairs under 4.5:1.
+Functional regression: guided walkthrough, rail navigation, and the AIS/CSV upload paths
+re-verified working (no JS logic touched — CSS/inline-style value changes only).

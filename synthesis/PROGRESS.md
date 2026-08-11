@@ -357,10 +357,10 @@ touched.
   — disclosed in-UI — and doesn't model an income-shock scenario (delayed
   contracts, lump-sum gaps). That's a separate, later Life Confidence
   pillar item ("Income-shock stress test"), not built here.
-- A generic `.tag` element (Goals card's "No target set", Debt card's loan-type tags, Insurance
-  card's income-adequacy tag) renders at 12px on mobile — below this app's 13px floor. Pre-existing,
-  found (not fixed) during the 2026-08-11 negative-return fix's mobile spot-check; unrelated to that
-  fix, worth a small dedicated pass.
+- ~~A generic `.tag` element (Goals card's "No target set", Debt card's loan-type tags, Insurance
+  card's income-adequacy tag) renders at 12px on mobile — below this app's 13px floor.~~ **Fixed
+  2026-08-11** in the app-wide font-size/contrast/consistency pass (see dated entry below) — `.tag`
+  is now 13px in both the desktop base rule and the mobile override.
 - `projectGoal()` in this file (used only by the Goals card) is still the
   pre-2026-08-10 stale ordinary-annuity formula — a real, known drift from
   `goals/index.html`'s own annuity-due fix, carried forward again from the
@@ -378,3 +378,33 @@ touched.
 - Guided single-field form for the one piece of manual entry (annual
   income), consistent with how Insurance Tracker's own context fields work
   — no paste/CSV needed for a single scalar value.
+
+## Updated 2026-08-11 — App-wide font-size/contrast/consistency pass
+Direct, blunt user feedback: font sizing hard to see "in places," color scheme needs
+improvement, across the whole app — flagged repeatedly this session (including this file's own
+"Known gaps" list, twice) and deferred as out-of-scope until now. This pass closes both of this
+file's own dangling `.tag` gap entries (see the struck-through bullet above) and does the same
+fix everywhere else in the app.
+
+**17 sub-13px `font-size` declarations raised to 13px** (full grep sweep, not just the
+already-flagged `.tag`): `.brand .sub` 11px→13px, `.panel-header .eyebrow` 11px→13px,
+`.card .card-sub` 12px→13px, `.field label` 11px→13px, `.notice` 12.5px→13px, `.btn` 12px→13px,
+`.btn.small` 11px→13px, `.stat-tile .stat-label` 11px→13px, `.stat-tile .stat-note` 11.5px→13px,
+`.helptext` 12.5px→13px, `.breakdown-bar .seg` 10px→13px, `.legend .item` 12px→13px, `.tag`
+10px→13px (desktop) and 12px→13px (the mobile override — the specific gap this file's own Known
+gaps list had flagged twice), `.item-row-sub` 12px→13px, plus the mobile-only `.panel-header
+.eyebrow` 11.5px→13px and `.brand .sub` 12px→13px overrides.
+
+**Cross-module consistency**: `--bg/--panel/--panel-2/--line/--text/--muted/--gold/--gold-dim/
+--green/--rust` hex values (both themes) diffed byte-for-byte against every other module —
+already identical here, no drift found.
+
+**Contrast**: `--muted` against `--bg`/`--panel`/`--panel-2` computed (not eyeballed) — 6.5–7.4:1
+dark, 4.9–5.7:1 light (this file's `--panel-2` case is the tightest margin of any module at
+4.91:1, still clears WCAG AA's 4.5:1 by a real margin). No change needed.
+
+**Tested with real headless-Chromium (Playwright)**: full DOM text-node sweep at 375px and
+1280px, both themes, on initial load (empty-state, since this page has no data of its own — it
+reads every other module's `localStorage`) — 0 nodes under 13px, 0 console errors. No JS logic
+touched, CSS values only, so the read-only cross-module rendering this page depends on is
+unaffected.

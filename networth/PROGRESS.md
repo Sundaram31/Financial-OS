@@ -87,3 +87,29 @@ guessing which one it is.
 - Shared theme key with ITRGenie: `itrgenie_theme`.
 - Own data storage key: `networth_data_v1` (separate from ITRGenie's profile,
   since net worth spans across all financial pillars, not just tax).
+
+## Updated 2026-08-11 — App-wide font-size/contrast/consistency pass
+Part of an exhaustive, whole-app pass (every module touched the same day) responding to direct
+user feedback that font sizing is hard to see and the color scheme needs improvement — not a
+single-module concern.
+
+**9 sub-13px `font-size` declarations raised to 13px** (full grep sweep of the `<style>` block,
+not a spot-check): `.brand .sub` 11px→13px, `.panel-header .eyebrow` 11px→13px, `.field label`
+11px→13px, `.btn` 12px→13px, `.btn.small` 11px→13px, `table.day-table th` 11.5px→13px,
+`.result-box .helptext`/`.helptext` 12.5px→13px, `.breakdown-bar .seg` 10px→13px (the
+percentage label inside each asset-allocation bar segment — verified with real sample data via
+Playwright that segments too narrow for the text still degrade gracefully via the pre-existing
+`overflow:hidden`, same as before, just at a different width threshold), `.legend .item` 12px→13px.
+
+**Cross-module consistency**: `--bg/--panel/--panel-2/--line/--text/--muted/--gold/--gold-dim/
+--green/--rust` hex values (both themes) diffed byte-for-byte against every other module —
+already identical here, no drift found.
+
+**Contrast**: `--muted` against `--bg`/`--panel`/`--panel-2` computed (not eyeballed) at
+6.5–7.4:1 dark, 4.9–5.7:1 light — already passes WCAG AA (4.5:1) in both themes, no change needed.
+
+**Tested with real headless-Chromium (Playwright)**: full DOM text-node sweep at 375px and 1280px,
+both themes, on initial load and after populating a category row via the paste-and-parse flow
+(`Axis Direct equity+MF, 850000` → Investments) — 0 nodes under 13px, 0 console errors. Functional
+regression: paste-and-parse add flow re-verified working end-to-end (row renders, totals update) —
+no JS logic touched, CSS values only.

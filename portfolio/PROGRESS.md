@@ -1495,3 +1495,63 @@ changes directly: the reviewer's exact repro now shows "1 USD holding(s) not inc
 — set the USD → INR rate further down to fold Vested-US in," and a separately-constructed
 top-2-flag-triggering scenario confirms the reworded "INR-convertible holdings" text renders
 correctly when the flag actually fires.
+
+## Updated 2026-08-11 — App-wide font-size/contrast/consistency pass (closes out the earlier mobile UX pass's stragglers)
+Direct, blunt user feedback: font sizing is hard to see "in places" and the color scheme needs
+improvement, across the whole app, not one module — flagged repeatedly this session and deferred
+as out-of-scope until now. This is the exhaustive, whole-app fix; this module got the most
+individual changes since it has the most UI surface.
+
+The 2026-08-09 UX pass (see "Layout fonts too small to read on mobile" above) established the
+13px floor pattern and fixed most of the module, but a full fresh grep sweep of the `<style>`
+block (not assuming the earlier pass was complete) found 30 declarations still under 13px — both
+in the desktop base rules (which that pass didn't touch, only the `@media (max-width:760px)`
+block) and a few mobile overrides that were bumped previously but not all the way to 13px:
+
+- Desktop base, previously untouched: `.brand .sub` 11px→13px, `.panel-header .eyebrow`
+  11px→13px, `.field label` 11px→13px, `.btn` 12px→13px, `.btn.small` 11px→13px,
+  `table.day-table th` 11px→13px, `table.day-table input[type=number/date]` 12.5px→13px,
+  `.cell-muted` 12.5px→13px, `.stat-tile .stat-label` 11px→13px, `.helptext` 12.5px→13px,
+  `.breakdown-bar .seg` 10px→13px, `.legend .item` 12px→13px, `.tag` 10px→13px, `.acct-chip`
+  12.5px→13px, `.acct-chip .cur` 10px→13px, `.btn.tiny` 10px→13px, `.notice` 12.5px→13px,
+  `.match-tag` 10px→13px, `details.collapsible summary .summary-hint` 12px→13px, plus two inline
+  styles (an accounts-settings section label, a holding's "manual only" note, a checkbox label).
+- Mobile media-query overrides that had been bumped in the 2026-08-09 pass but landed below the
+  floor anyway: `.panel-header .eyebrow` 11.5px→13px, `.brand .sub` 12px→13px, `.field label`
+  12.5px→13px, `.btn.tiny` 12px→13px, `.stat-tile .stat-label` 11.5px→13px, `.acct-chip .cur`
+  11px→13px, `.tag` 11px→13px, `table.day-table td[data-label]::before` 11.5px→13px.
+
+`.tag` (ST/LT gain classification, holding-status badges) and `.breakdown-bar .seg` (the
+percentage label inside asset-allocation bar segments) were deliberately raised to the full 13px
+floor rather than kept as a smaller "badge exception" — both carry real information (tax
+treatment, allocation %), not decoration, and the app-wide instruction was to err toward raising.
+Verified visually (Playwright screenshot with a real holding + populated allocation bar in both
+themes) that the larger text doesn't overflow the pill/segment shapes; narrow bar segments that
+can't fit the label still degrade gracefully via the pre-existing `overflow:hidden` — same
+fallback behavior as before, just at a different width threshold.
+
+**Cross-module consistency**: `--bg/--panel/--panel-2/--line/--text/--muted/--gold/--gold-dim/
+--green/--rust` hex values (both themes) diffed byte-for-byte against every other module —
+already identical, no drift found here. One hardcoded, non-variable color noted but *not*
+changed (out of scope — not a `--variable` consistency issue): `.match-tag.isin` uses a one-off
+blue (`#7EA8C9`) not part of the gold/rust/green accent system, pre-existing from this module's
+CAS-import work. Flagging for whoever next touches the palette, not resolved here.
+
+**Contrast**: `--muted` against `--bg`/`--panel`/`--panel-2` computed at 6.5–7.4:1 dark, 4.9–5.7:1
+light — already passes WCAG AA (4.5:1) in both themes, no change needed. Separately noticed (not
+in this task's explicit scope, not changed): `--rust` used as *text* color (not just
+border/background) for warning/error copy — e.g. live-price-fetch-failed notices, form validation
+errors — computes to 3.93:1 against dark `--bg`, below AA's 4.5:1 normal-text threshold (passes
+the 3:1 large-text threshold only). This is shared across every module that uses `--rust` for
+inline warning text, not portfolio-specific, and fixing it means picking a new accessible-but-
+still-"rust" hex for a color also used for borders/icons/tags elsewhere — a real design decision,
+not something to guess at here. Flagged for a future session, not silently resolved.
+
+**Tested with real headless-Chromium (Playwright)**: full DOM text-node sweep at 375px and
+1280px, both themes, across all 4 tabs (Dashboard/Holdings/Gains & What-If/Accounts & Settings)
+with every `<details>` expanded — 0 nodes under 13px anywhere, 0 console errors. Also swept after
+populating real data: added a holding via the guided "Add a holding" form (INFY, qty 10, buy
+₹1500, current ₹1800) — holding card, gain/loss figures, and the "Add a holding" form itself all
+render at ≥13px with the pill/badge shapes intact in both themes at both viewports. Functional
+regression: guided "Add a holding" form re-verified end-to-end (feedback message, holding appears
+in the list, value/gain computed correctly) — no JS logic touched, CSS/inline-style values only.

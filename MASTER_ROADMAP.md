@@ -45,6 +45,24 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
   (ITR-U date, belated/revised split, ITR-3/4 due date), 6 gaps flagged.
 - 2026-08-03: Migrated from Google Drive to GitHub (Sundaram31/Financial-OS)
   + GitHub Pages for a live site — eliminates manual upload/delete cycle.
+- 2026-08-11: App-wide font-size/contrast/consistency pass across every module
+  (itrgenie, networth, goals, loans, insurance, portfolio, synthesis) plus the
+  root landing page, in response to direct, repeated user feedback that had
+  been deferred in earlier sessions. Establishes 13px as the enforced
+  app-wide minimum `font-size` for all reading-flow text (labels, table
+  cells, helptext, buttons, badges) — not just mobile, both viewports —
+  going forward; new modules/screens should not introduce anything smaller.
+  Confirmed all shared `--bg/--panel/--panel-2/--line/--text/--muted/--gold/
+  --gold-dim/--green/--rust` hex values are already consistent across every
+  module (one drift found and fixed: the root landing page's own `--muted`
+  and missing tokens). `--muted` contrast checked and already passes WCAG AA
+  in both themes everywhere. Two things found but deliberately not fixed
+  (flagged, not guessed at): `--rust` used as inline warning/error *text*
+  falls short of AA when read as normal-size text (a design decision about a
+  multi-purpose accent color, not this pass's call to make), and the root
+  landing page has no light theme at all (a feature gap, not a sizing fix).
+  See `INDEX.md`'s "App-wide pass" entry and each module's own `PROGRESS.md`
+  for the full before→after list.
 
 ## How to run a session against this roadmap
 1. Say "check the Financial-OS repo" — Claude reads this file directly from
