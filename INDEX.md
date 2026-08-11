@@ -15,10 +15,10 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 ## Module status at a glance
 | Module | Path | Status | Last touched |
 |---|---|---|---|
-| ITRGenie | `/itrgenie/` | 27 modules, AIS auto-import (now accepts CSV or Excel) + Prior Years fix; app-wide font-size/contrast pass (2026-08-11); bulk-paste boxes (Salary/HRA/Capital Gains/MF/VDA/Other Sources/F&O/Foreign Assets/Rent/Exempt Income/AMT/Schedule AL) made tolerant of currency symbols, thousands commas, and stray header rows (2026-08-11) | 2026-08-11 |
-| Portfolio Tracker | `/portfolio/` | Live, guided form + paste/CSV/Excel entry + CAS (NSDL/CDSL) PDF import (dedup/refresh-safe, lazy-loaded libs) + live prices (Yahoo + Stooq no-setup, optional Twelve Data key) — holdings, allocation, performance across 4 accounts + sold-lot/realized-gains tracking (ST/LT classification, capital-gains feed export to ITRGenie) + "Simulate a sale" what-if tax calculator (Sec 111A/112A, pooled ₹1,25,000 LTCG exemption, MF/foreign-holding excluded with honest explanation) — closes roadmap item 4; mobile UX pass done; reorganized into Dashboard/Holdings/Gains & What-If/Accounts & Settings tabs; Dashboard adds a Top Gainers & Losers widget and a plain-language concentration/diversification flag (both honesty-gated, no fabricated numbers), sold-lots table collapses to 10 most recent past a threshold, Accounts/FX/Live-price settings rebalanced onto the Accounts & Settings tab; app-wide font-size/contrast pass (2026-08-11) closed out the remaining sub-13px stragglers this module's own 2026-08-09 UX pass missed; bulk paste made currency-tolerant + guided "Add a holding" form gained a "paste one line to fill in" quick-fill option (2026-08-11) | 2026-08-11 |
-| Net Worth Dashboard | `/networth/` | Live, manual entry + paste/CSV/Excel file upload; app-wide font-size/contrast pass (2026-08-11); category-card paste tolerant of currency symbols, commas, and either column order (2026-08-11) | 2026-08-11 |
-| Goals | `/goals/` | Live, manual entry + paste/CSV/Excel file upload — inflation-adjusted target calculator, risk-profile SIP presets (Debt/Balanced/Equity), annuity-due SIP math, second-pass reviewer fixes; Emergency fund adequacy calculator added (Life Confidence pillar item 1 — monthly-expenses + months-wanted inputs, recommended target, "months covered" stat with red/amber/green tiering); app-wide font-size/contrast pass (2026-08-11); tagged-investments paste tolerant of currency symbols, commas, and either column order (2026-08-11) | 2026-08-11 |
+| ITRGenie | `/itrgenie/` | 27 modules, AIS auto-import (now accepts CSV or Excel) + Prior Years fix; app-wide font-size/contrast pass (2026-08-11); bulk-paste boxes (Salary/HRA/Capital Gains/MF/VDA/Other Sources/F&O/Foreign Assets/Rent/Exempt Income/AMT/Schedule AL) made tolerant of currency symbols, thousands commas, and stray header rows (2026-08-11); paste-parsing rewritten safe-by-construction after a third round found live corruption on ordinary two-amount CSV rows (2026-08-11) | 2026-08-11 |
+| Portfolio Tracker | `/portfolio/` | Live, guided form + paste/CSV/Excel entry + CAS (NSDL/CDSL) PDF import (dedup/refresh-safe, lazy-loaded libs) + live prices (Yahoo + Stooq no-setup, optional Twelve Data key) — holdings, allocation, performance across 4 accounts + sold-lot/realized-gains tracking (ST/LT classification, capital-gains feed export to ITRGenie) + "Simulate a sale" what-if tax calculator (Sec 111A/112A, pooled ₹1,25,000 LTCG exemption, MF/foreign-holding excluded with honest explanation) — closes roadmap item 4; mobile UX pass done; reorganized into Dashboard/Holdings/Gains & What-If/Accounts & Settings tabs; Dashboard adds a Top Gainers & Losers widget and a plain-language concentration/diversification flag (both honesty-gated, no fabricated numbers), sold-lots table collapses to 10 most recent past a threshold, Accounts/FX/Live-price settings rebalanced onto the Accounts & Settings tab; app-wide font-size/contrast pass (2026-08-11) closed out the remaining sub-13px stragglers this module's own 2026-08-09 UX pass missed; bulk paste made currency-tolerant + guided "Add a holding" form gained a "paste one line to fill in" quick-fill option (2026-08-11); paste-parsing rewritten safe-by-construction, third round (2026-08-11) | 2026-08-11 |
+| Net Worth Dashboard | `/networth/` | Live, manual entry + paste/CSV/Excel file upload; app-wide font-size/contrast pass (2026-08-11); category-card paste tolerant of currency symbols, commas, and either column order (2026-08-11); paste-parsing rewritten safe-by-construction, third round (2026-08-11) | 2026-08-11 |
+| Goals | `/goals/` | Live, manual entry + paste/CSV/Excel file upload — inflation-adjusted target calculator, risk-profile SIP presets (Debt/Balanced/Equity), annuity-due SIP math, second-pass reviewer fixes; Emergency fund adequacy calculator added (Life Confidence pillar item 1 — monthly-expenses + months-wanted inputs, recommended target, "months covered" stat with red/amber/green tiering); app-wide font-size/contrast pass (2026-08-11); tagged-investments paste tolerant of currency symbols, commas, and either column order (2026-08-11); paste-parsing rewritten safe-by-construction, third round (2026-08-11) | 2026-08-11 |
 | Debt & Loan Tracker | `/loans/` | Live, auto-detects from bank statement, paste/CSV/Excel file upload; app-wide font-size/contrast pass (2026-08-11) also fixed a missing `.btn.primary:hover` state this module had drifted from the rest of the app; statement paste now also detects month-name dates (e.g. "01-Jan-2026"), and a real amount-misread bug (a date's own year digits could be picked up as a payment amount) found and fixed (2026-08-11) | 2026-08-11 |
 | Insurance Tracker | `/insurance/` | Live, mis-selling checks; app-wide font-size/contrast pass (2026-08-11) | 2026-08-11 |
 | Synthesis | `/synthesis/` | Live, read-only cross-module view (net worth, goals, portfolio, debt, insurance adequacy) — first pass; Goals card surfaces Emergency-fund months-covered figure; Financial independence card added (Life Confidence pillar item 2) — combined projection with an explicit assets-source picker (Portfolio vs Net Worth vs manual, never summed) and Emergency-fund-sourced expenses suggestion; reviewer-found negative-expected-return bug in the FI date math fixed same day; app-wide font-size/contrast pass (2026-08-11) closed out this module's own twice-flagged `.tag` known gap | 2026-08-11 |
@@ -151,6 +151,53 @@ now visibly flags (outline) the Broker dropdown when a pasted broker name doesn'
 account, instead of relying on text feedback alone. `loans/` and `insurance/` were never affected
 — they don't use `protectThousandsCommas()`. See each touched module's own `PROGRESS.md` for the
 full before/after and adversarial test results.
+
+## Third-round fix: paste-parsing rewritten safe-by-construction (2026-08-11, same day)
+A second reviewer pass on the fix directly above found it was still converging on individual
+reported cases rather than closing the underlying mechanism — it live-reproduced fresh data
+corruption in Salary, HRA, and Portfolio Tracker's bulk-add using entirely ordinary no-space CSV
+rows containing two adjacent thousands-grouped amounts (e.g.
+`Acme Corp,12,00,000,50,000,2,400` — a completely natural way to type three Indian-lakh-grouped
+figures). Two precise structural gaps: (1) the prior fix had no UPPER-bound check, so a naive
+split that overshot the expected column count but still cleared the minimum was accepted AS-IS,
+fake extra columns and all, silently shifting every field after them; (2)
+`protectThousandsCommas()`'s regex was a single whole-line pass with no concept of column
+boundaries, so it could fuse across a REAL separator whenever the neighbouring field also started
+with 1-3 digits (another price, a quantity, a date fragment).
+
+**Fix, safe by construction rather than another patch**: a shared `resolveThousandsMerge()`
+replaces the whole-line regex in all 4 touched files. It naive-splits a comma row, then enumerates
+every way to merge ADJACENT pieces into a span that is a COMPLETE, correctly-shaped grouped number
+end-to-end (Indian: 1-2 digits then 2-digit groups then one 3-digit group — `12,00,000`; Western:
+1-3 digits then 3-digit groups — `1,234,567`) — never a loose "both sides look short" guess. A
+merge is only ever applied if it's the ONE AND ONLY combination that lands the row's column count
+on an exact target (the box's full shape, or any count in between down to its real minimum for
+boxes with a genuinely optional trailing field); zero valid combinations or more than one both
+mean "don't guess" — the row is honestly skipped (folded into the same "skipped N" count every
+paste box already reports, now with a reason attached: "couldn't tell where the columns split —
+try a tab-separated paste..."). Tab-delimited paste (a real spreadsheet copy) is detected first and
+never touches this logic at all, since a tab can never appear inside a number. Applied at all ~21
+`parsePastedRows()` call sites (17 in `itrgenie/`, 1 each in `goals/`/`networth/`, 2 in
+`portfolio/`) via one shared per-file implementation, not copy-pasted per site.
+
+**Round-2 failure cases re-tested, honestly**: `Acme Corp,12,00,000,50,000,2,400` (Salary) and
+`Apr-2025,1,00,000,40,000,25,000,Mumbai` (HRA) both turned out to be genuinely UNAMBIGUOUS once
+verified by hand — the strict grouped-number shape check leaves exactly one valid way to partition
+each row, so both now parse correctly instead of corrupting.
+`RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026` (Portfolio, all 8 fields present)
+is likewise unambiguous and parses correctly. A related shape found during this round's own
+adversarial testing — the same Portfolio row with its two optional trailing fields correctly
+omitted (`RELIANCE,Zerodha,Equity,10,2,450,01/01/2024`) — is genuinely ambiguous (two structurally
+valid readings, one of them nonsensical to a human but structurally indistinguishable to a generic
+parser) and now correctly comes back as an honest skip rather than a guess; the same is true for a
+Net Worth liability row with its optional date omitted
+(`Home loan (SBI),3,20,000`) — which the round-2 entry above had reported as working, but which a
+by-hand re-check under the new stricter algorithm shows was only an accident of round 2's
+particular search order, not a provably safe result. Both modules' own `PROGRESS.md` document this
+correction. See each of the 4 touched modules' own `PROGRESS.md` for the full adversarial test
+matrix (tab-separated variants, the original motivating case, a constructed genuinely-ambiguous
+row, and a per-box regression sweep with two independently-formatted currency amounts in every
+paste box across all 4 files).
 
 ## Current phase: Synthesis Layer, first pass (built 2026-08-09)
 `/synthesis/` is live — a read-only page joining Net Worth, Goals, Portfolio,

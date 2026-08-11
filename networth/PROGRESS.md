@@ -160,3 +160,41 @@ explicit floor separate from the 3-column target). Category card call site now p
 liability row with Indian-grouped value and no date (`Home loan (SBI),3,20,000`) still correctly
 collapses to Value=320000, and the same row WITH a trailing date
 (`Home loan (SBI),3,20,000,15/06/2025`) also parses correctly. 0 console errors.
+
+## THIRD ROUND fix — safe-by-construction rewrite (2026-08-11, same day)
+A second reviewer pass found the round-2 fix above still converged on the specific reported case
+rather than the underlying mechanism, and live-reproduced silent corruption on two adjacent
+thousands-grouped liability figures — see `itrgenie/PROGRESS.md`'s matching entry for the full
+writeup (both structural gaps: no upper-bound check on the collapse, and a whole-line regex with
+no concept of column boundaries) and the new design. This module's own `parsePastedLine`/
+`parsePastedRows`/`resolveThousandsMerge`/`skipNote` were replaced with the same shared-shape
+implementation used in every other module. The category-card feedback line now also appends
+`skipNote(rows)`'s reason when some skips were specifically unresolvable comma-splits.
+
+**Honest correction to the round-2 entry directly above**: it reported
+`Home loan (SBI),3,20,000` (Indian-grouped value, `OutstandingAsOf` genuinely omitted) as
+correctly collapsing to `Value=320000`. Re-analyzed under round 3's per-boundary structural check,
+**this specific row is genuinely ambiguous, not safely resolvable, and now correctly comes back as
+an honest skip instead.** Round 2's whole-line regex got the right answer here, but only because
+its search space happened not to contain a competing reading in this one case — it wasn't proof of
+correctness, and gap 2 (documented in `itrgenie/PROGRESS.md`) shows the same mechanism silently
+picking the WRONG reading elsewhere. Under round 3's exhaustive per-boundary search, this row has
+TWO structurally valid 3-column readings that both match the box's Label/Value/OutstandingAsOf
+shape: `{Value: 320000}` (the sensible one, date omitted) and `{Value: 3, OutstandingAsOf: "20000"}`
+(nonsensical — a date field can't be "20000" — but structurally indistinguishable from the sensible
+one without semantic/type knowledge the generic merge resolver doesn't have). With two competing
+readings, the honest choice is to skip rather than silently pick the one that "looks more
+sensible" to a human — which is exactly the failure mode this whole rewrite exists to close. The
+SAME row WITH its optional date present (`Home loan (SBI),3,20,000,15/06/2025`) still parses
+correctly and unambiguously, since the date's presence is what disambiguates it (the other reading
+is now stuck trying to fit "15/06/2025" into a bare-number slot, which fails cleanly). This
+trade-off — a small number of "a human could tell, but the generic parser correctly won't guess"
+rows now becoming honest skips where round 2 got lucky — is deliberate and documented, not a
+regression to silently accept.
+
+**Re-verified**: plain 2-column assets rows (`Axis Direct equity+MF,850000`, reversed order,
+currency-symbol/comma-tolerant) all still parse identically to the round-2 baseline — none of them
+have the multi-optional-field structure that produces the ambiguity above. A synthetic
+two-independently-grouped-amount liability row with the date present
+(`Home loan (SBI),32,00,000,15/06/2026`) parses correctly. `10,20`-shaped plain rows still never
+fuse. 0 console errors after the edit (`node --check` clean).

@@ -438,3 +438,130 @@ feedback line alone. It now also adds a visible rust-colored outline to the drop
 that happens, clearing the moment the user touches it — more consistent with this app's
 honesty-first pattern of never letting a form field look "filled correctly" when it wasn't. See
 `portfolio/PROGRESS.md` for the portfolio-side note.
+
+## THIRD ROUND fix — safe-by-construction rewrite of the paste-comma-collapse logic (2026-08-11, same day)
+A second reviewer pass, run specifically against the round-2 fix above, found it converging on
+individual reported cases rather than closing the underlying mechanism: it live-reproduced silent
+corruption on ordinary no-space CSV rows in Salary, HRA, and Portfolio using nothing exotic — just
+two adjacent thousands-grouped amounts, an entirely natural way to type Indian-lakh-grouped
+figures. Two precise structural gaps, confirmed by re-reading round 2's own code:
+1. **No upper-bound check.** The collapse only checked `collapsed.length >= floor` — there was no
+   check that it landed exactly on `expectedCols`. A collapse that overshot `expectedCols` but
+   still cleared `floor` was accepted AS-IS, fake extra columns and all, silently shifting every
+   field after them. Live-reproduced: `Acme Corp,12,00,000,50,000,2,400` into Salary — Gross came
+   back correct, but Exempt/ProfTax silently shifted by one column each.
+2. **Whole-line regex, no column-boundary awareness.** `protectThousandsCommas()` was a single
+   `.replace()` pass over the entire raw line. It fused across a REAL column separator whenever the
+   neighbouring field also started with 1-3 digits — another price, a quantity, a date fragment —
+   not just within one genuinely grouped number. Live-reproduced on Portfolio:
+   `RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026` (Qty=10 immediately followed by
+   BuyPrice=2,450) fused across the Qty/BuyPrice boundary.
+
+**The fix is safe BY CONSTRUCTION, not another patch for these two shapes.** Full design and
+history is documented in the code itself (`itrgenie/index.html`, the block comment directly above
+`protectThousandsCommas`'s replacement) — summarized:
+- **Tabs first.** A line containing a real tab (a genuine spreadsheet copy) is split on tab and
+  never touches the comma-collapse logic at all — a tab can never appear inside a number, so this
+  sidesteps the whole problem for that large class of real-world paste.
+- **`resolveThousandsMerge()` replaces the whole-line regex.** It naive-splits a comma row, then
+  enumerates every way to merge ADJACENT pieces into a span that is a COMPLETE, correctly-shaped
+  grouped number end-to-end — Indian convention (1-2 digits, then zero-or-more 2-digit groups, then
+  one 3-digit group: `12,00,000`) or Western (1-3 digits then one-or-more 3-digit groups:
+  `1,234,567`) — never a loose "both sides look short enough" guess. A span is only ever merged if
+  it matches one of these patterns from its first digit to its last.
+- **Exactly one unambiguous outcome, or an honest skip — never a guess.** A merge combination is
+  only accepted if it's the ONE AND ONLY combination that lands the row's column count on an exact
+  target (`expectedCols`, or any whole count from `minCols` up to `expectedCols` for boxes with a
+  genuinely optional trailing field, e.g. Capital Gains MF's TDS). Zero valid combinations or more
+  than one both mean "don't guess" — the row comes back empty, which flows into the same
+  `cols.length < N` skip path every other malformed row already uses, and
+  `parsePastedRows()`/`skipNote()` now tag *why* (added to every one of the 17 paste boxes'
+  feedback text: "N of those: couldn't tell where the columns split — try a tab-separated paste...").
+- **Always runs, even when the naive split looks "in range."** An earlier draft of this same
+  rewrite kept round 2's short-circuit ("no overshoot, trust it") for performance/simplicity. Own
+  adversarial testing (not a reviewer report this time) found that's unsafe too, for the same
+  reason as gap 1 above: a genuinely grouped number can coincidentally naive-split a row down to a
+  count that still looks "in range" while fusing the wrong two fields together. Example found
+  during this session's own testing (not in the original report): Portfolio's
+  `RELIANCE,Zerodha,Equity,10,2,450,01/01/2024` (BuyPrice `2,450`, CurrentPrice/AsOf both correctly
+  omitted) naive-splits to 7 pieces — already "in range" for the 6-8-column box — but read literally
+  that's BuyPrice=2, BuyDate=450, CurrentPrice=01/01/2024, silently wrong despite never
+  overshooting. Fixed by always running the merge search (the untouched naive reading is always one
+  of the candidates it considers, via every single un-merged piece being trivially a valid
+  one-piece span, so a row with nothing to merge still resolves to exactly the same answer as
+  before — this costs nothing there).
+- One shared implementation per file (`resolveThousandsMerge`/`splitPastedLine`/
+  `parsePastedRows`/`skipNote`), called from all 17 `parsePastedRows()` sites in this file — not
+  copy-pasted per call site.
+
+**Round-2 failure cases, re-tested — honest determination of which are genuinely resolvable vs.
+genuinely ambiguous, not assumed:**
+- `Acme Corp,1200000,50000,2400` (Salary, plain no-space, the original round-1/2 case) — still
+  parses correctly: `name:"Acme Corp", gross:1200000, exempt:50000, profTax:2400`. No regression.
+- `Acme Corp,12,00,000,50,000,2,400` (Salary, Indian lakh-grouped, the round-2 failure) — **genuinely
+  unambiguous, now parses correctly**: `gross:1200000, exempt:50000, profTax:2400`. Worked through
+  by hand before trusting the test: naive-splits to 8 pieces (`Acme Corp` + 7 digit groups); the
+  7 digit groups admit exactly one way to partition into three complete grouped numbers
+  (`12,00,000` / `50,000` / `2,400`) that lands on the 4-column target — every other of the 15
+  ways to place 2 "cut points" among the 6 candidate boundaries fails the strict grouped-number
+  regex on at least one resulting span, so this is not the coin-flip ambiguity it might look like
+  at first glance.
+- `Apr-2025,1,00,000,40,000,25,000,Mumbai` (HRA, round-2 failure) — **genuinely unambiguous**, same
+  reasoning as Salary (structurally identical: 7 digit-group pieces admitting exactly one 3-way
+  split): `basicDA:100000, hra:40000, rent:25000, city:"Mumbai"`.
+- `RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026` (Portfolio, round-2 failure) —
+  **genuinely unambiguous** with all 8 fields present (the trailing CurrentPrice/AsOf pin down the
+  target so only one merge combination reaches it):
+  `qty:10, buyPrice:2450, buyDate:"01/01/2024", currentPrice:2600, asOf:"10/08/2026"`.
+- A 6-field version of the same row with CurrentPrice/AsOf both correctly omitted
+  (`RELIANCE,Zerodha,Equity,10,2,450,01/01/2024`) — **genuinely ambiguous, correctly skipped**: the
+  naive 7-piece reading (BuyPrice=2, BuyDate=450 — wrong) and the merged 6-piece reading
+  (BuyPrice=2450 — right) are BOTH structurally valid targets in the box's 6-8 column window, and
+  the algorithm has no semantic understanding that "450" is a nonsensical date to prefer one over
+  the other. Correctly returned as an honest skip rather than a coin-flip guess — this is exactly
+  the kind of case the whole rewrite exists to catch instead of silently mis-splitting.
+
+**Other adversarial cases tested (own construction, per the reviewer's mandate to find NEW breaking
+shapes, not just re-check the reported ones):**
+- Tab-separated versions of the Salary, HRA-shaped, and Portfolio rows above — confirmed the tab
+  path is taken and the comma-collapse logic is never invoked (cells keep their commas, e.g.
+  `"1,200,000"`, which `toNum()` still strips correctly downstream).
+- `Reliance, 10, 15/06/2021, 1,850.50, 20/07/2025, 2,100.75` (the ORIGINAL motivating case from the
+  first pass, comma-space) — still collapses correctly.
+- `10,20,30,40` — still never fuses (nothing in it matches a complete grouped-number span).
+- A row constructed to be genuinely ambiguous on purpose — `X,1,200,300,400` targeting a 2-3 column
+  box — correctly returns an honest skip (multiple different 2-cut placements each independently
+  produce a structurally valid 3-column reading; no way to prefer one).
+- Net Worth liability `Home loan (SBI),3,20,000` (thousands-grouped value, OutstandingAsOf
+  omitted) — correctly an honest skip: the algorithm finds two competing valid readings
+  (`value:320000` with the date omitted, vs. the nonsensical `value:3, OutstandingAsOf:"20000"`)
+  and won't guess between them. `Home loan (SBI),3,20,000,15/06/2026` (same value, WITH the real
+  date present) parses correctly and unambiguously — the date's presence is what disambiguates it.
+- Capital Gains MF with TDS present (`HDFC Fund,LT,15/06/2025,1,00,000,20,000,5,000`) parses
+  correctly (`cost:100000, gain:20000, tds:5000`); the same row with TDS genuinely omitted
+  (`...,1,00,000,20,000`) is a correctly-honest skip for the same structural reason as the Net
+  Worth liability case above.
+- A currency-symbol-prefixed version of the original motivating case
+  (`Reliance,10,15/06/2021,₹1,850.50,20/07/2025,₹2,100.75`) still parses correctly.
+- A synthetic 200-row Salary paste with realistic `toLocaleString('en-IN')`-formatted amounts
+  parsed correctly in 8ms with zero skips — confirms the rewrite doesn't cost meaningful
+  performance on ordinary bulk paste. A pathological 40-piece single/double-digit row was
+  confirmed to bail safely (via the search's own explored-combinations cap) in 2ms rather than
+  hang.
+- Full regression: every one of the 17 paste boxes in this file re-tested with a no-space CSV row
+  containing at least two independently-formatted currency amounts specific to that box's own real
+  fields (Prior Years' carry-forward figures, Opening Holdings' buy price, Clubbing amounts, Other
+  Sources interest/dividend, F&O P&L, Foreign Assets bank balances, Rent credits, Exempt Income,
+  AMT credit, Schedule AL's three sub-sections) — all parsed correctly against the extracted
+  parsing functions (`node --check` clean, then evaluated in isolation against the real per-box
+  `expectedCols`/`minCols` values read straight out of each call site).
+
+**Known, honestly-documented limitation (not a regression, a structural property of "never
+guess")**: a box with more than one independently-optional trailing field, or any row where a
+thousands-grouped number's merge could ALSO plausibly fill in a value for an omitted optional
+field, will sometimes come back as an honest skip where a human reading the same row could tell
+which reading was intended (see the 6-field Portfolio and Net Worth liability examples above). This
+is the deliberate cost of "safe by construction" — the alternative would be guessing based on which
+reading "looks more sensible," which is exactly the kind of silent misjudgment this whole rewrite
+exists to close off. The skip message now says why (`skipNote()`) and suggests the two ways around
+it that always work: a tab-separated paste, or a space after each comma.

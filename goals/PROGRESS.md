@@ -377,3 +377,23 @@ site now passes `parsePastedRows(raw, 2, 2)` explicitly. Re-tested: plain `PPF a
 still collapses to `1234567.89` as intended, and a generic `10,20,30,40`-shaped overshoot no
 longer risks a bad fuse. 0 console errors, confirmed live in headless Chromium against a real
 goal's investments card.
+
+## THIRD ROUND fix — safe-by-construction rewrite (2026-08-11, same day)
+A second reviewer pass found the round-2 fix above still converged on the specific reported case
+rather than the underlying mechanism — see `itrgenie/PROGRESS.md`'s matching entry for the full
+writeup (both structural gaps: no upper-bound check on the collapse, and a whole-line regex with
+no concept of column boundaries) and the new design. This module's own `parsePastedLine`/
+`parsePastedRows`/`resolveThousandsMerge`/`skipNote` were replaced with the same shared-shape
+implementation used in every other module (own copy, per this repo's self-contained-module
+convention, not a cross-file reference). `buildInvFeedbackMsg()` now also takes the parsed `rows`
+array so it can append `skipNote(rows)`'s reason ("couldn't tell where the columns split...") when
+some of the skipped rows were specifically unresolvable comma-splits, not just a missing label.
+
+**Verified**: this module's tagged-investments box is a plain 2-column `Label, Value` shape with no
+optional trailing field, so the round-2 fixed case (`PPF account,450000`) and reversed order both
+still parse identically. Re-tested against the exact adversarial cases from the round-2 reviewer
+report that were reproduced in ITRGenie/Portfolio (Salary's `12,00,000,50,000,2,400`-style Indian
+lakh-grouping, Portfolio's grouped-number-glued-to-a-quantity shape) using this module's own 2-target
+`splitPastedLine` — confirms a thousands-grouped value like `1,50,000` still collapses correctly
+to `150000` and a plain `10,20` never fuses. No regression in either column-order tolerance or the
+honest-skip-on-ambiguous-both-numeric-row behavior from the first pass.

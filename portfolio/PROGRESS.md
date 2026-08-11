@@ -1638,3 +1638,51 @@ on the dropdown itself when that happens, clearing the instant the user touches 
 matches this app's honesty-first pattern of never letting a field look "correctly filled" when it
 wasn't. Verified live: pasting a broker name that doesn't match any account shows the outline;
 pasting one that does match ("Axis Direct") shows no outline.
+
+## THIRD ROUND fix — safe-by-construction rewrite (2026-08-11, same day)
+A second reviewer pass found the round-2 fix above still converged on the specific reported case
+rather than the underlying mechanism, and live-reproduced silent corruption on this module's own
+bulk-paste shape with a completely ordinary row:
+`RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026` (Qty `10` immediately followed by a
+genuinely thousands-grouped BuyPrice `2,450`, no space) — fused across the Qty/BuyPrice boundary.
+See `itrgenie/PROGRESS.md`'s matching entry for the full writeup of both structural gaps (no
+upper-bound check on the collapse; a whole-line regex with no concept of column boundaries) and the
+new design. This module's own `protectThousandsCommas`/`splitPastedLine`/`parsePastedRows` were
+replaced with the shared-shape implementation (`resolveThousandsMerge` + `skipNote`) used in every
+other module, applied at both call sites this module has: the bulk-paste box and the guided form's
+"paste one line to fill in" quick-fill.
+
+**The exact round-2 failure case, re-tested — genuinely unambiguous, now parses correctly:**
+`RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026` →
+`symbol:RELIANCE, broker:Zerodha, assetType:Equity, qty:10, buyPrice:2450, buyDate:"01/01/2024",
+currentPrice:2600, asOf:"10/08/2026"`. With all 8 fields present the trailing CurrentPrice/AsOf pin
+the target column count so only one merge combination (merging `2` and `450`) reaches it.
+
+**A related case found during this round's own adversarial testing (not the reported one, but the
+same class the reviewer asked to hunt for): the same row with CurrentPrice/AsOf correctly omitted**
+(`RELIANCE,Zerodha,Equity,10,2,450,01/01/2024`) — naive-splits to 7 pieces, which sits "in range"
+for this box's 6-8 column window without ever overshooting `expectedCols`. An earlier draft of this
+same round-3 rewrite still got this wrong, because it kept round 2's "no overshoot, trust the naive
+split" short-circuit — that 7-piece naive reading is BuyPrice=2, BuyDate=450, CurrentPrice=
+"01/01/2024", silently wrong despite never overshooting. Fixed by removing that short-circuit
+entirely: the merge search now always runs (the untouched naive reading is always one of its
+candidates, so a row with nothing to merge still resolves exactly as before, at no extra cost).
+With the short-circuit removed, this specific row now correctly comes back as an **honest skip**:
+the naive 7-piece reading and the merged 6-piece reading (`BuyPrice:2450`, the sensible one) are
+both structurally valid targets in the box's window, and the generic merge resolver has no
+semantic knowledge that a "BuyDate" of `450` is nonsensical — so it won't guess between them. This
+is the deliberate, documented cost of "safe by construction": the same row pasted tab-separated
+(a real spreadsheet copy) parses correctly regardless, since the tab path never touches this
+ambiguity at all.
+
+**Also re-verified**: the quick-fill single-line path (`#af_quickfill_btn`) now shows an explicit
+feedback message instead of silently doing nothing when a pasted line can't be unambiguously
+split ("Couldn't tell where the columns split — try a tab-separated paste..."), rather than the
+prior behavior of leaving the form fields untouched with no explanation. Full regression: the
+original CAS-import-style plain row (`INFY,axis_direct,Stock,50,1450,2022-04-15,1900,2026-08-10`)
+and the ₹-symbol/Indian-grouping row from the round-1 entry above (`RELIANCE, Axis Direct, Equity,
+25, ₹12,50,000, 2021-03-01`) both still parse identically. `10,20,30,40`-shaped rows still never
+fuse. `node --check` clean after every edit; 0 console errors expected (code-level verification via
+the extracted parsing functions, not a fresh live-browser pass this round — see the
+"third round" verification note in `itrgenie/PROGRESS.md` for the shared testing methodology used
+across all four touched modules).

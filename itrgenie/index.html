@@ -1311,7 +1311,7 @@ const PriorYearsModule = {
       });
       save();
       renderPYRows();
-      resCard.querySelector('#py_paste_feedback').textContent = `Added/updated ${added} year(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+      resCard.querySelector('#py_paste_feedback').textContent = `Added/updated ${added} year(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) resCard.querySelector('#py_paste').value = '';
     };
 
@@ -1414,7 +1414,7 @@ const PriorYearsModule = {
       });
       save();
       renderOHRows();
-      holdCard.querySelector('#oh_paste_feedback').textContent = `Added ${added} holding(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+      holdCard.querySelector('#oh_paste_feedback').textContent = `Added ${added} holding(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) holdCard.querySelector('#oh_paste').value = '';
     };
   }
@@ -1590,92 +1590,184 @@ function holdingPeriodDays(d1, d2){
    modules. User copies rows straight from Excel/Sheets/Notes (tab-
    separated) or types comma-separated -- either works.
 
-   2026-08-11: made more tolerant of real-world formatting noise, following
-   the same "match content, don't demand a rigid shape" principle the AIS
-   Auto-Import module already applies to its own column headers (see that
-   module's comment block above). Two additions:
-   (1) protectThousandsCommas() -- a thousands-grouped amount like
-   "₹4,50,000" or "1,200,000" pasted with plain commas as the column
-   separator (no tab) can get sliced into fake extra columns, corrupting
-   every field after it.
-   (2) toNum() (defined below) -- strips ₹/$ and thousands commas from a
-   cell before parsing it as a number, so numeric columns work the same
-   whether typed as "450000" or "₹4,50,000".
+   2026-08-11, THIRD ROUND (safe-by-construction rewrite): two prior same-day
+   fixes each patched one specific reported failure while leaving the same
+   class of silent corruption possible. Round 1 added an unconditional
+   whole-line regex collapse of any comma-joined run of short digit groups --
+   corrupted plain no-space CSV like "Acme Corp,1200000,50000,2400" into a
+   fused quadrillion-rupee figure. Round 2 made the collapse a "validated
+   fallback" (only attempted on overshoot, only trusted if it didn't drop
+   below the box's floor) -- but a second reviewer pass found this still had
+   two structural gaps: (a) no UPPER-bound check, so a naive split that
+   overshot but still cleared the floor was accepted AS-IS with the extra
+   fake columns still in it, silently shifting every field after; (b) the
+   collapse regex was a single global pass with no concept of column
+   boundaries, so it could fuse across a REAL separator whenever the
+   neighbouring field also started with 1-3 digits (another price, a qty, a
+   date fragment) -- live-reproduced on ordinary rows like
+   "Acme Corp,12,00,000,50,000,2,400" (Salary, Indian lakh-grouped) and
+   "RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026" (Portfolio).
 
-   2026-08-11, same-day correction (reviewer-caught SEVERE regression): the
-   first version of (1) shipped on the theory that a real column separator
-   comma is "always followed by a space" in practice, so it collapsed ANY
-   run of comma-joined 1-3-digit groups with no trailing space,
-   unconditionally, before the column split ran. That assumption is false
-   for the single most common real case -- plain CSV with no space after
-   commas, which is exactly what a raw .csv/.txt file, Excel's own
-   sheet_to_csv() output (used for every .xlsx upload in this app), or
-   someone just typing quickly all produce. Live-reproduced failure:
-   pasting "Acme Corp,1200000,50000,2400" into the Salary paste box (a
-   plain 4-column row, each number short enough to look "groupable") got
-   silently mangled into a fused ~15-digit figure, corrupting Gross salary
-   into a quadrillion-rupee number with Exempt/ProfTax dropped to 0 -- with
-   zero indication anything went wrong. Fixed by making the collapse a
-   VALIDATED FALLBACK instead of an unconditional transform: split naively
-   first (plain comma-split, the pre-8/11 behavior), and only attempt the
-   collapse if that naive split produces MORE columns than the specific
-   paste box expects (every paste box already knows its own real column
-   count from its `cols.length` check/destructuring) -- and only trust the
-   collapsed result if it lands the row's column count on-or-above what's
-   expected without dropping below it (dropping below would mean it fused
-   two genuinely separate columns, which is worse than leaving the
-   overshoot for the caller's own length check to reject). A normal
-   no-space CSV row that already parses to the right number of columns is
-   therefore never touched by the collapse logic at all; the collapse still
-   fires for its original motivating case -- a genuinely thousands-grouped
-   number pushing the column count too high, e.g.
-   "Reliance, 10, 15/06/2021, 1,850.50, 20/07/2025, 2,100.75" (8 raw
-   comma-split pieces, 6 real columns -- collapsing the two grouped prices
-   brings it back to exactly 6). Both changes only affect whether a column
-   is *read* correctly -- they never change WHICH column a value ends up in
-   (that stays strictly positional, since these paste boxes have no header
-   row to keyword-match against the way AIS's real exported file does;
-   reordering columns without a header to identify them would be guessing,
-   not detecting). ---- */
-function protectThousandsCommas(line){
-  // Matches an optional ₹/$ prefix followed by 1-3 digits, then one or more
-  // ",digits(1-3)" groups, optionally a decimal tail -- e.g. "₹4,50,000",
-  // "1,200,000.50", "50,000" -- and strips the internal commas. Only ever
-  // called as a validated fallback by splitPastedLine() below, never
-  // unconditionally -- see the correction note above.
-  return line.replace(/(₹|\$)?\d{1,3}(,\d{1,3})+(\.\d+)?/g, m => m.replace(/,/g, ''));
+   This rewrite is safe BY CONSTRUCTION instead of patching another reported
+   shape:
+   1. Tab-delimited paste (a real spreadsheet copy) is unambiguous -- a tab
+      never appears inside a number -- so it's split on tab and the entire
+      comma-collapse machinery below is never touched for that row.
+   2. For comma-delimited input: naive-split on comma first, then ALWAYS run
+      resolveThousandsMerge() (below, point 3) against it -- even when the
+      naive piece count already looks "in range" for the box. An earlier
+      draft of this same rewrite short-circuited there ("no overshoot, trust
+      it"), but that's unsafe too: a genuinely grouped number can
+      coincidentally split a row down to a count that still lands in range
+      while fusing the wrong two fields together -- e.g. Portfolio's
+      "RELIANCE,Zerodha,Equity,10,2,450,01/01/2024" (BuyPrice genuinely
+      "2,450") naive-splits to 7 pieces, already "in range" for an 8-col/
+      6-min box, but taken literally that reads BuyPrice=2, BuyDate=450,
+      CurrentPrice=01/01/2024 -- wrong despite never overshooting. Running
+      the search unconditionally costs nothing on an ordinary row with
+      nothing to merge, since the untouched naive split is always one of the
+      candidate readings the search considers (see point 3) -- it only
+      changes the outcome when a genuine competing reading exists, which is
+      exactly the case that needs catching.
+   3. resolveThousandsMerge() enumerates every way to merge ADJACENT naive
+      pieces into a span that is a COMPLETE, correctly-shaped grouped number
+      end-to-end (Indian: 1-2 digits, then zero or more 2-digit groups, then
+      one 3-digit group -- "12,00,000"; Western: 1-3 digits then one-or-more
+      3-digit groups -- "1,234,567") -- never a partial/loose "both sides
+      look short" guess, which is exactly what let round 2's regex cross
+      real boundaries. Only a span that is a well-formed number from its
+      first digit to its last is ever merged; every single piece left
+      unmerged is also always a valid (trivial) one-piece "span", which is
+      how the untouched naive reading stays in the running.
+   4. If EXACTLY ONE combination of such merges (including the "merge
+      nothing" combination) lands the row's column count on an exact target
+      (expectedCols, or any count from minCols up to expectedCols for boxes
+      with a genuinely optional trailing field -- checked together, see
+      point 5), that combination is used. If merges could reach a target
+      ZERO ways or MORE THAN ONE way, the row is never guessed at -- it's
+      returned empty so the caller's own existing `cols.length < N` floor
+      check skips it exactly like any other malformed row, and
+      parsePastedRows() tags how many rows were skipped for this specific
+      reason (see ambiguousCount / skipNote() below) so the feedback text
+      can say why instead of leaving the user to guess.
+   5. For boxes with a real optional trailing field (expectedCols vs minCols,
+      e.g. Capital Gains MF's TDS, Net Worth liabilities' OutstandingAsOf):
+      every whole count from minCols up to expectedCols is checked in the
+      SAME pass, and a merge is only accepted if the row unambiguously
+      reaches exactly one of them -- if different merge choices could
+      independently satisfy different shapes (or the same shape two
+      different ways), that's genuine uncertainty, so it's skipped rather
+      than guessed.
+   toNum() (below) still strips ₹/$ and thousands commas from a cell before
+   parsing it as a number, so numeric columns work the same whether typed as
+   "450000" or "₹4,50,000" once they've been split into the right column. ---- */
+
+// A COMPLETE, well-formed grouped number, anchored start-to-end -- this is
+// what keeps a merge from ever crossing a real column separator just because
+// the next field also happens to start with 1-3 digits: a span only merges
+// when EVERY piece in it has exactly the width one real grouping convention
+// requires, not merely "looks short". Optional ₹/$ prefix on the first
+// digit-group only.
+const GROUPED_WESTERN = /^(₹|\$)?\d{1,3}(,\d{3})+(\.\d+)?$/;        // 1,234,567 or 1,234,567.50
+const GROUPED_INDIAN  = /^(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,000 or 4,50,000.25
+
+// Finds every way to merge adjacent pieces of a naive comma-split row into spans that are each a
+// complete grouped number, and accepts the result ONLY if exactly one combination of merges lands
+// the row's column count on one of `targets` (expectedCols, and minCols too when the box has a
+// genuinely optional trailing field). Zero matching combinations (nothing merges cleanly to any
+// target) or more than one (genuinely ambiguous -- more than one plausible reading) both return
+// null -- never a "closest guess". See the block comment above for the full design/history.
+function resolveThousandsMerge(naive, targets){
+  const n = naive.length;
+  // A span naive[i..j] is only a candidate merge if every piece from i up to (but not including)
+  // j is a bare 1-3 digit group (optionally ₹/$-prefixed at i), the last piece (j) is a bare 1-3
+  // digit group with an optional decimal tail, AND the whole reconstructed string is a complete
+  // match for one of the two real grouping conventions above -- not just "these look numeric".
+  function spanValid(i, j){
+    if(i===j) return true; // a lone piece is always fine left as-is
+    for(let k=i;k<j;k++){ if(!/^(₹|\$)?\d{1,3}$/.test(naive[k])) return false; }
+    if(!/^\d{1,3}(\.\d+)?$/.test(naive[j])) return false;
+    const joined = naive.slice(i, j+1).join(',');
+    return GROUPED_WESTERN.test(joined) || GROUPED_INDIAN.test(joined);
+  }
+  const spanEnds = [];
+  for(let i=0;i<n;i++){
+    spanEnds[i] = [];
+    for(let j=i;j<n;j++){ if(spanValid(i,j)) spanEnds[i].push(j); }
+  }
+  const targetSet = new Set(targets);
+  const maxTarget = Math.max(...targets);
+  const results = [];
+  let explored = 0;
+  const EXPLORE_CAP = 5000; // defensive bound on pathological rows -- bail toward an honest skip
+  let capped = false;
+  (function dfs(i, acc){
+    if(capped) return;
+    if(++explored > EXPLORE_CAP){ capped = true; return; }
+    if(acc.length > maxTarget) return; // every remaining piece adds >=1 more column -- prune early
+    if(i===n){ if(targetSet.has(acc.length)) results.push(acc.slice()); return; }
+    for(const j of spanEnds[i]){
+      acc.push(naive.slice(i, j+1).join(','));
+      dfs(j+1, acc);
+      acc.pop();
+    }
+  })(0, []);
+  if(capped) return null; // too complex to prove unambiguous -- treat like any other unresolved row
+  const unique = Array.from(new Set(results.map(r=>JSON.stringify(r)))).map(s=>JSON.parse(s));
+  if(unique.length !== 1) return null; // 0 = no clean reading at all, >1 = genuinely ambiguous
+  return unique[0].map(s=>s.replace(/,/g,''));
 }
-// Comma-splits one pasted line, only collapsing thousands-grouped numbers (via
-// protectThousandsCommas) when the naive split overshoots the column count the calling paste
-// box actually expects -- see the correction note above protectThousandsCommas(). expectedCols
-// is that box's full/target shape (its destructured field count -- used to decide WHETHER to
-// attempt a collapse at all: no overshoot, no collapse, ever). minCols is the box's own real
-// minimum viable column count (its own `cols.length < N` floor, when that's lower than
-// expectedCols because some trailing fields are optional, e.g. Capital Gains MF's optional TDS
-// column) -- used to decide whether a collapsed result is safe to trust. Using expectedCols as
-// both would wrongly reject a valid collapse on a row that's missing an optional trailing field
-// (e.g. a liability paste of "Home loan (SBI),3,20,000" with no OutstandingAsOf date -- collapses
-// correctly to 2 real columns, which is below the 3-column *target* shape but not below the true
-// 2-column floor). minCols defaults to expectedCols for boxes where every field is required.
+// Comma-splits one pasted line. expectedCols is the box's full/target shape; minCols is its real
+// minimum viable count when some trailing fields are optional (defaults to expectedCols when
+// every field is required). Every whole count from minCols up to expectedCols is offered as a
+// valid target, not just the two endpoints -- a box like Salary (Name, Gross, Exempt, ProfTax --
+// both Exempt and ProfTax independently optional) can legitimately land on a count in between
+// (e.g. 3, if only ProfTax is omitted).
+//
+// IMPORTANT: this always runs the merge search below, even when the naive split's raw piece count
+// already sits inside [minCols, expectedCols] and looks "plausible" on its own. An earlier version
+// of this rewrite short-circuited in that case ("no overshoot -- trust it, skip the search") --
+// live-testing found that's unsafe too: a thousands-grouped number can coincidentally split a row
+// down to a count that still lands in range while fusing the wrong two fields together, e.g.
+// Portfolio's "RELIANCE,Zerodha,Equity,10,2,450,01/01/2024" (BuyPrice genuinely "2,450") naive-
+// splits to 7 pieces -- already "in range" for an 8-col/6-min box -- but taken literally that reads
+// BuyPrice=2, BuyDate=450, CurrentPrice=01/01/2024, silently wrong despite never overshooting.
+// resolveThousandsMerge() always includes the untouched naive split itself as one of the candidate
+// readings (every single piece is trivially a valid one-piece "span"), so a genuinely unambiguous
+// row that has nothing to merge still resolves to exactly the same naive result as before -- this
+// costs nothing there. It only changes behaviour when a genuine competing reading exists, which is
+// exactly the case that needs catching.
 function splitPastedLine(line, expectedCols, minCols){
   const naive = line.split(',').map(c=>c.trim());
-  if(!expectedCols || naive.length <= expectedCols) return naive;
+  if(!expectedCols) return naive;
   const floor = minCols || expectedCols;
-  const collapsedLine = protectThousandsCommas(line);
-  if(collapsedLine === line) return naive; // nothing looked like a thousands group -- nothing to try
-  const collapsed = collapsedLine.split(',').map(c=>c.trim());
-  // Only trust the collapse if it brings the column count down toward what's expected without
-  // dropping below the box's real floor -- below would mean it fused two genuinely separate
-  // columns rather than just a thousands-grouped number.
-  if(collapsed.length >= floor && collapsed.length < naive.length) return collapsed;
-  return naive;
+  const targets = [];
+  for(let t=floor; t<=expectedCols; t++) targets.push(t);
+  const resolved = resolveThousandsMerge(naive, targets);
+  // Never fall through to the naive split on its own say-so -- that's exactly the silent-column-
+  // shift bug this rewrite exists to close. An unresolved/ambiguous row returns empty so the
+  // caller's own `cols.length < N` check honestly skips it, same as any other malformed row.
+  return resolved || [];
 }
 function parsePastedRows(text, expectedCols, minCols){
-  return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
+  const rows = text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
     .map(line=>{
       const hasTab = line.includes('\t');
       return hasTab ? line.split('\t').map(c=>c.trim()) : splitPastedLine(line, expectedCols, minCols);
     });
+  // A row can only come back empty here because splitPastedLine() gave up on an overshooting,
+  // unresolvable comma-collapse (a genuinely empty pasted line was already filtered out above) --
+  // count those so skipNote() can tell the user WHY those rows were skipped, not just that they
+  // were.
+  rows.ambiguousCount = rows.filter(r=>r.length===0).length;
+  return rows;
+}
+// Appends a short, honest reason to a paste box's "skipped N" feedback text when some of those
+// skips were specifically rows this parser couldn't unambiguously column-split (as opposed to
+// e.g. a missing name or a negative amount, which every paste box already reports generically).
+function skipNote(rows){
+  const n = rows && rows.ambiguousCount;
+  return n>0 ? ` (${n} of those: couldn't tell where the columns split -- try a tab-separated paste copied straight from a spreadsheet, or add a space after each comma)` : '';
 }
 // Tolerant numeric parsing for a pasted cell: strips currency symbols (₹, $) and thousands-
 // separator commas/whitespace before parsing, so "₹4,50,000" or "$1,234.50" parse identically to
@@ -2047,7 +2139,7 @@ const SalaryModule = {
           added++;
         });
         save(); renderRows(); renderSummary();
-        addCard.querySelector('#sal_feedback').textContent = `Added ${added} employer(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+        addCard.querySelector('#sal_feedback').textContent = `Added ${added} employer(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
         if(added>0) addCard.querySelector('#sal_paste').value='';
       };
     }
@@ -2181,7 +2273,7 @@ const HRAModule = {
         added++;
       });
       save(); renderRows(); renderSummary();
-      addCard.querySelector('#hra_feedback').textContent = `Added ${added} month(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+      addCard.querySelector('#hra_feedback').textContent = `Added ${added} month(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) addCard.querySelector('#hra_paste').value='';
     };
   }
@@ -2343,7 +2435,7 @@ const ClubbingModule = {
         added++;
       });
       save(); renderMinorRows(); renderSummary();
-      minorCard.querySelector('#cl_minor_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      minorCard.querySelector('#cl_minor_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) minorCard.querySelector('#cl_minor_paste').value='';
     };
 
@@ -2359,7 +2451,7 @@ const ClubbingModule = {
         added++;
       });
       save(); renderSpouseRows(); renderSummary();
-      spouseCard.querySelector('#cl_spouse_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      spouseCard.querySelector('#cl_spouse_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) spouseCard.querySelector('#cl_spouse_paste').value='';
     };
   }
@@ -2598,7 +2690,7 @@ const CapitalGainsEquityModule = {
       });
       save();
       renderRows(); renderSummary();
-      pasteCard.querySelector('#cg_paste_feedback').textContent = `Added ${added} row(s)${skipped>0 ? `, skipped ${skipped} (need 6 columns: Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice; qty/prices must be positive; sell date can't be before buy date; a buy price needs a buy date too)` : ''}.`;
+      pasteCard.querySelector('#cg_paste_feedback').textContent = `Added ${added} row(s)${skipped>0 ? `, skipped ${skipped} (need 6 columns: Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice; qty/prices must be positive; sell date can't be before buy date; a buy price needs a buy date too)${skipNote(rows)}` : ''}.`;
       if(added>0) pasteCard.querySelector('#cg_paste_area').value = '';
     };
 
@@ -2783,7 +2875,7 @@ const CapitalGainsMFModule = {
       });
       save();
       renderRows(); renderSummary();
-      pasteCard.querySelector('#mf_paste_feedback').textContent = `Added ${added} row(s)${skipped>0 ? `, skipped ${skipped} (need Scheme, Type, RedemptionDate, Cost, Gain — 5 columns minimum)` : ''}.`;
+      pasteCard.querySelector('#mf_paste_feedback').textContent = `Added ${added} row(s)${skipped>0 ? `, skipped ${skipped} (need Scheme, Type, RedemptionDate, Cost, Gain — 5 columns minimum)${skipNote(rows)}` : ''}.`;
       if(added>0) pasteCard.querySelector('#mf_paste_area').value = '';
     };
 
@@ -2924,7 +3016,7 @@ const VDAModule = {
           added++;
         });
         save(); renderRows(); renderSummary();
-        pasteCard.querySelector('#vda_feedback').textContent = `Added ${added} transaction(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+        pasteCard.querySelector('#vda_feedback').textContent = `Added ${added} transaction(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
         if(added>0) pasteCard.querySelector('#vda_paste').value='';
       };
     }
@@ -3183,7 +3275,7 @@ const OtherSourcesModule = {
         added++;
       });
       save(); renderIntRows();
-      intCard.querySelector('#os_int_feedback').textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+      intCard.querySelector('#os_int_feedback').textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) intCard.querySelector('#os_int_paste').value='';
     };
 
@@ -3252,7 +3344,7 @@ const OtherSourcesModule = {
         added++;
       });
       save(); renderDivRows();
-      divCard.querySelector('#os_div_feedback').textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+      divCard.querySelector('#os_div_feedback').textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) divCard.querySelector('#os_div_paste').value='';
     };
   }
@@ -3414,7 +3506,7 @@ const BusinessIncomeModule = {
           added++;
         });
         save(); renderFNORows(); renderFNOSummary();
-        card.querySelector('#bi_fno_feedback').textContent = `Added ${added} trade(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+        card.querySelector('#bi_fno_feedback').textContent = `Added ${added} trade(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
         if(added>0) card.querySelector('#bi_fno_paste').value='';
       };
     }
@@ -3654,7 +3746,7 @@ const ForeignAssetsModule = {
         added++;
       });
       save(); renderBankRows();
-      bankCard.querySelector('#fa_bank_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      bankCard.querySelector('#fa_bank_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) bankCard.querySelector('#fa_bank_paste').value='';
     };
 
@@ -4005,7 +4097,7 @@ const HousePropertyModule = {
           save();
           renderRentRows();
           renderComputation();
-          rentWrap.querySelector(`#${idFor('rentpastefeedback')}`).textContent = `Added ${added} credit(s)${skipped>0 ? `, skipped ${skipped}` : ''}.`;
+          rentWrap.querySelector(`#${idFor('rentpastefeedback')}`).textContent = `Added ${added} credit(s)${skipped>0 ? `, skipped ${skipped}${skipNote(rows)}` : ''}.`;
           if(added>0) rentWrap.querySelector(`#${idFor('rentpaste')}`).value = '';
         };
 
@@ -4363,7 +4455,7 @@ const ScheduleEIModule = {
         added++;
       });
       save(); renderEIRows();
-      eiCard.querySelector('#ei_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      eiCard.querySelector('#ei_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) eiCard.querySelector('#ei_paste').value='';
     };
 
@@ -4590,7 +4682,7 @@ const AMTModule = {
         added++;
       });
       save(); renderCreditRows();
-      creditCard.querySelector('#amt_credit_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      creditCard.querySelector('#amt_credit_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) creditCard.querySelector('#amt_credit_paste').value='';
     };
   }
@@ -4832,7 +4924,7 @@ const AssetsLiabilitiesModule = {
           added++;
         });
         save(); renderRows();
-        card.querySelector(`#al_feedback_${key}`).textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped} (amount must be a non-negative number)`:''}.`;
+        card.querySelector(`#al_feedback_${key}`).textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped} (amount must be a non-negative number)${skipNote(rows)}`:''}.`;
         if(added>0) card.querySelector(`#al_paste_${key}`).value='';
       };
     }

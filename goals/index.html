@@ -109,46 +109,96 @@ let data = loadData();
 function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 let expandedGoalId = null;
 
-// 2026-08-11: made more tolerant of real-world formatting noise -- a stray thousands-grouped
-// value like "₹4,50,000" no longer gets sliced into fake extra columns when comma is the row
-// separator (protectThousandsCommas, same fix as itrgenie/index.html's shared paste helpers),
-// and parseLabelValueRow (below, used where this is actually consumed) tolerates currency
-// symbols, commas, and either column order (Label,Value or Value,Label) -- detected by which
-// cell actually looks like a plausible number, not guessed.
+// 2026-08-11, THIRD ROUND (safe-by-construction rewrite). Two prior same-day fixes each patched
+// one reported failure shape while leaving the same class of silent corruption possible -- see
+// itrgenie/index.html's shared paste helpers for the full writeup (round 1's unconditional
+// whole-line regex collapse, round 2's "validated fallback" that still had no upper-bound check
+// and could fuse across a real column separator). This module's own 2-column "Label, Value" box
+// only ever hits the merge logic when a pasted amount is thousands-grouped AND the row has more
+// pieces than expected -- e.g. "PPF account,1,50,000" -- and parseLabelValueRow() (below) still
+// tolerates either column order once the row is correctly split.
 //
-// 2026-08-11, same-day correction (reviewer-caught SEVERE regression, see itrgenie/index.html's
-// shared paste helpers for the full writeup and live-reproduced failure case): the first version
-// of protectThousandsCommas() ran unconditionally on the theory that a real column-separator
-// comma is "always followed by a space," which is false for plain no-space CSV (a raw .csv/.txt
-// file, Excel's own sheet_to_csv() output, or fast typing all produce it) -- so a normal 2-column
-// "10,20" or "Label,1234" row could get wrongly fused. Fixed the same way as itrgenie/'s: the
-// collapse is now a VALIDATED FALLBACK, only attempted when the naive comma-split overshoots the
-// 2 columns this box expects, and only trusted if the collapsed result doesn't drop below 2
-// columns (which would mean it fused Label and Value together). A plain "Label,Value" row that
-// already parses to exactly 2 columns is never touched by the collapse logic.
-function protectThousandsCommas(line){
-  return line.replace(/(₹|\$)?\d{1,3}(,\d{1,3})+(\.\d+)?/g, m => m.replace(/,/g, ''));
+// Rewrite: naive comma-split first; if it already matches what the box expects, done, no merge
+// attempted. If it overshoots, resolveThousandsMerge() enumerates every way to merge ADJACENT
+// pieces into a span that is a COMPLETE, correctly-shaped grouped number end-to-end (Indian:
+// 1-2 digits then 2-digit groups then one 3-digit group; Western: 1-3 digits then 3-digit
+// groups) -- never a loose "both sides look short" guess. A merge is only applied if EXACTLY ONE
+// combination lands the column count on expectedCols (or minCols, for boxes with a genuinely
+// optional trailing field) -- zero or multiple valid combinations both mean "don't guess", and
+// the row is returned empty so the caller's own `cols.length < N` check honestly skips it (see
+// itrgenie/index.html for the full design, since this is the same shared helper shape kept
+// identical across modules per this repo's self-contained-module convention).
+const GROUPED_WESTERN = /^(₹|\$)?\d{1,3}(,\d{3})+(\.\d+)?$/;        // 1,234,567 or 1,234,567.50
+const GROUPED_INDIAN  = /^(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,000 or 4,50,000.25
+function resolveThousandsMerge(naive, targets){
+  const n = naive.length;
+  function spanValid(i, j){
+    if(i===j) return true;
+    for(let k=i;k<j;k++){ if(!/^(₹|\$)?\d{1,3}$/.test(naive[k])) return false; }
+    if(!/^\d{1,3}(\.\d+)?$/.test(naive[j])) return false;
+    const joined = naive.slice(i, j+1).join(',');
+    return GROUPED_WESTERN.test(joined) || GROUPED_INDIAN.test(joined);
+  }
+  const spanEnds = [];
+  for(let i=0;i<n;i++){
+    spanEnds[i] = [];
+    for(let j=i;j<n;j++){ if(spanValid(i,j)) spanEnds[i].push(j); }
+  }
+  const targetSet = new Set(targets);
+  const maxTarget = Math.max(...targets);
+  const results = [];
+  let explored = 0;
+  const EXPLORE_CAP = 5000;
+  let capped = false;
+  (function dfs(i, acc){
+    if(capped) return;
+    if(++explored > EXPLORE_CAP){ capped = true; return; }
+    if(acc.length > maxTarget) return;
+    if(i===n){ if(targetSet.has(acc.length)) results.push(acc.slice()); return; }
+    for(const j of spanEnds[i]){
+      acc.push(naive.slice(i, j+1).join(','));
+      dfs(j+1, acc);
+      acc.pop();
+    }
+  })(0, []);
+  if(capped) return null;
+  const unique = Array.from(new Set(results.map(r=>JSON.stringify(r)))).map(s=>JSON.parse(s));
+  if(unique.length !== 1) return null;
+  return unique[0].map(s=>s.replace(/,/g,''));
 }
-// minCols (defaults to expectedCols) is the box's real minimum viable column count -- lower than
-// expectedCols only for boxes with optional trailing fields; see itrgenie/index.html's
-// splitPastedLine for the full reasoning (same shared helper shape, kept identical across
-// modules per this repo's self-contained-module convention).
+// Every whole count from minCols up to expectedCols is offered as a valid target, not just the
+// two endpoints -- a box with more than one independently-optional trailing field can legitimately
+// land on a count in between.
+//
+// IMPORTANT: this always runs the merge search, even when the naive split's raw piece count
+// already sits inside [minCols, expectedCols] and looks plausible on its own -- a thousands-
+// grouped number can coincidentally split a row down to a count that still lands in range while
+// fusing the wrong two fields together (see itrgenie/index.html's splitPastedLine for the
+// live-reproduced example: a genuinely grouped price landing an 8-col Portfolio row at 7 pieces,
+// "in range" for its 6-8 window, while actually misreading BuyPrice/BuyDate/CurrentPrice).
+// resolveThousandsMerge() always includes the untouched naive split itself as one candidate
+// reading, so a row with nothing to merge still resolves to the same naive result as before.
 function splitPastedLine(line, expectedCols, minCols){
   const naive = line.split(',').map(c=>c.trim());
-  if(!expectedCols || naive.length <= expectedCols) return naive;
+  if(!expectedCols) return naive;
   const floor = minCols || expectedCols;
-  const collapsedLine = protectThousandsCommas(line);
-  if(collapsedLine === line) return naive;
-  const collapsed = collapsedLine.split(',').map(c=>c.trim());
-  if(collapsed.length >= floor && collapsed.length < naive.length) return collapsed;
-  return naive;
+  const targets = [];
+  for(let t=floor; t<=expectedCols; t++) targets.push(t);
+  const resolved = resolveThousandsMerge(naive, targets);
+  return resolved || [];
 }
 function parsePastedRows(text, expectedCols, minCols){
-  return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
+  const rows = text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
     .map(line=>{
       const hasTab = line.includes('\t');
       return hasTab ? line.split('\t').map(c=>c.trim()) : splitPastedLine(line, expectedCols, minCols);
     });
+  rows.ambiguousCount = rows.filter(r=>r.length===0).length;
+  return rows;
+}
+function skipNote(rows){
+  const n = rows && rows.ambiguousCount;
+  return n>0 ? ` (${n} of those: couldn't tell where the columns split -- try a tab-separated paste copied straight from a spreadsheet, or add a space after each comma)` : '';
 }
 function toNum(s){
   if(s===undefined || s===null) return NaN;
@@ -216,11 +266,11 @@ const pasteDrafts = {};
 // goal.id. Set right before a render() call, consumed (read + cleared) the next time that goal's
 // investments card is built, so it shows exactly once rather than persisting on later renders.
 const invFeedback = {};
-function buildInvFeedbackMsg(added, skipped){
+function buildInvFeedbackMsg(added, skipped, rows){
   if(added===0 && skipped===0) return 'Nothing to add — paste one row per line as "Label, Value".';
   const parts = [];
   if(added>0) parts.push(`${added} investment${added===1?'':'s'} added`);
-  if(skipped>0) parts.push(`${skipped} row${skipped===1?'':'s'} skipped — expected "Label, Value"`);
+  if(skipped>0) parts.push(`${skipped} row${skipped===1?'':'s'} skipped — expected "Label, Value"${skipNote(rows)}`);
   return parts.join(', ') + '.';
 }
 
@@ -665,7 +715,7 @@ function renderGoalBody(container, goal){
       goal.investments.push(parsed);
       added++;
     });
-    invFeedback[goal.id] = buildInvFeedbackMsg(added, skipped);
+    invFeedback[goal.id] = buildInvFeedbackMsg(added, skipped, rows);
     delete pasteDrafts[goal.id];
   });
 
