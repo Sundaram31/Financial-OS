@@ -84,8 +84,11 @@ number" principle everywhere else it was honestly safe to apply. Touched `itrgen
   all 5 modules now strips ₹/$ symbols and thousands-grouping commas before parsing a numeric
   cell (`toNum()`/`parseNumericCell()`), and a shared `protectThousandsCommas()` fix stops a
   comma-grouped value like "₹4,50,000" from being sliced into fake extra columns when comma is
-  the row separator (detected by shape — no space after an internal grouping comma, unlike a real
-  field separator, which always has one in typed/pasted text — not guessed at).
+  the row separator. **⚠ Corrected same day, see the entry directly below** — the original
+  version of this fix (described as detecting a thousands separator "by shape — no space after an
+  internal grouping comma, unlike a real field separator, which always has one" — that claim was
+  wrong) shipped a severe regression on plain no-space CSV, live-reproduced and fixed the same
+  day.
 - **Column-order tolerance where it's actually safe**: `goals/` and `networth/`'s 2-column
   `Label, Value` paste boxes now accept either order (`450000, PPF account` works the same as
   `PPF account, 450000`), since with only 2 columns, which one "looks like a number" reliably
@@ -118,6 +121,36 @@ number" principle everywhere else it was honestly safe to apply. Touched `itrgen
   identically. Full regression smoke pass: all 27 ITRGenie modules + Dashboard/Checklist/Help
   clicked through with 0 console errors; all 5 touched modules loaded at 375px and 1280px with 0
   console errors. See each module's own `PROGRESS.md` for its exact before→after examples.
+
+## Fix: severe paste-parsing regression from the pass above (2026-08-11, same day)
+A second reviewer pass live-reproduced a SEVERE bug in the `protectThousandsCommas()` fix
+described just above: pasting a completely normal, plain no-space-after-comma row — e.g.
+`Acme Corp,1200000,50000,2400` into ITRGenie's Salary paste box, exactly what a raw `.csv`/`.txt`
+file or Excel's own `sheet_to_csv()` output (used internally for every `.xlsx` upload in this
+app) produces — got its digits silently fused into a corrupted ≈₹1.2 quadrillion Gross salary
+figure, with Exempt Allowances/Professional Tax dropped to ₹0. Root cause: the fix's own
+"a real separator always has a trailing space" premise was false, so it collapsed ANY comma-joined
+run of short digit groups unconditionally, not just genuine thousands-grouped numbers. Confirmed a
+genuine regression (not pre-existing) via `git show` against the commit before the offending
+change.
+
+**Fix**: the collapse is now a validated fallback, not an unconditional transform — a line is
+comma-split naively first, and the thousands-comma collapse is only even attempted when that
+naive split overshoots the specific paste box's own known column count, and only trusted if the
+collapsed result doesn't fall below that box's real minimum viable column count. Applied at all
+~20 `parsePastedRows()` call sites across `itrgenie/` (17), `goals/` (1), `networth/` (1), and
+`portfolio/` (2 — bulk paste and guided-form quick-fill), each passing its own real column-count
+knowledge (already present in every site's existing `cols.length` check) rather than one global
+heuristic. Re-verified: the exact reported failure case now parses correctly; the ORIGINAL
+motivating case (a genuinely thousands-grouped price mid-row, e.g. Capital Gains Equity's
+`Reliance, 10, 15/06/2021, 1,850.50, 20/07/2025, 2,100.75`) still collapses correctly; a generic
+`10,20,30,40` no longer risks fusing into one number; every paste box across the 4 files re-tested
+with both comma-space and no-space CSV for the same logical data. Also added a small,
+non-blocking fix flagged by the same review: Portfolio's "paste one line to fill in" quick-fill
+now visibly flags (outline) the Broker dropdown when a pasted broker name doesn't match any
+account, instead of relying on text feedback alone. `loans/` and `insurance/` were never affected
+— they don't use `protectThousandsCommas()`. See each touched module's own `PROGRESS.md` for the
+full before/after and adversarial test results.
 
 ## Current phase: Synthesis Layer, first pass (built 2026-08-09)
 `/synthesis/` is live — a read-only page joining Net Worth, Goals, Portfolio,

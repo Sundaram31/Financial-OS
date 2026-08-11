@@ -1610,3 +1610,31 @@ written until the explicit "Add holding" click, which then does add exactly one 
 reviewed values). 0 console errors. Full-app smoke pass (both viewports, both this module and the
 other 3 touched modules) — 0 console errors. `node --check` confirmed no syntax errors after
 every edit.
+
+**⚠ CORRECTION, same day (2026-08-11) — the `protectThousandsCommas()` shape-detection claim above
+("no space after the comma means a thousands separator, unlike a real field separator") was wrong
+and shipped a severe regression, caught by a second reviewer pass before it went further.** See
+`itrgenie/PROGRESS.md`'s matching correction entry for the full live-reproduced failure case
+(a plain no-space CSV row could get its digits wrongly fused). **Fix applied here**:
+`protectThousandsCommas()` is unchanged, but `parsePastedRows(text, expectedCols, minCols)` no
+longer calls it unconditionally on every line — the collapse is only attempted when a line's
+naive comma-split overshoots the box's real column shape, and only trusted if it doesn't drop
+below the box's real minimum viable column count (6 here — Symbol/Broker/AssetType/Qty/BuyPrice/
+BuyDate — since CurrentPrice/AsOf are optional trailing columns; passing the full 8-column target
+as the floor too, the first-draft version of this fix, would have wrongly rejected valid
+collapses on rows missing those optional columns). Both the bulk-paste box
+(`parsePastedRows(raw, 8, 6)`) and the guided form's quick-fill (`parsePastedRows(raw, 8, 6)`)
+updated. Re-tested live in headless Chromium: a plain no-space 8-column CSV row
+(`INFY,axis_direct,Stock,50,1450,2022-04-15,1900,2026-08-10`) now correctly adds one holding with
+every field in the right place (confirmed against the actual saved `data.holdings` record, not
+just the feedback message) instead of risking a column-count collapse; a generic
+`10,20,30,40`-shaped row against the 8-column target doesn't even trigger the collapse logic
+(no overshoot). 0 console errors.
+
+**Also fixed (reviewer's non-blocking suggestion, small/low-risk)**: quick-fill's Broker dropdown
+used to silently sit at its prior/default value when a pasted broker name didn't match any
+account, relying on the text feedback line alone. It now also gets a visible rust-colored outline
+on the dropdown itself when that happens, clearing the instant the user touches the dropdown —
+matches this app's honesty-first pattern of never letting a field look "correctly filled" when it
+wasn't. Verified live: pasting a broker name that doesn't match any account shows the outline;
+pasting one that does match ("Axis Direct") shows no outline.

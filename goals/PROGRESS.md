@@ -362,3 +362,18 @@ honesty — a stray `Label, Value` header row is skipped, not added as a fake ro
 whitespace around both cells trimmed correctly; honesty — a genuinely ambiguous both-numeric row
 (`100, 200`) is skipped rather than guessed. 0 console errors. `node --check` confirmed no syntax
 errors after the edit.
+
+**⚠ CORRECTION, same day (2026-08-11) — the claim above that a real column separator "always has
+[a space]" was wrong and shipped a severe regression, caught by a second reviewer pass before it
+went further.** See `itrgenie/PROGRESS.md`'s matching correction entry for the full
+live-reproduced failure case and root cause (a plain no-space CSV row like `Label,450000` could
+get its digits wrongly collapsed). **Fix applied here**: `protectThousandsCommas()` is unchanged,
+but it's no longer called unconditionally — `parsePastedRows(text, expectedCols, minCols)` now
+only attempts the collapse when a line's naive comma-split produces MORE than 2 columns (this
+box's real shape), and only trusts the collapsed result if it doesn't fall back below 2 columns
+(which would mean it fused Label and Value together). The tagged-investments paste box's call
+site now passes `parsePastedRows(raw, 2, 2)` explicitly. Re-tested: plain `PPF account,450000`
+(no space) parses correctly, reversed order still works, Indian-grouped `PPF account,12,34,567.89`
+still collapses to `1234567.89` as intended, and a generic `10,20,30,40`-shaped overshoot no
+longer risks a bad fuse. 0 console errors, confirmed live in headless Chromium against a real
+goal's investments card.

@@ -359,3 +359,82 @@ identically to before. Full-app smoke pass: clicked through all 27 modules plus 
 Checklist/Help after these changes — 0 console errors, matching the same sweep the 2026-08-11
 font-size pass above already ran. `node --check` confirmed no syntax errors in the extracted
 script after every edit.
+
+**⚠ CORRECTION, same day (2026-08-11) — the claim above that a real column separator "is
+reliably followed by a space while a thousands separator never is" was WRONG, and shipped a
+SEVERE regression.** A second reviewer pass live-reproduced the failure: pasting `Acme Corp,
+1200000, 50000, 2400` — a completely normal 4-column Salary row typed with no space after the
+commas (exactly what a raw `.csv`/`.txt` file, Excel's own `sheet_to_csv()` output used
+internally for every `.xlsx` upload in this app, or just fast typing produces) — got the greedy
+`protectThousandsCommas()` collapsing large stretches of that row's digits together, corrupting
+Gross salary into **₹1,20,00,00,50,00,02,400** (≈₹1.2 quadrillion) with Exempt Allowances and
+Professional Tax silently dropped to ₹0. Confirmed via `git show aa001c1:itrgenie/index.html`
+that the row parsed correctly *before* the offending commit — a genuine regression, not a
+pre-existing gap, and a live demonstration of exactly the "confidently-displayed wrong number"
+failure mode this app's honesty rule exists to prevent.
+
+**The fix — collapse as a validated fallback, not an unconditional transform.** `protectThousandsCommas()`
+itself is unchanged (still a regex that strips commas out of a run of 1-3-digit groups), but it's
+no longer called unconditionally on every pasted line. `parsePastedRows(text, expectedCols,
+minCols)` now takes the calling paste box's own known column shape:
+- `expectedCols` — that box's full/target shape (its destructured field count, e.g. 4 for Salary's
+  Name/Gross/Exempt/ProfTax). A line is comma-split naively (plain `split(',')`, the pre-8/11
+  behavior) first; the collapse is only even *attempted* if that naive split OVERSHOOTS
+  `expectedCols` — a normal row that already parses to the right number of columns, space or no
+  space, is never touched.
+- `minCols` — that box's real minimum viable column count (its own existing `cols.length < N`
+  floor), used only when it's lower than `expectedCols` because some trailing fields are optional
+  (e.g. Capital Gains MF's TDS column, Prior Years' carry-forward-loss columns, Opening Holdings'
+  Notes). A collapsed result is only trusted if it lands at-or-above this floor and below the
+  naive count — dropping below the floor would mean the collapse fused two genuinely separate
+  columns (worse than leaving the overshoot for the box's own length check to reject), so it's
+  discarded and the naive split is kept instead. Using `expectedCols` as both trigger AND floor
+  (the first-draft version of this fix) was itself briefly wrong for boxes with optional trailing
+  fields — caught before shipping by testing a liability row with no optional date column.
+- Applied at all 17 `parsePastedRows()` call sites in this file (Prior Years, Opening Holdings,
+  Salary, HRA, Clubbing×2, Capital Gains Equity, Capital Gains MF, VDA, Other Sources×2, F&O,
+  Foreign Assets, Rent, Exempt Income, AMT, Schedule AL), each passing its own real
+  `expectedCols`/`minCols` rather than a single global heuristic.
+
+**Before/after, the exact reported case** — `Acme Corp,1200000,50000,2400` into Salary:
+- Before this fix: Gross salary ₹1,20,00,00,50,00,02,400, Exempt/ProfTax silently ₹0.
+- After this fix (live-verified in headless Chromium): parses to exactly 4 columns —
+  `name:"Acme Corp", gross:1200000, exempt:50000, profTax:2400` — rendered correctly as
+  Gross ₹12,00,000, Exempt ₹50,000, ProfTax ₹2,400, Taxable salary ₹10,97,600.
+
+**Adversarial re-test, all green:**
+- Original motivating case still works: `Reliance, 10, 15/06/2021, 1,850.50, 20/07/2025, 2,100.75`
+  (Capital Gains Equity, 8 raw comma-split pieces, 6 real columns) still collapses correctly to
+  `qty:10, buyprice:1850.50, sellprice:2100.75`.
+- `10,20,30,40` (generic small-number CSV) confirmed it no longer fuses into `10203040` anywhere
+  — tested directly in the F&O paste box (2-column target) in a live browser: renders as two
+  separate rows/cells, never a single concatenated number.
+- Indian-style grouping (`12,34,567.89`) still collapses to one number wherever a box expects it.
+- Every one of the 17 call sites re-tested with BOTH the comma-space format the original pass
+  used AND an equivalent no-space CSV row for the same logical data — both now parse identically
+  (60 targeted unit-level checks against the extracted parsing functions + 11 live
+  headless-Chromium checks against real paste boxes, storage, and rendered tables).
+- Confirmed a known, pre-existing (not newly introduced) residual limitation: if a thousands-
+  grouped number sits glued directly against another digit-starting token with zero separating
+  character (e.g. a price's trailing comma-group immediately followed by a date, no space) the
+  shape-detection regex can still over-match across that boundary. The floor-validation catches
+  most of these and falls back to the naive split (no worse than the pre-8/11 baseline, before
+  this whole feature existed); in the one case where a corrupted collapse still slips past the
+  floor check by column-count alone, the resulting value cell contains a non-numeric character
+  (from the date) so `toNum()` returns `NaN` and the row is honestly skipped downstream — never a
+  silently-wrong finite number. A real fix would need a smarter per-field/column-boundary-aware
+  parser, out of scope for this pass; flagged for a future session if it proves to matter in
+  practice.
+- Confirmed the other things this commit got right are still intact: `toNum()`'s currency/comma
+  stripping, the Capital Gains Equity/MF `isNaN` fixes (re-tested: a garbage qty cell is still
+  honestly skipped, not pushed through as a fake `NaN`-based gain), `parseFlexDate()` untouched.
+- Full-app smoke pass repeated: itrgenie/, goals/, networth/, portfolio/ all load with 0 console
+  errors at 375px and 1280px, both themes.
+
+**Also fixed while in this code (reviewer's non-blocking item, small/low-risk)**: Portfolio
+Tracker's "paste one line to fill in" quick-fill left the Broker dropdown silently at its
+prior/default value when a pasted broker name didn't match any account, relying on the text
+feedback line alone. It now also adds a visible rust-colored outline to the dropdown itself when
+that happens, clearing the moment the user touches it — more consistent with this app's
+honesty-first pattern of never letting a form field look "filled correctly" when it wasn't. See
+`portfolio/PROGRESS.md` for the portfolio-side note.

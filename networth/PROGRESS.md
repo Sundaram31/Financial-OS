@@ -142,3 +142,21 @@ honesty — a stray `Label, Value` header row skipped; tolerant — extra whites
 Liabilities card exists and its own paste box works; tolerant — a Liabilities row with a currency
 symbol and an OutstandingAsOf date (`Home loan (SBI), ₹32,00,000, 2026-08-01`) parses correctly.
 0 console errors. `node --check` confirmed no syntax errors after the edit.
+
+**⚠ CORRECTION, same day (2026-08-11) — the claim above that a real field separator "always has
+[a space]" was wrong and shipped a severe regression, caught by a second reviewer pass before it
+went further.** See `itrgenie/PROGRESS.md`'s matching correction entry for the full
+live-reproduced failure case and root cause. **Fix applied here**: `protectThousandsCommas()` is
+unchanged, but `parsePastedRows(text, expectedCols, minCols)` no longer calls it
+unconditionally — the collapse is only attempted when a line's naive comma-split overshoots the
+column count this card expects (2 for asset categories, 3 for Liabilities to allow its optional
+trailing `OutstandingAsOf`), and only trusted if it doesn't drop the result below the card's real
+floor of 2 (Label, Value are always required; using the 3-column Liabilities *target* as the
+floor too — the first-draft version of this fix — wrongly rejected a valid collapse on a
+liability row missing the optional date, caught before shipping and fixed by passing 2 as an
+explicit floor separate from the 3-column target). Category card call site now passes
+`parsePastedRows(raw, isLiability ? 3 : 2, 2)`. Re-tested live in headless Chromium: plain
+`Axis Direct equity+MF,850000` (no space) parses correctly, reversed order still works, a
+liability row with Indian-grouped value and no date (`Home loan (SBI),3,20,000`) still correctly
+collapses to Value=320000, and the same row WITH a trailing date
+(`Home loan (SBI),3,20,000,15/06/2025`) also parses correctly. 0 console errors.

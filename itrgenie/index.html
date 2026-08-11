@@ -1294,7 +1294,7 @@ const PriorYearsModule = {
 
     resCard.querySelector('#py_paste_btn').onclick = ()=>{
       const raw = resCard.querySelector('#py_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 5, 2); // FY, Status, Days, CarryFwdST, CarryFwdLT (only FY+Status required)
       let added = 0, skipped = 0;
       rows.forEach(cols=>{
         if(cols.length < 2){ skipped++; return; }
@@ -1401,7 +1401,7 @@ const PriorYearsModule = {
 
     holdCard.querySelector('#oh_paste_btn').onclick = ()=>{
       const raw = holdCard.querySelector('#oh_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 5, 4); // Stock, Qty, BuyDate, BuyPrice, Notes (Notes optional)
       let added = 0, skipped = 0;
       rows.forEach(cols=>{
         if(cols.length < 4){ skipped++; return; }
@@ -1594,38 +1594,87 @@ function holdingPeriodDays(d1, d2){
    the same "match content, don't demand a rigid shape" principle the AIS
    Auto-Import module already applies to its own column headers (see that
    module's comment block above). Two additions:
-   (1) protectThousandsCommas() -- when a pasted line uses plain commas as
-   the column separator (no tab), a thousands-grouped amount like
-   "₹4,50,000" or "1,200,000" would otherwise get sliced into several fake
-   columns, corrupting every field after it. Detected by shape (a run of
-   1-3-digit groups joined by commas with NO space after the comma, unlike
-   a real field separator which is always followed by a space in practice)
-   and its internal commas stripped before the column split runs, so the
-   split can't mistake them for a field boundary -- not guessed, since a
-   genuine field separator and a thousands separator are reliably
-   distinguishable this way in real pasted text.
+   (1) protectThousandsCommas() -- a thousands-grouped amount like
+   "₹4,50,000" or "1,200,000" pasted with plain commas as the column
+   separator (no tab) can get sliced into fake extra columns, corrupting
+   every field after it.
    (2) toNum() (defined below) -- strips ₹/$ and thousands commas from a
    cell before parsing it as a number, so numeric columns work the same
-   whether typed as "450000" or "₹4,50,000". Both changes only affect
-   whether a column is *read* correctly -- they never change WHICH column a
-   value ends up in (that stays strictly positional, since these paste
-   boxes have no header row to keyword-match against the way AIS's real
-   exported file does; reordering columns without a header to identify them
-   would be guessing, not detecting). ---- */
+   whether typed as "450000" or "₹4,50,000".
+
+   2026-08-11, same-day correction (reviewer-caught SEVERE regression): the
+   first version of (1) shipped on the theory that a real column separator
+   comma is "always followed by a space" in practice, so it collapsed ANY
+   run of comma-joined 1-3-digit groups with no trailing space,
+   unconditionally, before the column split ran. That assumption is false
+   for the single most common real case -- plain CSV with no space after
+   commas, which is exactly what a raw .csv/.txt file, Excel's own
+   sheet_to_csv() output (used for every .xlsx upload in this app), or
+   someone just typing quickly all produce. Live-reproduced failure:
+   pasting "Acme Corp,1200000,50000,2400" into the Salary paste box (a
+   plain 4-column row, each number short enough to look "groupable") got
+   silently mangled into a fused ~15-digit figure, corrupting Gross salary
+   into a quadrillion-rupee number with Exempt/ProfTax dropped to 0 -- with
+   zero indication anything went wrong. Fixed by making the collapse a
+   VALIDATED FALLBACK instead of an unconditional transform: split naively
+   first (plain comma-split, the pre-8/11 behavior), and only attempt the
+   collapse if that naive split produces MORE columns than the specific
+   paste box expects (every paste box already knows its own real column
+   count from its `cols.length` check/destructuring) -- and only trust the
+   collapsed result if it lands the row's column count on-or-above what's
+   expected without dropping below it (dropping below would mean it fused
+   two genuinely separate columns, which is worse than leaving the
+   overshoot for the caller's own length check to reject). A normal
+   no-space CSV row that already parses to the right number of columns is
+   therefore never touched by the collapse logic at all; the collapse still
+   fires for its original motivating case -- a genuinely thousands-grouped
+   number pushing the column count too high, e.g.
+   "Reliance, 10, 15/06/2021, 1,850.50, 20/07/2025, 2,100.75" (8 raw
+   comma-split pieces, 6 real columns -- collapsing the two grouped prices
+   brings it back to exactly 6). Both changes only affect whether a column
+   is *read* correctly -- they never change WHICH column a value ends up in
+   (that stays strictly positional, since these paste boxes have no header
+   row to keyword-match against the way AIS's real exported file does;
+   reordering columns without a header to identify them would be guessing,
+   not detecting). ---- */
 function protectThousandsCommas(line){
   // Matches an optional ₹/$ prefix followed by 1-3 digits, then one or more
-  // ",digits(1-3)" groups with no space after the comma, optionally a decimal
-  // tail -- e.g. "₹4,50,000", "1,200,000.50", "50,000" -- and strips the
-  // internal commas so the split below can't mistake them for a separator.
+  // ",digits(1-3)" groups, optionally a decimal tail -- e.g. "₹4,50,000",
+  // "1,200,000.50", "50,000" -- and strips the internal commas. Only ever
+  // called as a validated fallback by splitPastedLine() below, never
+  // unconditionally -- see the correction note above.
   return line.replace(/(₹|\$)?\d{1,3}(,\d{1,3})+(\.\d+)?/g, m => m.replace(/,/g, ''));
 }
-function parsePastedRows(text){
+// Comma-splits one pasted line, only collapsing thousands-grouped numbers (via
+// protectThousandsCommas) when the naive split overshoots the column count the calling paste
+// box actually expects -- see the correction note above protectThousandsCommas(). expectedCols
+// is that box's full/target shape (its destructured field count -- used to decide WHETHER to
+// attempt a collapse at all: no overshoot, no collapse, ever). minCols is the box's own real
+// minimum viable column count (its own `cols.length < N` floor, when that's lower than
+// expectedCols because some trailing fields are optional, e.g. Capital Gains MF's optional TDS
+// column) -- used to decide whether a collapsed result is safe to trust. Using expectedCols as
+// both would wrongly reject a valid collapse on a row that's missing an optional trailing field
+// (e.g. a liability paste of "Home loan (SBI),3,20,000" with no OutstandingAsOf date -- collapses
+// correctly to 2 real columns, which is below the 3-column *target* shape but not below the true
+// 2-column floor). minCols defaults to expectedCols for boxes where every field is required.
+function splitPastedLine(line, expectedCols, minCols){
+  const naive = line.split(',').map(c=>c.trim());
+  if(!expectedCols || naive.length <= expectedCols) return naive;
+  const floor = minCols || expectedCols;
+  const collapsedLine = protectThousandsCommas(line);
+  if(collapsedLine === line) return naive; // nothing looked like a thousands group -- nothing to try
+  const collapsed = collapsedLine.split(',').map(c=>c.trim());
+  // Only trust the collapse if it brings the column count down toward what's expected without
+  // dropping below the box's real floor -- below would mean it fused two genuinely separate
+  // columns rather than just a thousands-grouped number.
+  if(collapsed.length >= floor && collapsed.length < naive.length) return collapsed;
+  return naive;
+}
+function parsePastedRows(text, expectedCols, minCols){
   return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
     .map(line=>{
       const hasTab = line.includes('\t');
-      const sep = hasTab ? '\t' : ',';
-      const workLine = hasTab ? line : protectThousandsCommas(line);
-      return workLine.split(sep).map(c=>c.trim());
+      return hasTab ? line.split('\t').map(c=>c.trim()) : splitPastedLine(line, expectedCols, minCols);
     });
 }
 // Tolerant numeric parsing for a pasted cell: strips currency symbols (₹, $) and thousands-
@@ -1987,7 +2036,7 @@ const SalaryModule = {
 
       addCard.querySelector('#sal_paste_btn').onclick = ()=>{
         const raw = addCard.querySelector('#sal_paste').value;
-        const rows = parsePastedRows(raw);
+        const rows = parsePastedRows(raw, 4, 2); // Name, Gross, Exempt, ProfTax (Exempt/ProfTax optional)
         let added=0, skipped=0;
         rows.forEach(cols=>{
           if(cols.length<2){ skipped++; return; }
@@ -2120,7 +2169,7 @@ const HRAModule = {
 
     addCard.querySelector('#hra_paste_btn').onclick = ()=>{
       const raw = addCard.querySelector('#hra_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 5); // Month, BasicDA, HRA, Rent, City
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<5){ skipped++; return; }
@@ -2283,7 +2332,7 @@ const ClubbingModule = {
 
     minorCard.querySelector('#cl_minor_btn').onclick = ()=>{
       const raw = minorCard.querySelector('#cl_minor_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 3); // Name, Type, Amount
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<3){ skipped++; return; }
@@ -2300,7 +2349,7 @@ const ClubbingModule = {
 
     spouseCard.querySelector('#cl_spouse_btn').onclick = ()=>{
       const raw = spouseCard.querySelector('#cl_spouse_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 2); // Desc, Amount
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<2){ skipped++; return; }
@@ -2515,7 +2564,7 @@ const CapitalGainsEquityModule = {
 
     pasteCard.querySelector('#cg_paste_btn').onclick = ()=>{
       const raw = pasteCard.querySelector('#cg_paste_area').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 6); // Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice
       let added = 0, skipped = 0;
       rows.forEach(cols=>{
         if(cols.length < 4) { skipped++; return; }
@@ -2718,7 +2767,7 @@ const CapitalGainsMFModule = {
 
     pasteCard.querySelector('#mf_paste_btn').onclick = ()=>{
       const raw = pasteCard.querySelector('#mf_paste_area').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 6, 5); // Scheme, Type, RedemptionDate, Cost, Gain, TDS (TDS optional)
       let added = 0, skipped = 0;
       rows.forEach(cols=>{
         if(cols.length < 5){ skipped++; return; }
@@ -2863,7 +2912,7 @@ const VDAModule = {
 
       pasteCard.querySelector('#vda_paste_btn').onclick = ()=>{
         const raw = pasteCard.querySelector('#vda_paste').value;
-        const rows = parsePastedRows(raw);
+        const rows = parsePastedRows(raw, 4); // Asset, SellDate, Cost, SaleValue
         let added=0, skipped=0;
         rows.forEach(cols=>{
           if(cols.length<4){ skipped++; return; }
@@ -3123,7 +3172,7 @@ const OtherSourcesModule = {
     intCard.querySelector('#os_ais_int').onchange = (e)=>{ os.aisInterestTotal = e.target.value; save(); renderIntRows(); };
     intCard.querySelector('#os_int_paste_btn').onclick = ()=>{
       const raw = intCard.querySelector('#os_int_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 3); // Source, Type, Amount
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<3){ skipped++; return; }
@@ -3192,7 +3241,7 @@ const OtherSourcesModule = {
     divCard.querySelector('#os_ais_div').onchange = (e)=>{ os.aisDividendTotal = e.target.value; save(); renderDivRows(); };
     divCard.querySelector('#os_div_paste_btn').onclick = ()=>{
       const raw = divCard.querySelector('#os_div_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 2); // Company, Amount
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<2){ skipped++; return; }
@@ -3355,7 +3404,7 @@ const BusinessIncomeModule = {
 
       card.querySelector('#bi_fno_paste_btn').onclick = ()=>{
         const raw = card.querySelector('#bi_fno_paste').value;
-        const rows = parsePastedRows(raw);
+        const rows = parsePastedRows(raw, 2); // Contract, P&L
         let added=0, skipped=0;
         rows.forEach(cols=>{
           if(cols.length<2){ skipped++; return; }
@@ -3595,7 +3644,7 @@ const ForeignAssetsModule = {
     renderBankRows();
     bankCard.querySelector('#fa_bank_btn').onclick = ()=>{
       const raw = bankCard.querySelector('#fa_bank_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 4); // Bank, Country, Peak, Closing
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<4){ skipped++; return; }
@@ -3940,7 +3989,7 @@ const HousePropertyModule = {
 
         rentWrap.querySelector(`#${idFor('rentpastebtn')}`).onclick = ()=>{
           const raw = rentWrap.querySelector(`#${idFor('rentpaste')}`).value;
-          const rows = parsePastedRows(raw);
+          const rows = parsePastedRows(raw, 3, 2); // Date, Amount, Label (Label optional)
           let added = 0, skipped = 0;
           prop.rentRows = prop.rentRows || [];
           rows.forEach(cols=>{
@@ -4304,7 +4353,7 @@ const ScheduleEIModule = {
 
     eiCard.querySelector('#ei_paste_btn').onclick = ()=>{
       const raw = eiCard.querySelector('#ei_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 3, 2); // Category, Amount, Note (Note optional)
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<2){ skipped++; return; }
@@ -4531,7 +4580,7 @@ const AMTModule = {
 
     creditCard.querySelector('#amt_credit_btn').onclick = ()=>{
       const raw = creditCard.querySelector('#amt_credit_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 3); // FY, Generated, Utilized
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<3){ skipped++; return; }
@@ -4772,7 +4821,7 @@ const AssetsLiabilitiesModule = {
 
       card.querySelector(`#al_btn_${key}`).onclick = ()=>{
         const raw = card.querySelector(`#al_paste_${key}`).value;
-        const rows = parsePastedRows(raw);
+        const rows = parsePastedRows(raw, cols.length); // last col is always the amount, e.g. [Description, Cost]
         al[key] = al[key] || [];
         let added=0, skipped=0;
         rows.forEach(cols_=>{
