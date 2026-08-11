@@ -365,9 +365,9 @@ and `renderConcentrationCard()`, `synthesis/index.html`):
    Real estate-property / Business / Other) holds **≥70%** of total assets, with at least 2
    categories having nonzero value (a single-category-only data-entry state reads "100%" by
    construction, not as a real signal — same gating principle as Portfolio's own "≥3 holdings
-   before evaluating top-2%" gate). Example wording: "72% of your net worth is in Real estate /
-   property — if that category's value fell, or became hard to access, there isn't much else
-   behind your total."
+   before evaluating top-2%" gate). Example wording (corrected 2026-08-11, see the fix entry below):
+   "72% of your total tracked assets is in Real estate / property — if that category's value fell,
+   or became hard to access, there isn't much else behind your total."
    - **Threshold reasoning, worked through explicitly rather than reused from Portfolio's 50%**:
      Portfolio's top-2-holdings check uses 50% ("half your value in two names") — that number does
      NOT carry over unchanged here, because an individual holding and a net-worth *category* carry
@@ -443,6 +443,39 @@ directly and driving the real page:
 
 No new data storage — this card is pure computation from `networth_data_v1`, already read by the
 existing Net Worth card; nothing new was added to `synthesis_data_v1`.
+
+### Fix (2026-08-11, same day) — reviewer-found mislabeled denominator
+`financial-os-reviewer` independently re-verified this card and confirmed the arithmetic, 70%
+threshold boundary, ≥2-category gate, double-counting avoidance, and read-only guarantee all
+correct — but found one real safety gap: the category-dominance copy said "**X% of your net
+worth**" while the underlying math is `category value ÷ total ASSETS`, not `÷ (assets -
+liabilities)`. The sibling Net Worth card right above shows Net Worth, Total Assets, and Total
+Liabilities as three distinct numbers — this new card was the one place in the feature that
+conflated assets and net worth. For anyone with real liabilities (a mortgage being the single most
+common, and arguably the exact scenario this card exists to catch — a mortgaged house is the
+textbook "one category dominates" case), the stated percentage was attached to the wrong
+denominator's name. Reviewer's fixtures: ₹1cr assets / ₹60L home loan (real net worth ₹40L) showed
+"72% of your net worth is in Real estate" when property (₹72L) is actually 180% of the real ₹40L
+net worth; a ₹90L assets / ₹85L loan case (real net worth ₹5L) showed "89% of your net worth,"
+understating a far more alarming real exposure; a negative-net-worth household still got told a
+positive percentage "of your net worth" — nonsensical once net worth is negative.
+
+Root cause: none of the original 43 test scenarios combined a nonzero liability with nonzero
+assets before evaluating the concentration flag — the one liability-only fixture tested
+short-circuited before the concentration math ran.
+
+Fixed by rewording the two affected strings (and the no-flag case's phrasing) to name what's
+actually measured — "of your total tracked assets," matching how Portfolio's own Diversification
+check already phrases the same kind of ratio ("of your INR-convertible holdings"), never "net
+worth" or "portfolio." `computeNWConcentration()`'s math is untouched — this was a labeling fix,
+not a calculation fix. Also added an explicit caveat to the flagged (warning) case specifically,
+since that's where the assets-vs-net-worth gap matters most: "This is a share of assets, not net
+worth — if you're carrying meaningful liabilities against this category, e.g. a mortgage, your real
+exposure relative to your net worth is higher than this percentage."
+
+Verified directly: re-ran the reviewer's exact fixture shape (property + a home loan) and confirmed
+the card now reads "of your total tracked assets" with the liability caveat visible, not "of your
+net worth."
 
 ## Known gaps
 - This page reads `localStorage` once at load time, not reactively — if you

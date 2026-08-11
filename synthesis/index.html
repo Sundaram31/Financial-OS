@@ -428,11 +428,11 @@ function renderConcentrationCard(container){
   }
 
   if(c.nonZeroCount===1){
-    card.innerHTML += `<div class="helptext">Only one category has data entered so far (${c.dominant.label}) — that's currently 100% of your tracked net worth, but that reflects what's been entered so far, not genuine concentration yet. Add other categories (property, investments, business, etc.) in Net Worth Dashboard for a meaningful check.</div>`;
+    card.innerHTML += `<div class="helptext">Only one category has data entered so far (${c.dominant.label}) — that's currently 100% of your total tracked assets, but that reflects what's been entered so far, not genuine concentration yet. Add other categories (property, investments, business, etc.) in Net Worth Dashboard for a meaningful check.</div>`;
   } else if(c.dominantPct>=CONCENTRATION_CATEGORY_PCT_THRESHOLD){
-    card.innerHTML += `<div class="notice warn"><strong>${c.dominantPct.toFixed(0)}%</strong> of your net worth is in ${c.dominant.label} — if that category's value fell, or became hard to access, there isn't much else behind your total.</div>`;
+    card.innerHTML += `<div class="notice warn"><strong>${c.dominantPct.toFixed(0)}%</strong> of your total tracked assets is in ${c.dominant.label} — if that category's value fell, or became hard to access, there isn't much else behind your total. (This is a share of assets, not net worth — if you're carrying meaningful liabilities against this category, e.g. a mortgage, your real exposure relative to your net worth is higher than this percentage.)</div>`;
   } else {
-    card.innerHTML += `<div class="helptext" style="color:var(--green);">No concentration flags right now — no single category dominates your net worth.</div>`;
+    card.innerHTML += `<div class="helptext" style="color:var(--green);">No concentration flags right now — no single category dominates your total tracked assets.</div>`;
   }
 
   card.innerHTML += `
