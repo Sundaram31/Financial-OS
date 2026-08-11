@@ -1168,3 +1168,143 @@ functionality to paper over them:
   answers a completely different question ("which FY does this date fall in," for the Sec 112A
   exemption-pool computation). Both are real, independently boundary-tested — see the 2026-08-10
   entry above for the exact FY-boundary test cases (March 31 vs April 1).
+- **The page is organized into four tabs (added 2026-08-11): Dashboard, Holdings, Realized Gains &
+  What-If, Export & Settings — see the dated entry below for the exact section-to-tab mapping.**
+  `switchTab()` must never call the full `render()` — it only toggles `.tab-pane` visibility via
+  `applyTabVisibility()`, deliberately, so that merely clicking between tabs can never wipe an
+  in-progress form (all four panes are always fully built on every `render()`, just hidden/shown).
+  A new section added to this module in the future should be appended into whichever existing
+  `tab-pane` container fits it thematically (or a new one, added to the `TABS` array), not appended
+  directly to `content` the way sections were before this session. Any function that
+  `scrollIntoView`s a panel that isn't on the currently-active tab (the pattern
+  `openSaleForm`/`openWhatIfSale` use) must set `activeTab` to that panel's tab before calling
+  `render()`, or the scroll/focus will silently no-op against a `display:none` element.
+
+## Updated 2026-08-11 — Tab sub-navigation (pure reorganization, no feature/logic changes)
+The page had grown to 17 stacked render functions on one long scroll over several sessions. Per
+explicit direction (referencing Value Research's "My Investments" portfolio manager, which uses
+Dashboard/Overview/Performance/Analysis/Tax Report/Transactions/Alerts tabs instead of one long
+page), this session added a tab bar and regrouped the existing sections into it. **This was
+deliberately scoped as reorganization only — zero new features, zero changes to any render
+function's internal markup/math/behavior.** `git diff` on this change touches only: new CSS for
+`.tab-bar`/`.tab-btn`, a new `renderTabBar()`/`switchTab()`/`applyTabVisibility()` trio, two
+one-line additions to `openSaleForm()`/`openWhatIfSale()` (see below), and the master `render()`
+function's wiring of which container each existing `renderXxx(container)` call appends into. No
+render function's own body was touched.
+
+**Final tab structure — every one of the 17 original sections accounted for:**
+- **Dashboard** (`activeTab='dashboard'`) — `renderPerformanceSummary`, then an "Allocation &
+  performance" sub-heading, `renderAllocationCard`, `renderBrokerBreakdown`. The "what's my
+  situation right now" overview, exactly as scoped.
+- **Holdings** (`activeTab='holdings'`) — `renderHoldingsTable`, `renderAddHoldingForm`,
+  `renderHoldingsEntryCard` (which internally calls `renderXlsxImportPreview` when a file is being
+  previewed — unchanged), `renderCasImportCard` (which internally calls `renderCasBody` —
+  unchanged), `renderLiveSettingsCard`, then an "Accounts & FX" sub-heading, `renderAccountsCard`,
+  `renderFxCard`. Everything about viewing and entering/importing holdings data, matching the
+  original task grouping exactly.
+- **Realized Gains & What-If** (`activeTab='gains'`) — `renderRecordSaleForm`,
+  `renderRealizedGainsSection`, `renderWhatIfSaleSection`. The sold-lot tracking and tax-simulation
+  cluster, unchanged order.
+- **Export & Settings** (`activeTab='export'`) — `renderNetWorthFeedCard`.
+- **`renderKnownGapsCard`** was deliberately NOT put in the Export & Settings tab — per the task's
+  own suggestion, it's rendered once, outside all four tab-pane containers, so it's visible
+  regardless of which tab is active (a page-wide disclosure a user might otherwise never click into
+  if it were gated behind one specific tab). Verified there is exactly one `<details>` "Known gaps"
+  element in the DOM at all times, not duplicated per tab.
+
+**Tab labels**: Dashboard / Holdings / Realized Gains & What-If / Export & Settings — the task's
+starting-point grouping read naturally once the actual sections were laid out, so no regrouping
+was needed beyond what was proposed.
+
+**Mechanics — chosen specifically to avoid a re-render-wipes-drafts bug.** `render()` still does
+`content.innerHTML=''` and rebuilds all four tab panes plus the tab bar on every real state change
+(adding a holding, recording a sale, etc.) — that data-mutation-driven full-rebuild behavior is
+unchanged from before this session. What's new: each of the four panes is wrapped in a
+`<div class="tab-pane" data-tab="...">` and **all four are always fully built on every render()**,
+just hidden via `style.display='none'` for the non-active ones (`applyTabVisibility()`, called at
+the end of `render()` and by `switchTab()`). Clicking a tab pill calls `switchTab()`, which **does
+NOT call `render()`** — it only re-runs `applyTabVisibility()` against the already-built DOM. This
+means merely browsing between tabs can never wipe an in-progress "Add a holding" / "Record a sale"
+/ what-if form the way a fresh `render()` would (the same class of bug found and fixed earlier the
+same day in `goals/index.html`) — confirmed by test (see below), not just designed defensively.
+A genuine state change still resets *other* sections' unsubmitted input exactly as it always did
+(pre-existing behavior, tracked as Known gap #6 below — out of scope for a pure reorganization to
+fix).
+
+**Cross-tab jump fix required for two existing functions.** The Holdings table's per-row "Sell" and
+"What-if" buttons (`openSaleForm`/`openWhatIfSale`) `scrollIntoView` their target panel after
+setting state and calling `render()` — but those panels (`#sale-form-panel`, `#whatif-panel`) now
+live in the Realized Gains & What-If tab, a different tab than the Holdings table that triggers
+them. Both functions now also set `activeTab = 'gains'` before their existing `render()` call, so
+the target panel is actually visible (not `display:none`) by the time `scrollIntoView`/`.focus()`
+run. This is the one behavioral addition beyond "which container it renders into" — without it,
+clicking Sell/What-if from the Holdings tab would silently no-op (`scrollIntoView` on a hidden
+`display:none` element is a no-op, no error thrown). Verified by test: clicking either button
+switches the active tab pill to "Realized Gains & What-If" and the target panel is visible.
+
+**Mobile (375×812)**: the tab bar is a horizontally-scrollable row (`.tab-bar{overflow-x:auto}`,
+`-webkit-overflow-scrolling:touch`), not wrapped/cramped pills — confirmed all 4 tab buttons remain
+in the DOM and reachable, tab-button font-size reads back ≥13px via computed style (14px under the
+`max-width:760px` mobile block), and `document.documentElement.scrollWidth` never exceeds the
+375px viewport on any of the 4 tabs, in both themes. Screenshots taken (not committed) for visual
+review — the active tab shows the gold color + 2px gold bottom-border pattern already used
+elsewhere in this app's design language (sortable table headers, etc.), no new visual pattern
+introduced.
+
+**Testing.** Real headless Chromium (the environment's pre-installed `/opt/pw-browsers` build,
+since `cdn.playwright.dev` is blocked by this session's outbound network policy — `npx playwright
+install` fails there; used the already-present global install instead), both themes, desktop and
+375×812 mobile:
+- **Structure** (17 checks): all 4 tabs present with the expected labels; Dashboard is the default
+  active tab on load; each tab's pane becomes visible (and all others hidden) on click; each tab
+  contains the expected section headings; the Known Gaps card is visible regardless of active tab
+  and appears exactly once in the DOM; zero console/page errors in either theme.
+- **Real interactions, not just DOM presence** (23 checks): added two holdings via the guided "Add
+  a holding" form on the Holdings tab and confirmed both appear; confirmed the Dashboard tab's stat
+  tiles and asset-allocation legend reflect the new holdings; clicked a Holdings-row "Sell" button
+  and confirmed the cross-tab jump to Realized Gains & What-If with the sale form visible; recorded
+  a real partial sale (4 of 10 units) and confirmed the sold lot appears in Realized Gains and the
+  source holding's remaining qty is correct; confirmed the "Record a sale" form's existing
+  validation-error-preserves-input behavior (Qty/Sell price un-wiped on a blank-date error) still
+  works post-move; clicked a Holdings-row "What-if" button, confirmed the cross-tab jump, and
+  **reproduced this session's own documented ₹9,375 tax figure** (a ₹2,00,000 LTCG gain against a
+  fresh/zero exemption pool: `(200000-125000)*0.125 = 9375`) using a freshly seeded long-held
+  holding; clicked the capital-gains "Copy paste-ready lines" button and confirmed no crash; clicked
+  the Net Worth feed's "Download JSON" button on the Export & Settings tab and confirmed a real file
+  download fires; confirmed the Live Prices settings card renders on the Holdings tab; **confirmed
+  the Add-a-holding form's typed-but-unsubmitted Symbol/Qty values survive switching away to
+  Dashboard and back** (the specific regression this session's tab mechanics were designed to
+  avoid); confirmed the bulk-paste textarea's typed-but-unsubmitted draft also survives a tab
+  switch (see note below); multiple tabs switched in varied order (7 switches) with zero console/
+  page errors throughout the whole run.
+- **Mobile (375×812), both themes** (10 checks): zero page-level horizontal overflow on every tab;
+  tab bar has real internal `overflow-x` scroll; all 4 tab buttons present in the DOM; tab-button
+  font-size ≥13px; active tab has a visible bottom-border; zero console/page errors.
+- **Data persistence unaffected**: added a holding, reloaded the page fresh (not just re-rendered),
+  confirmed the holding survives (localStorage, unchanged by this session) and the tab correctly
+  resets to Dashboard (in-memory `activeTab`, not persisted — a fresh page load intentionally always
+  starts on Dashboard, matching how every other in-memory UI-state variable in this file already
+  behaves, e.g. `liveSettingsOpen`/`bulkAddOpen` are also not persisted across reloads).
+- **One test-methodology note, not a regression**: while testing the bulk-paste textarea's draft
+  survival, an early version of the test (typing immediately after first-opening the "Bulk add"
+  panel, then switching tabs within ~100ms) intermittently saw the draft cleared. Root-caused to a
+  **pre-existing, unrelated** background behavior: opening that panel for the first time triggers
+  `ensureXlsxLoaded()` (lazy-loading `xlsx.core.min.js`, built 2026-08-10), which calls `render()`
+  once when the load starts and again when it resolves/fails — both already existed before this
+  session and are unrelated to tab-switching (confirmed directly: the same draft-loss reproduces
+  with zero tab switches at all if you type before that second `render()` fires). This is a
+  pre-existing race between "first panel open" and "typing immediately," not something this
+  session's tab mechanism introduced or made worse — the test was adjusted to let that unrelated
+  async settle first, after which the tab-switch draft-survival check passes cleanly and
+  repeatably. Not added as a new Known gap since it's a narrow, pre-existing timing window in
+  already-shipped 2026-08-10 code, out of this reorganization's scope to touch.
+
+**What wasn't independently re-verified beyond the checks above**: the CAS PDF import flow itself
+(password unlock, ISIN-anchored parsing) and the live-price fetch providers (Yahoo/Stooq/Twelve
+Data network calls) were not re-exercised end-to-end in this pass — both were already extensively
+tested in their own 2026-08-10 sessions (see the dated entries above) and neither's internal logic
+changed here, only the container each one's render function (`renderCasImportCard`/
+`renderLiveSettingsCard`) now appends into. Their presence/rendering on the correct tab (Holdings)
+was confirmed structurally and via the "Live prices" text/element check above, but a real
+password-protected PDF and a real network fetch were not re-run in this session — reasonable given
+this was a structural move only, but noted so it isn't assumed to have been re-verified end-to-end.

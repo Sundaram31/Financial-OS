@@ -100,6 +100,13 @@
   details.collapsible summary .summary-hint{ font-family:var(--mono); font-size:12px; color:var(--muted); font-weight:400; margin-left:4px; }
   ::-webkit-scrollbar{ width:8px; height:8px; }
   ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+  /* Tab sub-navigation (added 2026-08-11) -- mirrors this module's existing hairline/gold-accent
+     language rather than a generic pill-tab component. Horizontally scrollable so it stays usable
+     at 375px without wrapping or overflowing off-screen. */
+  .tab-bar{ display:flex; gap:4px; overflow-x:auto; border-bottom:1px solid var(--line); margin-bottom:22px; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+  .tab-btn{ flex:0 0 auto; background:transparent; border:none; border-bottom:2px solid transparent; color:var(--muted); font-family:var(--mono); font-size:13px; padding:10px 16px; cursor:pointer; white-space:nowrap; transition:color .12s, border-color .12s; }
+  .tab-btn:hover{ color:var(--text); }
+  .tab-btn.active{ color:var(--gold); border-bottom-color:var(--gold); font-weight:600; }
   @media (max-width:760px){
     main.content{ padding:16px; }
     .card{ padding:14px 16px; }
@@ -144,6 +151,7 @@
     table.day-table td[data-label=""]{ justify-content:flex-end; }
     table.day-table input[type="number"], table.day-table input[type="date"]{ width:110px; font-size:14px; }
     .cp-cell{ display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+    .tab-btn{ font-size:14px; padding:11px 14px; }
   }
 </style>
 <!-- SheetJS (Excel import) and PDF.js (CAS PDF import) are self-hosted under ./lib/ but are
@@ -209,6 +217,61 @@ if(!data.fx) data.fx = { usdInr:'', asOf:'' };
 if(!Array.isArray(data.soldLots)) data.soldLots = [];
 function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 function newId(prefix){ return prefix + '_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
+
+// ---------- Tab sub-navigation (added 2026-08-11) ----------
+// The page grew to 17 stacked sections over several sessions; this groups them into tabs the way
+// Value Research's "My Investments" (and every other mature portfolio manager) does, instead of one
+// long scroll. Reorganization only -- no render function's internal markup/math changed, only which
+// container each one gets appended into and whether that container is currently visible.
+//
+// Switching tabs deliberately does NOT call the full render() (which does content.innerHTML='' and
+// rebuilds everything from scratch) -- it only toggles CSS display on already-built panes via
+// applyTabVisibility(). All 4 panes are always fully built on every render() (data-mutation-driven,
+// same as before this change), just hidden/shown -- so merely clicking between tabs can never wipe
+// an in-progress "Add a holding" / "Record a sale" / what-if form the way a fresh render() would
+// (the same class of bug found and fixed in goals/index.html). A real state change (adding a
+// holding, recording a sale, etc.) still calls the full render() exactly as it always did, and still
+// resets any *other* section's unsubmitted input -- that's pre-existing behavior across sections on
+// this page (see Known gaps #6) and out of scope for this reorganization to fix.
+let activeTab = 'dashboard';
+const TABS = [
+  { id:'dashboard', label:'Dashboard' },
+  { id:'holdings',  label:'Holdings' },
+  { id:'gains',     label:'Realized Gains & What-If' },
+  { id:'export',    label:'Export & Settings' },
+];
+function renderTabBar(container){
+  const bar = document.createElement('div');
+  bar.className = 'tab-bar';
+  bar.setAttribute('role','tablist');
+  TABS.forEach(t=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tab-btn' + (activeTab===t.id ? ' active' : '');
+    btn.textContent = t.label;
+    btn.dataset.tabId = t.id;
+    btn.setAttribute('role','tab');
+    btn.setAttribute('aria-selected', activeTab===t.id ? 'true' : 'false');
+    btn.onclick = ()=> switchTab(t.id);
+    bar.appendChild(btn);
+  });
+  container.appendChild(bar);
+}
+function switchTab(tabId){
+  if(tabId === activeTab) return;
+  activeTab = tabId;
+  applyTabVisibility();
+}
+function applyTabVisibility(){
+  document.querySelectorAll('.tab-pane').forEach(pane=>{
+    pane.style.display = (pane.dataset.tab === activeTab) ? '' : 'none';
+  });
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    const isActive = btn.dataset.tabId === activeTab;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+}
 
 let brokerFilter = 'all';
 let liveSettingsOpen = false; // persists the collapsible "Live prices" panel's open/closed state across render() rebuilds
@@ -1091,6 +1154,7 @@ function renderHoldingsTable(container){
 function openSaleForm(holdingId){
   saleFormHoldingId = holdingId;
   saleFormFeedbackMsg = { text: '', isError: false };
+  activeTab = 'gains'; // the sale form now lives in the Realized Gains & What-If tab, not Holdings
   render();
   requestAnimationFrame(()=>{
     const panel = document.getElementById('sale-form-panel');
@@ -1110,6 +1174,7 @@ function openWhatIfSale(holdingId){
   whatIfQty = h ? String(h.qty) : '';
   whatIfSellPrice = h ? String(whatIfDefaultSellPrice(h)) : '';
   whatIfSellDate = new Date().toISOString().slice(0,10);
+  activeTab = 'gains'; // the what-if panel now lives in the Realized Gains & What-If tab, not Holdings
   render();
   requestAnimationFrame(()=>{
     const panel = document.getElementById('whatif-panel');
@@ -2625,47 +2690,62 @@ function render(){
   `;
   content.appendChild(header);
 
-  // Summary + holdings, front and center.
-  renderPerformanceSummary(content);
-  renderHoldingsTable(content);
+  renderTabBar(content);
 
-  // Selling — guided form (only entry path, see comment above renderRecordSaleForm) plus the
-  // realized-gains view it feeds. Placed right after open holdings since this is now real
-  // portfolio data too, not buried under entry forms/settings.
-  renderRecordSaleForm(content);
-  renderRealizedGainsSection(content);
-  renderWhatIfSaleSection(content);
+  // ---- Dashboard tab: "what's my situation right now" ----
+  const dashPane = document.createElement('div');
+  dashPane.className = 'tab-pane';
+  dashPane.dataset.tab = 'dashboard';
+  renderPerformanceSummary(dashPane);
+  const allocHeader = document.createElement('div');
+  allocHeader.className = 'panel-header';
+  allocHeader.style.marginTop = '28px';
+  allocHeader.innerHTML = `<h2 style="font-size:18px;">Allocation &amp; performance</h2>`;
+  dashPane.appendChild(allocHeader);
+  renderAllocationCard(dashPane);
+  renderBrokerBreakdown(dashPane);
+  content.appendChild(dashPane);
 
+  // ---- Holdings tab: viewing + entering/importing holdings data ----
+  const holdPane = document.createElement('div');
+  holdPane.className = 'tab-pane';
+  holdPane.dataset.tab = 'holdings';
+  renderHoldingsTable(holdPane);
   // Entry — guided form is the primary path; bulk paste/CSV is the collapsed "advanced" option.
-  renderAddHoldingForm(content);
-  renderHoldingsEntryCard(content);
-  renderCasImportCard(content);
-  renderLiveSettingsCard(content);
+  renderAddHoldingForm(holdPane);
+  renderHoldingsEntryCard(holdPane);
+  renderCasImportCard(holdPane);
+  renderLiveSettingsCard(holdPane);
+  const acctHeader = document.createElement('div');
+  acctHeader.className = 'panel-header';
+  acctHeader.style.marginTop = '28px';
+  acctHeader.innerHTML = `<h2 style="font-size:18px;">Accounts &amp; FX</h2>`;
+  holdPane.appendChild(acctHeader);
+  renderAccountsCard(holdPane);
+  renderFxCard(holdPane);
+  content.appendChild(holdPane);
 
-  const manageHeader = document.createElement('div');
-  manageHeader.className = 'panel-header';
-  manageHeader.style.marginTop = '28px';
-  manageHeader.innerHTML = `<h2 style="font-size:18px;">Accounts &amp; FX</h2>`;
-  content.appendChild(manageHeader);
-  renderAccountsCard(content);
-  renderFxCard(content);
+  // ---- Realized Gains & What-If tab: sold-lot tracking + tax simulation ----
+  const gainsPane = document.createElement('div');
+  gainsPane.className = 'tab-pane';
+  gainsPane.dataset.tab = 'gains';
+  renderRecordSaleForm(gainsPane);
+  renderRealizedGainsSection(gainsPane);
+  renderWhatIfSaleSection(gainsPane);
+  content.appendChild(gainsPane);
 
-  const breakHeader = document.createElement('div');
-  breakHeader.className = 'panel-header';
-  breakHeader.style.marginTop = '28px';
-  breakHeader.innerHTML = `<h2 style="font-size:18px;">Allocation &amp; performance</h2>`;
-  content.appendChild(breakHeader);
-  renderAllocationCard(content);
-  renderBrokerBreakdown(content);
+  // ---- Export & Settings tab ----
+  const exportPane = document.createElement('div');
+  exportPane.className = 'tab-pane';
+  exportPane.dataset.tab = 'export';
+  renderNetWorthFeedCard(exportPane);
+  content.appendChild(exportPane);
 
-  const feedHeader = document.createElement('div');
-  feedHeader.className = 'panel-header';
-  feedHeader.style.marginTop = '28px';
-  feedHeader.innerHTML = `<h2 style="font-size:18px;">Cross-module</h2>`;
-  content.appendChild(feedHeader);
-  renderNetWorthFeedCard(content);
-
+  // Known gaps is a page-wide disclosure, not gated behind one tab a user might never click —
+  // rendered once, outside the tab panes, visible regardless of which tab is active.
   renderKnownGapsCard(content);
+
+  applyTabVisibility();
 }
 
 const THEME_KEY = 'itrgenie_theme'; // deliberately shared with every other module so theme choice is consistent site-wide
