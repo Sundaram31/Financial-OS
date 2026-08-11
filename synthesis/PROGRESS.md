@@ -251,6 +251,96 @@ Goals card) is still the pre-2026-08-10 ordinary-annuity formula, not the annuit
 itself uses — see the 2026-08-10 entry below. The new FI math above sidesteps this by not reusing
 that function at all.
 
+## Updated (2026-08-11, reviewer fix) — negative expected-return bug in `monthsToReachTarget()`
+`financial-os-reviewer` audited commit 38d4b6e (the Financial independence card above) and found one
+real bug in `monthsToReachTarget()`: it branched on `if(monthlyRate<=0)` and always used a linear,
+growth-free approximation (`(target-current)/pmt`) in that branch — correct only for exactly `r===0`,
+but silently wrong for a genuinely negative `expectedReturn`. Nothing in the UI stops a user from
+typing a negative return (the "Expected return" field is free-text `%`, no `min` attribute). For the
+reviewer's exact repro (current ₹10,00,000, ₹20,000/month, target ₹1,80,00,000, -5% expected return),
+the app previously reported a confident "850 months → 11 Jun 2097" — a fabricated headline number for
+a scenario where, under true negative compounding, the target is never reached at all (contributions
+asymptote toward a finite ceiling below the target). Exactly the "confidently wrong headline number"
+failure mode this whole feature exists to prevent.
+
+**Why the obvious fix (just widen the r>0 closed form to cover r<0) doesn't work**: the closed-form
+inversion (`B = pmt*(1+r)/r`, `A = current+B`, solve via `ln((target+B)/A)/ln(1+r)`) relies on `A<=0`
+as its only "not reachable" guard. For negative r, `B` isn't small — it's `pmt*(1+r)/(-r)`, which is
+the *actual finite ceiling* the balance asymptotes toward, and for small `|r|` this ceiling is huge, so
+`A = current - ceiling` goes deeply negative even when the target is well below that ceiling and *is*
+genuinely reachable in a few years. Verified by hand-simulation: widening the closed form to `r<0`
+wrongly reported "not reachable" for a -0.1%/year case that direct month-by-month simulation shows
+reaches its target in ~54 months. This isn't just floating-point cancellation for tiny `|r|` — the
+`A<=0` check is simply the wrong reachability condition once `r` is negative.
+
+**Fix applied** (a hybrid of the reviewer's two suggested approaches, chosen to be both correct and
+zero-risk to the already-verified r>0 path): `monthlyRate===0` and `monthlyRate>0` are now separate,
+untouched branches (byte-identical logic/output to before — re-verified against the documented
+₹20,00,000/₹50,000/8.5%/₹60,000/25× → 11 Aug 2038 example, which still matches exactly). A NEW
+`monthlyRate<0` branch was added that:
+1. Returns "not reachable" immediately if there's no contribution (`pmt<=0`) — with no growth and no
+   contribution, and `currentValue<target` already established above, the balance can only shrink.
+2. Computes the true finite ceiling `L = pmt*(1+r)/(-r)` the balance asymptotes toward as months→∞
+   (proven algebraically: `(1+r)^n → 0` since `0<1+r<1` for `-1<r<0`) and returns "not reachable"
+   immediately, mathematically (not just "not found within a search window"), if `target>=L`.
+3. Otherwise (target below the ceiling, so a crossing is mathematically guaranteed to exist),
+   bisects over the SAME forward annuity-due FV formula used everywhere else in this app
+   (`current*(1+r)^n + pmt*(1+r)*((1+r)^n-1)/r`, evaluated directly via `Math.pow` rather than
+   rearranged into the cancellation-prone `A*(1+r)^n - B` form), capped at 1200 months (100 years) as
+   an outer safety bound in case a target sits absurdly close to the ceiling.
+
+**Verified — independent ground-truth simulation, not just trusting the new code**: wrote a standalone
+month-by-month simulator (`FV(n) = (FV(n-1)+pmt)*(1+r)`, the same annuity-due recursion, evaluated as a
+literal loop with no closed-form shortcuts at all) and cross-checked it against the fixed function
+across a matrix of cases before touching the app file:
+- Reviewer's exact -5%/year case (₹10,00,000 / ₹20,000/mo / ₹1,80,00,000 target): both the simulator
+  (out to a 1000-year cap) and the fixed function agree — never reached. No confident date.
+- -0.1%/year edge case (constructed with a smaller gap so it's genuinely reachable — ₹1,70,00,000 /
+  ₹20,000/mo / ₹1,80,00,000 target): simulator crosses at month 54; fixed function returns 53.94
+  (rounds to 54) — matches. Also checked -0.01%/year and -0.0001%/year on the same inputs: both
+  correctly reachable (~50-51 months), confirming the fix isn't just accidentally right at one rate.
+- Positive-rate regression, byte-for-byte: the documented 8.5%/₹20,00,000/₹50,000/₹1,80,00,000 example
+  still returns exactly `143.65591010201672` months (same float, to the last digit, as before the fix)
+  — the r>0 branch was never touched.
+- `monthlyRate===0` (typed literally "0"): unaffected, still the exact pre-existing linear formula
+  (400 months for a hand-picked gap/pmt pair, checked against `(target-current)/pmt` by hand).
+- Checked the adjacent edge the reviewer flagged as worth double-checking (a rate that rounds to
+  effectively zero from floating point vs literal `0`): `expectedReturn/12/100` for an input of `"0"`
+  or `"-0"` produces exactly `0`/`-0` in JS, and `-0===0` is `true` in JS while `-0<0` is `false`, so
+  both land in the untouched `monthlyRate===0` branch correctly — no adjacent fragility found. Tiny
+  *positive* rates were already reviewer-confirmed solid and are untouched by this fix (still the r>0
+  branch).
+
+**Real headless-Chromium (Playwright) suite, seeding `synthesis_data_v1.fi` directly** (own module's
+data, not another module's — no cross-module writes involved in testing): confirmed in a real browser,
+not just node math —
+- -5%/year case → verdict is "Not reachable with current assumptions" (no date at all), matching the
+  ground-truth simulation.
+- -0.1%/year case (₹1,70,00,000/₹20,000/₹1,80,00,000 target) → verdict is a concrete date ("11 Feb
+  2031", 54 months from today 2026-08-11), NOT "not reachable" — confirms the fix is granular, not a
+  blanket "all negative rates unreachable" shortcut.
+- Full regression, all re-run in-browser and all still exactly correct: the documented ₹20,00,000/
+  ₹50,000/8.5%/₹60,000/25× example → "11 Aug 2038" (today is 2026-08-11, so this is the exact same
+  ~144-month projection as the original build); zero-return/zero-contribution/zero-asset → "Not
+  reachable with current assumptions"; already-sufficient-assets → "You're already there"; the
+  assets-source picker (portfolio/net worth/manual) still never sums two sources (checked a seeded
+  portfolio holding worth ₹20,00,000 alongside a seeded Net Worth Investments row worth ₹5,00,000 —
+  switching the source selector shows one or the other, never ₹25,00,000); the Emergency-fund
+  expense-sourcing hint and its "use this" sync link still populate the monthly-expenses field
+  correctly. Zero console/page errors across every run.
+- Also spot-checked mobile (375×812) and both themes for the FI card and Emergency-fund sync flow
+  specifically — no new sub-13px text introduced by this change. **Found, not fixed (pre-existing,
+  unrelated to this fix, confirmed via `git stash` that it predates this change)**: a generic `.tag`
+  element (used for "No target set" on the Goals card, loan-type tags on the Debt card, and the
+  income-adequacy tag on the Insurance card) renders at 12px on mobile, below this app's 13px floor —
+  out of scope for this bug fix, worth a small dedicated pass in a future session.
+
+No UI copy changes were needed — the existing "Not reachable with current assumptions" honest message
+(already used for the zero-input case) now also correctly covers genuinely-unreachable negative-return
+scenarios, and the existing date-rendering path now correctly covers reachable negative-return
+scenarios. Only `monthsToReachTarget()` itself changed; nothing else in `synthesis/index.html` was
+touched.
+
 ## Known gaps
 - This page reads `localStorage` once at load time, not reactively — if you
   add data in another module in a different tab, use the "↻ Refresh"
@@ -267,6 +357,10 @@ that function at all.
   — disclosed in-UI — and doesn't model an income-shock scenario (delayed
   contracts, lump-sum gaps). That's a separate, later Life Confidence
   pillar item ("Income-shock stress test"), not built here.
+- A generic `.tag` element (Goals card's "No target set", Debt card's loan-type tags, Insurance
+  card's income-adequacy tag) renders at 12px on mobile — below this app's 13px floor. Pre-existing,
+  found (not fixed) during the 2026-08-11 negative-return fix's mobile spot-check; unrelated to that
+  fix, worth a small dedicated pass.
 - `projectGoal()` in this file (used only by the Goals card) is still the
   pre-2026-08-10 stale ordinary-annuity formula — a real, known drift from
   `goals/index.html`'s own annuity-due fix, carried forward again from the

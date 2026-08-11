@@ -624,17 +624,56 @@ function renderInsuranceCard(container){
 //
 // monthsToReachTarget is the INVERSE of projectGoal's math: given a monthly rate/contribution,
 // solve for how many months until FV crosses a target, rather than compute FV at a fixed date.
-// Derivation (same annuity-due FV formula, solved for n):
+// Derivation (same annuity-due FV formula, solved for n), used for r>0:
 //   FV(n) = current*(1+r)^n + pmt*(1+r)*(((1+r)^n - 1)/r)
 //         = A*(1+r)^n - B,  where B = pmt*(1+r)/r,  A = current + B
 //   FV(n) = target  =>  n = ln((target+B)/A) / ln(1+r)
+//
+// Reviewer-found fix (2026-08-11): this closed-form inversion is ONLY valid/stable for r>0. It was
+// previously reached for ANY monthlyRate<=0 (lumping r===0 with genuinely negative r), silently
+// giving a confident linear-approximation answer for negative returns that is mathematically wrong
+// (that approximation assumes flat/no growth, not shrinkage). Widening the r>0 closed form itself to
+// cover r<0 doesn't work either: B=pmt*(1+r)/r blows up for small |r|, and A=current+B goes deeply
+// negative even when the target IS reachable, so the `A<=0` guard fires and wrongly reports
+// "unreachable" for cases direct simulation shows DO cross the target in a few years. So r<0 gets its
+// own branch below instead of being folded into either the r===0 or r>0 cases.
 function monthsToReachTarget(currentValue, monthlyRate, monthlyContribution, target){
   if(target<=0) return null;
   if(currentValue>=target) return 0;
   const pmt = Math.max(0, +monthlyContribution||0);
-  if(monthlyRate<=0){
+  if(monthlyRate===0){
     if(pmt<=0) return null; // no growth and no contribution: can never close the gap
     return (target-currentValue)/pmt;
+  }
+  if(monthlyRate<0){
+    // Negative expected return: contributions still land every month, but the whole balance shrinks
+    // each month instead of growing, so (unlike r>0) the balance never grows unboundedly -- it rises
+    // toward a finite ceiling L (or shrinks toward 0 with no contribution) and can genuinely never
+    // reach a target above that ceiling. No contribution means nothing fights the shrinkage, so with
+    // currentValue<target already established above, the target can never be reached.
+    if(pmt<=0) return null;
+    const r = monthlyRate;
+    // Same forward annuity-due FV formula as above, evaluated directly (no A/B rearrangement, so no
+    // large-magnitude cancellation) -- stable for any r, including the tiny-|r| cases that broke the
+    // widened closed form.
+    const fvAt = (n) => currentValue*Math.pow(1+r, n) + pmt*(1+r)*((Math.pow(1+r, n)-1)/r);
+    // As n -> infinity, (1+r)^n -> 0 (since 0<1+r<1), so FV(n) -> L = pmt*(1+r)/(-r): a finite ceiling
+    // the balance approaches but never crosses. If the target is at or above that ceiling, it is
+    // mathematically never reached -- not just "not found in the search window below".
+    const L = pmt*(1+r)/(-r);
+    if(target>=L) return null;
+    // Target is below the ceiling, so FV(n) (monotonically rising toward L) crosses it at some finite
+    // n -- find it via bisection over the stable forward formula, capped at a sensible outer horizon
+    // (100 years) so a technically-reachable-but-absurdly-distant target still reports honestly rather
+    // than returning a many-centuries figure.
+    const CAP_MONTHS = 1200;
+    if(fvAt(CAP_MONTHS) < target) return null;
+    let lo = 0, hi = CAP_MONTHS;
+    for(let i=0; i<100; i++){
+      const mid = (lo+hi)/2;
+      if(fvAt(mid) >= target) hi = mid; else lo = mid;
+    }
+    return hi;
   }
   const r = monthlyRate;
   const B = pmt*(1+r)/r;
