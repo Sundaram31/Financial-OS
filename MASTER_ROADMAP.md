@@ -63,6 +63,22 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
   landing page has no light theme at all (a feature gap, not a sizing fix).
   See `INDEX.md`'s "App-wide pass" entry and each module's own `PROGRESS.md`
   for the full before→after list.
+- 2026-08-11 (same day): `financial-os-reviewer` independently re-verified the
+  pass above and confirmed it safe, but measured the `--rust`-as-text AA
+  failure more precisely than the original pass had -- 3.93:1 flat against
+  `--bg` (dark theme), but 3.43:1 in the real composited case (`.notice.warn`'s
+  actual rendered background), worse than the flat number suggested. Fixed
+  same-day rather than deferred further, since it's a well-defined, computable
+  color-contrast problem, not an ambiguous design call: dark-theme `--rust`
+  changed from `#B5533C` to `#CE6C53` across all 8 files (hue essentially
+  unchanged, 0.032→0.034 on the HSL wheel; just brighter/more saturated) --
+  now 5.43:1 flat and 4.74:1 in the real composited warning-box case, both
+  clearing AA, verified live in a headless-Chromium render (not just computed
+  offline) using the actual rendered `getComputedStyle` colors. Light theme's
+  `--rust` (`#9B3F2A`) was already comfortably AA-compliant (5.8-6.7:1) and
+  left untouched. The other two flagged items (root landing page's missing
+  light theme, `portfolio/index.html`'s off-palette `.match-tag.isin` blue)
+  remain open -- genuine feature/design decisions, not contrast bugs.
 
 ## How to run a session against this roadmap
 1. Say "check the Financial-OS repo" — Claude reads this file directly from
