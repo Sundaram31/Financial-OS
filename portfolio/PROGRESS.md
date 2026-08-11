@@ -1470,3 +1470,28 @@ the module actually loads over HTTP on the deployed site), 66 checks, all pass:
 **Design invariants added** — see the updated tab-structure bullet and two new bullets in "Design
 invariants" above (the honesty-gate requirement for the two new Dashboard cards, and the
 sold-lots-collapse-is-display-only requirement).
+
+### Fix (2026-08-11, same day) — reviewer-found disclosure gap in the Diversification check
+`financial-os-reviewer` independently re-verified all three features by hand (own fixtures, not the
+builder's numbers) — confirmed the sold-lots collapse never partializes the STCG/LTCG/Total stat
+tiles or the capital-gains export (the axis scrutinized hardest, given the safety stakes of a
+silently-partial total), confirmed the Gainers/Losers ranking and no-cost-basis exclusion correct
+including the specific "smallest gainer must never appear as a Loser" edge case, and confirmed every
+threshold boundary (50% top-2, 20 stocks, 10 sold lots) behaves exactly as documented. One real gap:
+`computeConcentration()` silently excluded holdings that couldn't convert to INR (unconverted USD,
+no FX rate set) from its top-2 denominator and its `priced.length>=3` gate, but — unlike every other
+computation in this file (`renderPerformanceSummary`, `renderRealizedGainsSection`) — gave no
+disclosure and said "your portfolio" rather than qualifying the claim. Reviewer's exact repro: two
+small INR holdings + one large unconverted USD holding showed a clean "No concentration flags right
+now," silently blind to the USD position dominating the real portfolio. Fixed by adding
+`unconvertedCount` to `computeConcentration()`'s return (same pattern as the existing
+`unconvertedCount` fields elsewhere in this file), disclosing it in the card exactly like the
+performance-summary and realized-gains cards already do, and rewording the top-2 flag from "of your
+portfolio" to "of your INR-convertible holdings." Also softened an inaccurate in-code comment (the
+Evans & Archer 1968 study's own original figure was 8-10 stocks, later revised UP to 15-20+, not
+down — so 20 sits at the low end of what's considered adequate, not a generous cushion above it; left
+the threshold itself unchanged since it's explicitly a rule of thumb, not a hard line). Verified both
+changes directly: the reviewer's exact repro now shows "1 USD holding(s) not included in this check
+— set the USD → INR rate further down to fold Vested-US in," and a separately-constructed
+top-2-flag-triggering scenario confirms the reworded "INR-convertible holdings" text renders
+correctly when the flag actually fires.

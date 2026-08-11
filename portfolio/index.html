@@ -2568,20 +2568,25 @@ function renderAccountsCard(container){
 //     holdings -- with only 1 or 2 holdings total, "most of your portfolio is in your top 2" is true
 //     by construction, not a genuine concentration signal worth flagging.
 //   - More than 20 direct stock/equity positions: the commonly cited practitioner rule of thumb
-//     (going back to Evans & Archer's 1968 diversification study, widely repeated since) is that the
-//     marginal diversification benefit of adding another individual stock is mostly gone by roughly
-//     15-20 names -- beyond that, more positions mainly add tracking effort, not real diversification.
-//     20 is picked as a deliberately generous line so a 12-15 stock portfolio someone runs on purpose
-//     isn't flagged.
+//     (going back to Evans & Archer's 1968 diversification study) is that the marginal diversification
+//     benefit of adding another individual stock is mostly gone by roughly 15-20 names -- beyond that,
+//     more positions mainly add tracking effort, not real diversification. Note (2026-08-11 review):
+//     the 1968 study's own original figure was actually 8-10 stocks; later replications revised that
+//     upward to the 15-20+ range commonly cited today, and some go higher still -- so 20 sits at the
+//     LOW end of what's now considered adequate, not a deliberately generous cushion above it. Left at
+//     20 anyway since this is an explicitly descriptive, non-prescriptive rule of thumb either way, not
+//     a hard line -- just correcting the "generous" framing, not the number itself.
 // Only ever shown when actually true for the current data -- no flag, or a clean "well diversified"
 // note, when neither threshold is crossed. Never a fabricated concern.
 const CONCENTRATION_TOP2_PCT_THRESHOLD = 50;
 const CONCENTRATION_STOCK_COUNT_THRESHOLD = 20;
 
 function computeConcentration(){
+  let unconvertedCount = 0;
   const priced = data.holdings.map(h=>{
     const m = computeHoldingMetrics(h);
     const valueINR = toINR(m.currentValue, m.currency);
+    if(valueINR===null) unconvertedCount++;
     return { h, m, valueINR };
   }).filter(x=>x.valueINR!==null && x.valueINR>0);
   const totalINR = priced.reduce((s,x)=>s+x.valueINR, 0);
@@ -2593,7 +2598,7 @@ function computeConcentration(){
     const t = (h.assetType || '').trim().toLowerCase();
     return t === 'stock' || t === 'equity';
   }).length;
-  return { priced, totalINR, top2, top2Pct, stockCount };
+  return { priced, totalINR, top2, top2Pct, stockCount, unconvertedCount };
 }
 
 function renderConcentrationCard(container){
@@ -2611,7 +2616,7 @@ function renderConcentrationCard(container){
   const flags = [];
   if(c.priced.length>=3 && c.top2Pct>=CONCENTRATION_TOP2_PCT_THRESHOLD){
     const names = c.top2.map(x=>x.h.symbol).join(' and ');
-    flags.push(`<div class="notice warn"><strong>${c.top2Pct.toFixed(0)}%</strong> of your portfolio (by current value) is in your top 2 holdings — ${names}. A large move in either would meaningfully swing your total portfolio value.</div>`);
+    flags.push(`<div class="notice warn"><strong>${c.top2Pct.toFixed(0)}%</strong> of your INR-convertible holdings (by current value) is in your top 2 — ${names}. A large move in either would meaningfully swing that total.</div>`);
   }
   if(c.stockCount > CONCENTRATION_STOCK_COUNT_THRESHOLD){
     flags.push(`<div class="notice">You hold <strong>${c.stockCount}</strong> direct stock positions — beyond roughly 15-20 names, that typically adds tracking effort without much extra diversification benefit.</div>`);
@@ -2621,6 +2626,15 @@ function renderConcentrationCard(container){
     card.innerHTML += `<div class="helptext" style="color:var(--green);">No concentration flags right now — your top holdings and stock count are both in a reasonable range.</div>`;
   } else {
     card.innerHTML += flags.join('');
+  }
+  // Reviewer-found gap (2026-08-11): this check silently excluded unconverted-USD holdings from its
+  // top-2 denominator, same as the totals elsewhere in this file -- but unlike those, it said "your
+  // portfolio" with no note, which could read as a clean bill of health for a portfolio actually
+  // dominated by an unpriced foreign stake. Now says "INR-convertible holdings" (above) and discloses
+  // the excluded count explicitly here, matching the exact pattern already used for the performance
+  // summary and realized-gains totals.
+  if(c.unconvertedCount>0){
+    card.innerHTML += `<div class="helptext" style="margin-top:6px;">${c.unconvertedCount} USD holding(s) not included in this check — set the USD → INR rate further down to fold Vested-US in.</div>`;
   }
   card.innerHTML += `<div class="helptext" style="margin-top:6px;">Descriptive only, based on your current holdings — not investment advice, and not a recommendation to buy, sell, or rebalance anything.</div>`;
 }
