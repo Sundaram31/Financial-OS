@@ -321,6 +321,134 @@ function renderNetWorthCard(container){
 }
 
 // ============================================================
+// CONCENTRATION CHECK -- whole-net-worth level, reads networth_data_v1's category totals
+// (via computeNetWorthTotals() above). Deliberately separate from Portfolio Tracker's own
+// "Diversification check" card, which only sees Portfolio's own holdings -- this looks one
+// level up, across ALL of net worth: investments, foreign assets, property, business, other.
+//
+// Explicitly NOT summed against Portfolio's tracked value: Net Worth's `investments` category is
+// manual-entry-only (no live sync from Portfolio Tracker), so a user who's kept both updated may
+// have the same holdings entered in both places -- adding "Net Worth's investments total" +
+// "Portfolio's tracked value" would double-count. This check only ever uses Net Worth's OWN
+// category totals against ITS OWN total assets figure -- never blended with another module's
+// number, same principle the Financial independence card above already applies to its own
+// assets-source picker.
+//
+// Two independent, threshold-based, descriptive-only signals:
+//
+// 1) CATEGORY DOMINANCE -- is net worth mostly resting on one category?
+//    Portfolio's own top-2-holdings check uses a 50% threshold ("half your value in two names").
+//    That number does NOT carry over unchanged to a category-level check, and re-deriving it here
+//    matters: an individual holding and a net-worth CATEGORY carry different risk shapes.
+//    Portfolio's 50% applies across potentially dozens of individual, freely-choosable positions
+//    -- even a modestly diversified portfolio (5-10 holdings) comfortably clears well under 50%
+//    in its top 2, so crossing that line really does signal a choice to concentrate. Net worth has
+//    only ~5 broad categories, and for an ordinary household one of them -- typically Property --
+//    is EXPECTED to be large: a primary residence commonly represents 30-60%+ of a household's net
+//    worth for years, especially before investments have compounded for decades. That's a normal
+//    structural feature of how a balance sheet builds up (buy a house, then build investments),
+//    not itself a warning sign the way "half your portfolio is two stocks" is. Applying Portfolio's
+//    50% line here would flag most ordinary net-worth profiles as "concentrated" and cry wolf,
+//    undermining the one signal this check actually exists to give.
+//    The real risk worth naming is narrower: "if THIS category's value fell sharply, or became
+//    temporarily inaccessible, is there meaningfully anything else backing my net worth?" That
+//    only becomes a genuine concern once one category is overwhelmingly dominant -- roughly
+//    three-quarters or more of the total, past which there genuinely isn't a second leg to stand
+//    on. 70% is chosen for that reason: high enough that an ordinary "my house is my biggest
+//    asset" profile at, say, 45-55% doesn't trip it, but it still catches real cases (matches this
+//    feature's own motivating example -- "72% of net worth in Real estate / property").
+//    Gated the same way Portfolio's own check gates its top-2 line (only evaluated once there are
+//    >=3 priced holdings): here, only evaluated once at least 2 categories have nonzero value. With
+//    only 1 category ever entered, "100% is in that category" is true by construction (nothing
+//    else has been entered yet), not evidence of real concentration -- flagging it would be a false
+//    positive on an incomplete data-entry state, not a genuine risk finding.
+//
+// 2) LIQUIDITY MIX -- descriptive, NOT a threshold flag (per the Emergency Fund Adequacy
+//    calculator's own established framing in goals/index.html: "true liquid coverage, not 'some
+//    savings somewhere'"). Investments + Other are treated as typically accessible; Property +
+//    Business as typically locked up. Foreign assets are deliberately left OUT of both buckets --
+//    that category could be a foreign brokerage/ETF holding (liquid) or overseas property
+//    (illiquid), and Net Worth's data model doesn't ask which, so classifying it either way here
+//    would be guessing, against this app's "real data over guesses" rule; shown as its own
+//    separate, unclassified figure instead.
+//    Explicitly framed as an UPPER BOUND, not a precise figure: Net Worth's own `investments`
+//    category (confirmed by reading networth/index.html's category label directly:
+//    "Investments (equity, MF, FD, PPF, EPF)") bundles genuinely liquid holdings (FDs, liquid
+//    funds, direct equity) together with retirement-locked money (EPF/PPF) in one number -- the
+//    exact same limitation goals/PROGRESS.md's 2026-08-10 Emergency Fund Adequacy entry already
+//    documents as the reason that feature needed a manual liquidity judgment instead of an
+//    auto-derived one. So the real accessible share of net worth is likely LOWER than the
+//    "typically liquid" figure shown here, never higher -- stated explicitly in-card rather than
+//    implying more precision than the underlying category data supports.
+// ============================================================
+const CONCENTRATION_CATEGORY_PCT_THRESHOLD = 70;
+
+function computeNWConcentration(nw){
+  const t = computeNetWorthTotals(nw);
+  const cats = Object.entries(t.byCategory)
+    .map(([key,c])=>({ key, label:c.label, value:c.value }))
+    .filter(c=>c.value>0);
+  const totalAssets = t.totalAssets;
+  const nonZeroCount = cats.length;
+  const dominant = cats.length>0 ? cats.reduce((a,b)=> b.value>a.value ? b : a) : null;
+  const dominantPct = (dominant && totalAssets>0) ? (dominant.value/totalAssets*100) : 0;
+
+  const liquidKeys = ['investments','other'];
+  const illiquidKeys = ['property','business'];
+  const byCat = t.byCategory;
+  const liquidTotal = liquidKeys.reduce((s,k)=>s+((byCat[k]&&byCat[k].value)||0),0);
+  const illiquidTotal = illiquidKeys.reduce((s,k)=>s+((byCat[k]&&byCat[k].value)||0),0);
+  const foreignTotal = (byCat.foreignAssets && byCat.foreignAssets.value) || 0;
+  const liquidPct = totalAssets>0 ? liquidTotal/totalAssets*100 : 0;
+  const illiquidPct = totalAssets>0 ? illiquidTotal/totalAssets*100 : 0;
+  const foreignPct = totalAssets>0 ? foreignTotal/totalAssets*100 : 0;
+
+  return { totalAssets, cats, nonZeroCount, dominant, dominantPct,
+    liquidTotal, illiquidTotal, foreignTotal, liquidPct, illiquidPct, foreignPct };
+}
+
+function renderConcentrationCard(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<h3>Concentration check</h3><div class="card-sub">Whole-net-worth view — how your total splits across categories, not just Portfolio's own holdings.</div>`;
+  container.appendChild(card);
+
+  if(!netWorthHasData(nwData)){
+    card.innerHTML += `<div class="empty-state">
+        <p>No net worth data yet — add your assets to see a concentration check here.</p>
+        <a class="btn small" href="../networth/">Add in Net Worth Dashboard →</a>
+      </div>`;
+    return;
+  }
+
+  const c = computeNWConcentration(nwData);
+  if(c.totalAssets<=0){
+    card.innerHTML += `<div class="helptext">No positive asset value entered yet — add at least one asset category in Net Worth Dashboard to see a concentration check here.</div>`;
+    return;
+  }
+
+  if(c.nonZeroCount===1){
+    card.innerHTML += `<div class="helptext">Only one category has data entered so far (${c.dominant.label}) — that's currently 100% of your tracked net worth, but that reflects what's been entered so far, not genuine concentration yet. Add other categories (property, investments, business, etc.) in Net Worth Dashboard for a meaningful check.</div>`;
+  } else if(c.dominantPct>=CONCENTRATION_CATEGORY_PCT_THRESHOLD){
+    card.innerHTML += `<div class="notice warn"><strong>${c.dominantPct.toFixed(0)}%</strong> of your net worth is in ${c.dominant.label} — if that category's value fell, or became hard to access, there isn't much else behind your total.</div>`;
+  } else {
+    card.innerHTML += `<div class="helptext" style="color:var(--green);">No concentration flags right now — no single category dominates your net worth.</div>`;
+  }
+
+  card.innerHTML += `
+    <div class="section-title" style="margin-top:18px;">Liquidity mix</div>
+    <div class="stat-grid">
+      <div class="stat-tile"><div class="stat-label">Typically liquid</div><div class="stat-value">${c.liquidPct.toFixed(0)}%</div><div class="stat-note">${fmtINR(c.liquidTotal)} — Investments + Other</div></div>
+      <div class="stat-tile"><div class="stat-label">Typically illiquid</div><div class="stat-value">${c.illiquidPct.toFixed(0)}%</div><div class="stat-note">${fmtINR(c.illiquidTotal)} — Property + Business</div></div>
+      ${c.foreignTotal>0 ? `<div class="stat-tile"><div class="stat-label">Foreign assets</div><div class="stat-value">${c.foreignPct.toFixed(0)}%</div><div class="stat-note">${fmtINR(c.foreignTotal)} — not classified either way</div></div>` : ''}
+    </div>
+    <div class="helptext">Investments + Other are treated as typically accessible; Property + Business as typically locked up. Foreign assets aren't counted in either bucket — that category could be a foreign brokerage holding (liquid) or overseas property (illiquid), and Net Worth's own data model doesn't ask which.</div>
+    <div class="helptext" style="margin-top:6px;"><strong>Treat "typically liquid" as an upper bound, not a precise figure.</strong> Net Worth's own Investments category bundles genuinely liquid holdings (FDs, liquid funds, direct equity) together with retirement-locked money (EPF/PPF) — the same limitation already noted in Goals' Emergency Fund calculator. Your real accessible share of net worth is likely lower than the figure above, not higher.</div>
+    <div class="helptext" style="margin-top:6px;">Descriptive only, based on your current Net Worth entries — not investment advice, and not a recommendation to buy, sell, or restructure anything.</div>
+  `;
+}
+
+// ============================================================
 // GOALS -- reads goals_data_v1 ({goals:[{id,name,category,targetAmount,targetDate,
 //   monthlyContribution,assumedReturn,investments:[{label,value}]}]})
 // ============================================================
@@ -927,6 +1055,7 @@ function render(){
   const t1 = document.createElement('div'); t1.className='section-title'; t1.textContent='Net worth & investments';
   content.appendChild(t1);
   renderNetWorthCard(content);
+  renderConcentrationCard(content);
   renderPortfolioCard(content);
 
   const t2 = document.createElement('div'); t2.className='section-title'; t2.textContent='Goals';

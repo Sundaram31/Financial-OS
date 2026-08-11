@@ -341,6 +341,109 @@ scenarios, and the existing date-rendering path now correctly covers reachable n
 scenarios. Only `monthsToReachTarget()` itself changed; nothing else in `synthesis/index.html` was
 touched.
 
+## Built (2026-08-11, same day) — Concentration check card (whole-net-worth level)
+Extends the "Diversification check" pattern Portfolio Tracker got earlier this session one level
+up. Portfolio's own concentration card only sees Portfolio's tracked holdings — it can't see
+property, business, foreign assets, or "other" assets, all of which live only in Net Worth. This
+new card in `synthesis/index.html` fills that gap, since Synthesis is the one place that already
+reads Net Worth's full category breakdown (via `computeNetWorthTotals()`, built 2026-08-09 for the
+Net Worth card) — exactly the "insights that need data from multiple places" scope this module was
+built for. Reuses that same function rather than re-deriving totals in a second place.
+
+**Double-counting risk designed around up front** (same risk already identified and designed
+around for the Financial independence card, 2026-08-11 earlier entry): Net Worth's `investments`
+category is manual-entry-only, with no live sync from Portfolio Tracker. This card never adds
+Net Worth's investments total to Portfolio's tracked value — it only ever uses Net Worth's OWN
+category totals against Net Worth's OWN total-assets figure. It's scoped entirely to "how is net
+worth itself split across its own categories," not an attempt to merge Portfolio and Net Worth
+into one combined number.
+
+**Two independent, threshold-based, descriptive-only signals** (own `computeNWConcentration()`
+and `renderConcentrationCard()`, `synthesis/index.html`):
+
+1. **Category dominance** — flags when one Net Worth category (Investments / Foreign assets /
+   Real estate-property / Business / Other) holds **≥70%** of total assets, with at least 2
+   categories having nonzero value (a single-category-only data-entry state reads "100%" by
+   construction, not as a real signal — same gating principle as Portfolio's own "≥3 holdings
+   before evaluating top-2%" gate). Example wording: "72% of your net worth is in Real estate /
+   property — if that category's value fell, or became hard to access, there isn't much else
+   behind your total."
+   - **Threshold reasoning, worked through explicitly rather than reused from Portfolio's 50%**:
+     Portfolio's top-2-holdings check uses 50% ("half your value in two names") — that number does
+     NOT carry over unchanged here, because an individual holding and a net-worth *category* carry
+     different risk shapes. Portfolio's 50% applies across potentially dozens of freely-choosable
+     individual positions — even a modestly diversified portfolio of 5-10 holdings comfortably
+     clears well under 50% in its top 2, so crossing that line really does reflect a choice to
+     concentrate. Net worth has only ~5 broad categories, and for an ordinary household one of them
+     — typically Property — is *expected* to be large: a primary residence commonly represents
+     30-60%+ of household net worth for years, especially before investments have compounded for
+     decades. That's a normal structural feature of how a balance sheet builds (buy a house, then
+     build investments), not itself a warning sign the way "half your portfolio is two stocks" is.
+     Applying Portfolio's 50% line at the category level would flag most ordinary net-worth
+     profiles as "concentrated" and cry wolf, undermining the one signal this check exists to give.
+     The real risk this check is trying to name is narrower: "if THIS category's value fell
+     sharply, or became temporarily inaccessible, is there meaningfully anything else backing my
+     net worth?" — a genuine concern only once one category is overwhelmingly dominant, roughly
+     three-quarters or more of the total, past which there genuinely isn't a second leg to stand
+     on. 70% was picked for that reason: high enough that an ordinary "my house is my biggest
+     asset" profile at, say, 45-55% doesn't trip it, but still catches real cases (matches this
+     feature's own motivating example of 72% in property).
+2. **Liquidity mix** — descriptive only, no red/amber/green verdict, framed the same way the
+   Emergency Fund Adequacy calculator (`goals/index.html`, built 2026-08-10) frames its own
+   liquidity caveat: "true liquid coverage, not 'some savings somewhere.'" Investments + Other are
+   shown as "typically liquid/accessible"; Property + Business as "typically illiquid." Foreign
+   assets are deliberately shown as a *third, unclassified* figure — that category could be a
+   foreign brokerage/ETF holding (liquid) or overseas property (illiquid), and Net Worth's data
+   model doesn't ask which, so guessing either way would violate this project's "real data over
+   guesses" rule.
+   - **Why framed as an upper bound, not a precise figure**: Net Worth's own `investments` category
+     label (confirmed by reading `networth/index.html` directly) is "Investments (equity, MF, FD,
+     PPF, EPF)" — it bundles genuinely liquid holdings (FDs, liquid funds, direct equity) together
+     with retirement-locked money (EPF/PPF) in one number. This is the exact same limitation
+     `goals/PROGRESS.md`'s 2026-08-10 Emergency Fund Adequacy entry already documents as the reason
+     that feature needed a manual liquidity judgment instead of an auto-derived one — "its
+     'Investments' category bundles genuinely liquid FDs/liquid funds together with
+     retirement-locked EPF/PPF." So the real accessible share of net worth is likely *lower* than
+     the "typically liquid" figure this card shows, never higher — stated explicitly in-card
+     ("Treat 'typically liquid' as an upper bound, not a precise figure...") rather than implying
+     more precision than the underlying category data supports.
+
+Placed in the "Net worth & investments" section, directly after the existing Net Worth card and
+before the Portfolio card — it's a Net-Worth-scoped signal, computed from the same data the Net
+Worth card right above it already shows.
+
+**Tested with real headless-Chromium** (`@sparticuz/chromium` + `playwright-core`, same route used
+earlier this session — direct browser-download CDN isn't reachable from this build environment),
+43 checks, seeding `networth_data_v1` (and, for the mobile/regression pass, all other module keys)
+directly and driving the real page:
+- **Concentrated scenario** (property 80% of a 3-category net worth): flag fires with the correct
+  computed percentage.
+- **Task's own worked example** (72% property, 24% liquid, 72% illiquid, 4% foreign, ₹1,00,00,000
+  total): every figure hand-checked and matched exactly; the "not classified either way" foreign
+  line and the "upper bound, not precise" caveat both render.
+- **Genuinely diversified scenario** (5 categories, largest at 37.5%): "No concentration flags
+  right now" renders, no `.notice.warn` element present — confirmed no false positive.
+- **Single-category-only data state**: honest "reflects what's been entered, not genuine
+  concentration yet" message, explicitly NOT the green "no flags" message either (a claim of "no
+  concentration" wouldn't be honestly meaningful with only one category ever entered) and NOT a red
+  flag (100% via incomplete entry isn't a real signal) — a distinct third message.
+- **Fully empty Net Worth data**: honest "No net worth data yet" empty state with a working "Add in
+  Net Worth Dashboard →" link, no crash.
+- **Net-worth-exists-but-zero-assets state** (only a liability entered, no asset rows): honest "No
+  positive asset value entered yet" message rather than a divide-by-zero or fabricated 0%/NaN%.
+- **Mobile (375×812), both themes**: 0 text nodes under 13px anywhere in the card, no horizontal
+  scroll, the 72% flag still renders correctly at mobile width; full regression pass confirmed the
+  Net Worth, Portfolio, Goals, Debt & loan, Insurance, and Financial independence cards all still
+  render correctly alongside the new card in both themes.
+- **Read-only guarantee**: `networth_data_v1` compared byte-for-byte before/after a full page
+  reload with this card rendering real (non-empty) data — untouched, confirming this addition never
+  writes to Net Worth's key (this card, like the rest of Synthesis, only ever calls
+  `localStorage.getItem()` on other modules' keys).
+- Zero console/page errors across every scenario.
+
+No new data storage — this card is pure computation from `networth_data_v1`, already read by the
+existing Net Worth card; nothing new was added to `synthesis_data_v1`.
+
 ## Known gaps
 - This page reads `localStorage` once at load time, not reactively — if you
   add data in another module in a different tab, use the "↻ Refresh"
