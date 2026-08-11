@@ -21,7 +21,7 @@ https://sundaram31.github.io/Financial-OS/ — always reflects the latest push.
 | Goals | `/goals/` | Live, manual entry + file upload — inflation-adjusted target calculator, risk-profile SIP presets (Debt/Balanced/Equity), annuity-due SIP math, second-pass reviewer fixes; Emergency fund adequacy calculator added (Life Confidence pillar item 1 — monthly-expenses + months-wanted inputs, recommended target, "months covered" stat with red/amber/green tiering) | 2026-08-10 |
 | Debt & Loan Tracker | `/loans/` | Live, auto-detects from bank statement | 2026-08-07 |
 | Insurance Tracker | `/insurance/` | Live, mis-selling checks | 2026-08-03 |
-| Synthesis | `/synthesis/` | Live, read-only cross-module view (net worth, goals, portfolio, debt, insurance adequacy) — first pass; Goals card now surfaces Emergency-fund months-covered figure | 2026-08-10 |
+| Synthesis | `/synthesis/` | Live, read-only cross-module view (net worth, goals, portfolio, debt, insurance adequacy) — first pass; Goals card surfaces Emergency-fund months-covered figure; Financial independence card added (Life Confidence pillar item 2) — combined projection with an explicit assets-source picker (Portfolio vs Net Worth vs manual, never summed) and Emergency-fund-sourced expenses suggestion | 2026-08-11 |
 | Retirement/Pension Planner | — | Not started | — |
 | Estate Planning / Document Vault | — | Not started | — |
 | GST/e-way bill tool | not yet moved here | Built elsewhere | — |

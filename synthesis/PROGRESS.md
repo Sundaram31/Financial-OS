@@ -5,12 +5,14 @@ The cross-module insights view described in `MASTER_ROADMAP.md`'s "Synthesis
 Layer" section — one page that reads every other module's own localStorage
 data (same-origin, no export/import handshake needed) and joins it into a
 single picture: net worth + trend, goal progress, portfolio performance, the
-debt picture, and insurance adequacy. It is **strictly read-only** against
-every other module: it only ever calls `localStorage.getItem()` on
-`networth_data_v1`, `goals_data_v1`, `portfolio_data_v1`, `loans_data_v1`,
-`insurance_data_v1` — never `setItem()`. It owns exactly one small piece of
-data itself (an annual income figure, needed for the insurance adequacy
-check), stored in its own `synthesis_data_v1` key.
+debt picture, insurance adequacy, and (as of 2026-08-11) a Financial
+independence projection. It is **strictly read-only** against every other
+module: it only ever calls `localStorage.getItem()` on `networth_data_v1`,
+`goals_data_v1`, `portfolio_data_v1`, `loans_data_v1`, `insurance_data_v1`
+— never `setItem()`. It owns a small amount of data itself, stored in its
+own `synthesis_data_v1` key: an annual income figure (insurance adequacy
+check) and, since 2026-08-11, the Financial independence card's own
+assumption inputs.
 
 Same visual system as every other module (shared CSS variables, IBM Plex
 Mono + Source Serif 4, gold/rust/green accents, seal mark, shared
@@ -84,12 +86,14 @@ figure fully owned and editable within Synthesis, as instructed.
 - **Overall tax-reduction synthesis across ITRGenie + Portfolio +
   What-If Planner** — same blocker as capital gains above, plus this needs
   the What-If Planner's own logic wired in, which is a separate future item.
-- **Financial independence date, income-shock stress test, retirement
-  corpus projection, family resilience/estate planning, children's
-  education cost projection, NRI/FEMA compliance, household view** — later
-  items in the Life Confidence pillar list (`MASTER_ROADMAP.md`), not this
-  pass's scope. None of them are blocked by anything built here; they're
-  simply separate, larger builds.
+- **Income-shock stress test, retirement corpus projection, family
+  resilience/estate planning, children's education cost projection,
+  NRI/FEMA compliance, household view** — later items in the Life
+  Confidence pillar list (`MASTER_ROADMAP.md`), not this pass's scope.
+  None of them are blocked by anything built here; they're simply
+  separate, larger builds. (Financial independence date — pillar item 2 —
+  was originally listed here too; it's now built, see the 2026-08-11 entry
+  below.)
 
 ## Tested (2026-08-09)
 Real headless-Chromium (Playwright) suite, 29 checks, run against the actual
@@ -160,6 +164,93 @@ change), but the drift is real and worth a dedicated small fix in a future sessi
 scope for this task since it's unrelated to the emergency fund work and the task's own
 instruction was not to restructure this card wholesale.
 
+## Built (2026-08-11) — Financial independence card (Life Confidence pillar item 2)
+The "one combined projection across debts, investments, and goals: the date work becomes
+optional" item from `MASTER_ROADMAP.md`'s Life Confidence pillar. New card + overview tile in
+`synthesis/index.html`; own data lives in `synthesis_data_v1.fi` (own key, same as the existing
+income figure — never written into another module's key).
+
+**Two dependency risks designed around up front, not discovered late:**
+- **Double-counting between Net Worth and Portfolio.** Net Worth's `categories.investments` is
+  manual-entry-only (no live sync from Portfolio), so a user could have the same holdings entered
+  in both places. The card never sums Portfolio's tracked value + Net Worth's Investments total —
+  it's a `<select>` the user picks explicitly ("Portfolio Tracker's tracked value" / "Net Worth's
+  Investments category total" / "Manual entry"), each option showing its live figure inline, with
+  the chosen source's label always shown next to the "Investable assets now" stat tile. Options
+  with no data are `disabled` rather than hidden, so the choice itself stays visible. If a
+  previously-picked source loses its data (e.g. holdings deleted), `effectiveAssetsSource()`
+  falls back safely (portfolio → net worth → manual) rather than silently computing from stale
+  zero data.
+- **No general "monthly expenses" figure exists anywhere except inside an Emergency-fund goal.**
+  If a goal has `category === 'Emergency fund'` and a real `efMonthlyExpenses` (built 2026-08-10),
+  that value one-time-prefills this card's own `fi.monthlyExpenses` field — labeled explicitly
+  ("From your '[goal name]' goal's essential-expenses figure... That's essential spend only... a
+  realistic full retirement/FI budget may run higher"), with a "use this" link to re-pull the
+  live figure later, and the field stays fully editable/overridable afterward. If no such goal
+  exists, the field is a fresh manual entry with the same "self-reported, no other source"
+  framing the Emergency Fund calculator itself uses — no fabricated figure.
+
+**Inputs, all visible/editable, none silently assumed** (stored in `synthesis_data_v1.fi =
+{assetsSource, manualAssets, monthlyInvestment, expectedReturn, monthlyExpenses, multiple}`):
+- Investable assets source (above).
+- Monthly investment — one-time-prefilled from the sum of Goals' own `monthlyContribution`
+  values, labeled "From your tracked goals' planned contributions... not a full income/savings-
+  rate figure," with a "use this" re-sync link; fully editable.
+- Expected return — the SAME `RISK_PROFILES` preset list `goals/index.html` defines (Conservative
+  6.5% / Balanced 8.5% / Aggressive 11.5%), copied verbatim into this file (not referenced cross-
+  file, per this app's self-containment convention) so presses fill the field without locking it,
+  exactly like Goals' own SIP calculator.
+- Monthly expenses target (above).
+- FI multiple (withdrawal-rate assumption) — editable, defaults to 25 (the standard "4% safe
+  withdrawal rate" rule of thumb), with its known limitations disclosed directly in-UI: sourced
+  from research on ~30-year retirement horizons against US market data, sequence-of-returns risk
+  not modeled, and it doesn't specifically account for this app's own irregular/contract-based
+  income context.
+
+**The projection**: a NEW function, `monthsToReachTarget()`, using the same annuity-due SIP
+convention `goals/index.html`'s `projectGoal()` was fixed to use on 2026-08-10 (each month's
+contribution compounds as if invested at the start of that month) — solved in reverse (given a
+monthly rate/contribution, find the month count until FV first crosses a target, rather than FV
+at a fixed date), since "when do I become FI" is the inverse question `projectGoal()` answers.
+Deliberately NOT calling into or fixing this same file's own `projectGoal()` (used by the Goals
+card above) — that copy is still the pre-2026-08-10 stale ordinary-annuity formula (flagged in
+this file's 2026-08-10 entry below), and fixing it was explicitly out of scope for this task per
+its own regression requirement that the Goals/Net Worth/Portfolio/Debt/Insurance cards must not
+change. `monthsToReachTarget()` is a fresh, independent calculation instead, so the FI projection
+can be correct without touching another card's numbers. The stale-`projectGoal()` drift remains a
+real, still-open item for a dedicated future session.
+
+**Hand-traced verification example**: current assets ₹20,00,000 (from a seeded Portfolio holding),
+monthly investment ₹50,000 (from a seeded goal's `monthlyContribution`), 8.5% expected return,
+₹60,000/month expenses (from a seeded Emergency-fund goal's `efMonthlyExpenses`), 25× multiple →
+FI target ₹1,80,00,000. By hand: `B = pmt·(1+r)/r ≈ 71,08,824`, `A = current + B ≈ 91,08,824`,
+`months = ln((target+B)/A) / ln(1+r) ≈ 143.66` months (≈11.97 years) → `addMonths(today, round(143.66)=144)`
+= **11 Aug 2038** from a run dated 11 Aug 2026. The app matched this exactly in a real headless-
+Chromium check.
+
+**Tested** with a real headless-Chromium (Playwright) suite (43 checks): the hand-traced example
+above matched exactly; switching the assets-source `<select>` between portfolio/net-worth/manual
+recomputes the projection correctly and never sums two sources (explicitly checked that
+20L+5L=25L never appears); the Emergency-fund-sourced expense suggestion is labeled and
+overridable, and its absence produces the honest "self-reported, no other source" copy instead of
+a silent default; a zero-return + zero-contribution + zero-asset scenario renders "Not reachable
+with current assumptions" rather than a fabricated date, in both the card and the overview tile;
+an already-sufficient-assets scenario renders "You're already there"; a fully-empty-app scenario
+renders the honest "enter your monthly expenses" prompt, not a bare/undefined date; mobile
+(375×812) with no text under 13px anywhere in the card and no horizontal scroll (one real gap
+found and fixed here: `.field label`'s existing mobile CSS was 12.5px sitewide in this file,
+below the visual-design skill's floor — bumped to 13.5px, which also fixes the pre-existing
+Insurance-card income label at that size); light and dark themes; and a full regression pass
+confirming Net Worth, Portfolio, Goals, Debt & Loan, and Insurance cards render identically to
+before (byte-level localStorage read-only guarantee re-verified: `goals_data_v1`/
+`portfolio_data_v1`/`networth_data_v1` untouched after all FI-card interaction, including source
+switches and manual overrides).
+
+**Known gap carried forward, not introduced here**: this file's `projectGoal()` (used only by the
+Goals card) is still the pre-2026-08-10 ordinary-annuity formula, not the annuity-due fix Goals
+itself uses — see the 2026-08-10 entry below. The new FI math above sidesteps this by not reusing
+that function at all.
+
 ## Known gaps
 - This page reads `localStorage` once at load time, not reactively — if you
   add data in another module in a different tab, use the "↻ Refresh"
@@ -167,17 +258,29 @@ instruction was not to restructure this card wholesale.
   was added since this is a simple read-once dashboard, not a live sync
   tool; revisit if that friction turns out to matter in practice.
 - No export/import on this page — nothing to back up, since it owns no
-  data of consequence beyond the one income figure (which is trivially
-  re-enterable).
+  data of consequence beyond the income figure and the FI assumptions
+  (all trivially re-enterable).
 - Debt-free date is only as accurate as Loans' own amortization formula,
   which (per `loans/index.html`'s own comment) doesn't re-amortize after
   prepayments — an approximation, not a schedule.
+- The FI projection assumes a roughly steady monthly investment and return
+  — disclosed in-UI — and doesn't model an income-shock scenario (delayed
+  contracts, lump-sum gaps). That's a separate, later Life Confidence
+  pillar item ("Income-shock stress test"), not built here.
+- `projectGoal()` in this file (used only by the Goals card) is still the
+  pre-2026-08-10 stale ordinary-annuity formula — a real, known drift from
+  `goals/index.html`'s own annuity-due fix, carried forward again from the
+  2026-08-10 entry above. The new FI card's math is independent of this
+  function specifically so it isn't affected, but the drift itself is
+  still unfixed and worth a dedicated future session.
 
 ## Design invariants (same as every module)
 - Zero external dependencies, works offline once loaded.
 - Shared theme key with the rest of the app: `itrgenie_theme`.
-- Own data storage key: `synthesis_data_v1` (just the one manual income
-  figure) — never writes to any other module's key.
+- Own data storage key: `synthesis_data_v1` — the manual income figure
+  plus, as of 2026-08-11, the `fi` sub-object (assets-source choice,
+  manual-assets override, monthly investment, expected return, monthly
+  expenses, FI multiple) — never writes to any other module's key.
 - Guided single-field form for the one piece of manual entry (annual
   income), consistent with how Insurance Tracker's own context fields work
   — no paste/CSV needed for a single scalar value.

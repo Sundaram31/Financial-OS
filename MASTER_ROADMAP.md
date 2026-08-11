@@ -188,7 +188,13 @@ data before designing the Portfolio module's data model.
    now both built (2026-08-10, see item 4 above and `portfolio/PROGRESS.md`)
    -- this Synthesis page just hasn't been extended to surface that
    simulator's output yet, which is a distinct future piece of work, not a
-   blocked prerequisite anymore. See `synthesis/PROGRESS.md` for full scope
+   blocked prerequisite anymore. **Extended 2026-08-11** with a Financial
+   independence card (Life Confidence pillar item 2, see that item above)
+   -- the first Life Confidence item built directly into Synthesis rather
+   than another module, since it genuinely needs data from multiple
+   modules (Net Worth/Portfolio for assets, Goals for both contributions
+   and the Emergency-fund expenses figure) joined in one place. See
+   `synthesis/PROGRESS.md` for full scope
    and the income-figure design decision.
 - 2026-08-10: Built the Life Confidence pillar's item 1, **Emergency fund
   adequacy check**, in `goals/index.html` -- the first item built from this
@@ -223,6 +229,25 @@ data before designing the Portfolio module's data model.
   earlier the same day -- a real drift between the two modules' projected
   (not current) values, worth a dedicated future fix. See
   `goals/PROGRESS.md` and `synthesis/PROGRESS.md`'s 2026-08-10 entries.
+- 2026-08-11: Built the Life Confidence pillar's item 2, **Financial
+  independence date**, in `synthesis/index.html` -- a new card + overview
+  tile computing the date projected investable assets cross an FI target
+  (25x annual expenses / 4% safe-withdrawal-rate default, editable).
+  Designed explicitly around two dependency risks: Net Worth's Investments
+  category and Portfolio Tracker could hold the same holdings twice (no
+  live sync between them, confirmed by reading `networth/index.html`), so
+  the card uses an explicit assets-source picker (Portfolio / Net Worth /
+  manual) rather than summing; and no general "monthly expenses" figure
+  exists anywhere in the app except inside an Emergency-fund goal, so that
+  goal's `efMonthlyExpenses` (built 2026-08-10) is offered as a labeled,
+  overridable suggestion rather than a silently-reused figure. Reuses the
+  annuity-due SIP math `goals/index.html` was fixed to use on 2026-08-10
+  (a fresh function solving for the crossing date, not touching
+  Synthesis's own separate, still-stale `projectGoal()` copy used by the
+  Goals card -- fixing that drift stayed explicitly out of scope). Verified
+  with 43 real headless-Chromium (Playwright) checks including a full
+  hand-traced example. See `synthesis/PROGRESS.md`'s 2026-08-11 entry and
+  this file's updated Life Confidence pillar item 2 above for full detail.
 
 ## Life Confidence — a 9th pillar (added 2026-08-07)
 Everything so far tracks and computes. This pillar exists for a different
@@ -245,9 +270,46 @@ the original 8-pillar list.
    retirement-locked money here. Surfaced additively on Synthesis's Goals
    card too. See `goals/PROGRESS.md` and `synthesis/PROGRESS.md`'s
    2026-08-10 entries for full detail and hand-traced verification.
-2. **Financial independence date** — one combined projection across debts,
-   investments, and goals: the date work becomes optional. The single number
-   most likely to change how someone feels about their plan, not just informs it.
+2. **Financial independence date — DONE (2026-08-11, `/synthesis/`).** A new
+   "Financial independence" card + overview tile, built around the same two
+   dependency risks flagged when this item was scoped: (1) Net Worth's
+   Investments category is manual-entry-only with no live Portfolio sync,
+   so the same holdings could be double-counted if both are kept up to
+   date — the card never sums them, it's an explicit `<select>`
+   ("Portfolio Tracker's tracked value" / "Net Worth's Investments category
+   total" / "Manual entry"), each option showing its live figure, with the
+   chosen source always labeled next to the result; (2) no general
+   "monthly expenses" figure exists anywhere in this app except inside an
+   Emergency-fund goal (built 2026-08-10) — that goal's `efMonthlyExpenses`
+   one-time-prefills this card's own expenses field, explicitly labeled as
+   sourced from that specific goal with a note that it's essential-spend
+   only (a full FI/retirement budget may run higher), and stays fully
+   editable; with no such goal, it's a fresh manual entry with the same
+   "self-reported, no other source" framing the Emergency Fund calculator
+   itself uses. All other inputs (monthly investment — suggested from
+   Goals' summed `monthlyContribution`; expected return — the same
+   Conservative/Balanced/Aggressive presets `goals/index.html` defines;
+   the 25×-annual-expenses/4%-safe-withdrawal-rate FI multiple) are
+   likewise editable defaults, never silently assumed. The projection
+   itself (`monthsToReachTarget()`) uses the SAME annuity-due SIP
+   convention `goals/index.html`'s `projectGoal()` was fixed to on
+   2026-08-10, solved in reverse (given a rate/contribution, find the
+   month FV crosses a target) — a fresh function, deliberately not
+   reusing/fixing Synthesis's own separate (still-stale, pre-annuity-due)
+   `projectGoal()` copy used by the Goals card, since fixing that drift
+   was out of scope for this task's own regression requirement. Verified
+   with 43 real headless-Chromium (Playwright) checks including a full
+   hand-traced example (₹20,00,000 assets, ₹50,000/mo, 8.5% return,
+   ₹60,000/mo expenses, 25× multiple → ₹1,80,00,000 target → ≈143.66
+   months → **11 Aug 2038** from an 11 Aug 2026 run, matched exactly by
+   the app), no-double-counting checks on the source switch, honest
+   "not reachable"/"enter expenses"/"already there" states for missing or
+   extreme inputs, mobile (375px, one pre-existing sub-13px `.field label`
+   gap found and fixed sitewide in this file), both themes, and a full
+   regression pass confirming Net Worth/Portfolio/Goals/Debt/Insurance
+   cards are unchanged. See `synthesis/PROGRESS.md`'s 2026-08-11 entry for
+   full detail, including the still-open `projectGoal()` drift this task
+   deliberately did not touch.
 3. **Income-shock stress test** — for contract-based income (seafarer
    specifically): "next contract delayed 3 months" modeled against fixed
    obligations (EMI, SIPs, premiums). Turns a vague worry into a concrete,

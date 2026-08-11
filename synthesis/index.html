@@ -40,12 +40,22 @@
   .field-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:6px; }
   .field{ flex:1; min-width:200px; }
   .field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
-  .field input{ width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:14px; }
-  .field input:focus{ outline:none; border-color:var(--gold-dim); }
+  .field input, .field select{ width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:14px; }
+  .field input:focus, .field select:focus{ outline:none; border-color:var(--gold-dim); }
+  .result-box{ border:1px solid var(--gold-dim); border-radius:6px; padding:18px 20px; background:linear-gradient(180deg, rgba(201,162,39,0.05), transparent); margin-top:12px; }
+  .result-box .verdict{ font-family:var(--serif); font-size:24px; color:var(--gold); margin-bottom:4px; }
+  .result-box .verdict-detail{ font-size:13px; color:var(--muted); }
+  .notice{ border:1px solid var(--gold-dim); background:rgba(201,162,39,0.08); border-radius:6px; padding:10px 14px; font-size:12.5px; color:var(--text); margin-top:8px; line-height:1.55; }
+  .notice strong{ color:var(--gold); }
+  .notice.warn{ border-color:var(--rust); background:rgba(181,83,60,0.09); }
+  .notice.warn strong{ color:var(--rust); }
+  .notice a, .helptext a{ color:var(--gold); }
   .btn{ background:transparent; border:1px solid var(--gold-dim); color:var(--gold); padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:12px; cursor:pointer; }
   .btn:hover{ background:rgba(201,162,39,0.08); border-color:var(--gold); }
   .btn.small{ padding:5px 10px; font-size:11px; }
   .btn.ghost{ border-color:var(--line); color:var(--muted); }
+  .btn.primary{ background:var(--gold); color:#141414; font-weight:600; border-color:var(--gold); }
+  .btn.primary:hover{ background:#dab63a; }
   .stat-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:12px; margin-bottom:14px; }
   .stat-tile{ background:var(--panel-2); border:1px solid var(--line); border-radius:6px; padding:16px 18px; }
   .stat-tile.accent{ border-color:var(--gold-dim); background:linear-gradient(180deg, rgba(201,162,39,0.06), transparent); }
@@ -96,8 +106,11 @@
     .panel-header .eyebrow{ font-size:11.5px; }
     .brand h1{ font-size:16px; }
     .brand .sub{ font-size:12px; }
-    .field label{ font-size:12.5px; }
-    .field input{ font-size:16px; padding:9px 10px; } /* 16px avoids iOS auto-zoom-on-focus */
+    .field label{ font-size:13.5px; }
+    .field input, .field select{ font-size:16px; padding:9px 10px; } /* 16px avoids iOS auto-zoom-on-focus */
+    .notice{ font-size:13.5px; }
+    .result-box .verdict{ font-size:21px; }
+    .result-box .verdict-detail{ font-size:13.5px; }
     .btn{ font-size:14px; padding:10px 16px; }
     .btn.small{ font-size:13px; padding:9px 13px; }
     .helptext{ font-size:13.5px; }
@@ -141,9 +154,19 @@
 // ITRGenie's profile). Everything else on this page is READ-ONLY against other modules' keys --
 // this file never calls localStorage.setItem() on any key except its own.
 const STORAGE_KEY = 'synthesis_data_v1';
-function defaultData(){ return { annualIncome: '' }; }
+// fi: this module's own Financial Independence projection inputs (Life Confidence pillar item 2)
+// -- assetsSource picks which OTHER module's total to use (never both, see readme in the FI
+// section below for the double-counting reason), manualAssets/monthlyInvestment/expectedReturn/
+// monthlyExpenses/multiple are all plain editable numbers owned here, none silently blended.
+function defaultFI(){ return { assetsSource:'', manualAssets:'', monthlyInvestment:'', expectedReturn:'8.5', monthlyExpenses:'', multiple:'25' }; }
+function defaultData(){ return { annualIncome: '', fi: defaultFI() }; }
 function loadData(){
-  try{ const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : defaultData(); }
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const d = raw ? JSON.parse(raw) : defaultData();
+    d.fi = Object.assign(defaultFI(), d.fi||{}); // fills in any FI sub-fields missing from older saves
+    return d;
+  }
   catch(e){ return defaultData(); }
 }
 let data = loadData();
@@ -174,6 +197,28 @@ if((data.annualIncome===''||data.annualIncome===undefined||data.annualIncome===n
   saveData();
 }
 
+// Same one-time-convenience-prefill pattern for the two FI inputs that have a plausible source
+// elsewhere in the app: monthly investment (sum of Goals' own planned monthlyContribution values)
+// and monthly expenses (an Emergency-fund goal's own efMonthlyExpenses, if one was ever entered --
+// see MASTER_ROADMAP.md's Life Confidence pillar item 2 for why this is a SUGGESTED default only,
+// not treated as a verified "total spend" figure). Both stay fully editable afterward, and a
+// "use this" link in the card lets the user re-pull the live figure later if it's changed --
+// findEFGoalWithExpenses() is declared further down but hoisted, same as other functions here.
+function findEFGoalWithExpenses(){
+  if(!goalsHasData(goalsData)) return null;
+  return goalsData.goals.find(g=>g.category==='Emergency fund' && (+g.efMonthlyExpenses||0)>0) || null;
+}
+const goalsMonthlyTotal = goalsHasData(goalsData) ? goalsData.goals.reduce((s,g)=>s+(+g.monthlyContribution||0),0) : 0;
+const efGoalForFI = findEFGoalWithExpenses();
+if((data.fi.monthlyInvestment===''||data.fi.monthlyInvestment===undefined||data.fi.monthlyInvestment===null) && goalsMonthlyTotal>0){
+  data.fi.monthlyInvestment = goalsMonthlyTotal;
+  saveData();
+}
+if((data.fi.monthlyExpenses===''||data.fi.monthlyExpenses===undefined||data.fi.monthlyExpenses===null) && efGoalForFI){
+  data.fi.monthlyExpenses = +efGoalForFI.efMonthlyExpenses;
+  saveData();
+}
+
 // ---------- formatting helpers ----------
 function fmtINR(v){ return (v===null||v===undefined||isNaN(v)) ? '—' : '₹' + Math.round(v).toLocaleString('en-IN'); }
 function fmtDate(d){
@@ -184,6 +229,14 @@ function fmtDate(d){
 }
 function addMonths(date, months){ const d = new Date(date); d.setMonth(d.getMonth() + Math.round(months)); return d; }
 const CAT_COLORS = ['#C9A227','#4A9B6E','#7EA8C9','#B5533C','#9B7EC9','#6BA5A0'];
+// Same Conservative/Balanced/Aggressive presets goals/index.html defines for its SIP assumed-
+// return field -- copied verbatim (not referenced cross-file, per this app's self-containment
+// convention) so the Financial Independence card's return-rate presets stay consistent with Goals.
+const RISK_PROFILES = [
+  {rate:6.5,  label:'Conservative/Debt', sub:'~6-7%'},
+  {rate:8.5,  label:'Balanced',          sub:'~8-9%'},
+  {rate:11.5, label:'Aggressive/Equity', sub:'~11-12%'},
+];
 
 // ============================================================
 // NET WORTH -- reads networth_data_v1 ({categories:{...}, liabilities:{...}, snapshots:[...]})
@@ -556,6 +609,195 @@ function renderInsuranceCard(container){
 }
 
 // ============================================================
+// FINANCIAL INDEPENDENCE -- Life Confidence pillar item 2 (MASTER_ROADMAP.md). One combined
+// projection: the date projected investable assets, growing at an assumed return plus a monthly
+// SIP, cross a target of (FI multiple) x annual expenses.
+//
+// Uses the SAME annuity-due SIP convention goals/index.html's projectGoal() was fixed to use on
+// 2026-08-10 (see goals/PROGRESS.md) -- each month's contribution compounds as if invested at the
+// START of that month, matching Groww/ET Money-style calculators. That fix is the one source of
+// truth for this kind of math in this app now. This is a fresh function, not a call into this
+// file's own projectGoal() above (which is a DIFFERENT, still-stale pre-fix copy used only by the
+// Goals card) -- reusing it here would either perpetuate the stale formula or silently change the
+// Goals card's numbers, and this task's own regression bar says that card must not change.
+// Fixing that drift is flagged again below and left for a dedicated future session.
+//
+// monthsToReachTarget is the INVERSE of projectGoal's math: given a monthly rate/contribution,
+// solve for how many months until FV crosses a target, rather than compute FV at a fixed date.
+// Derivation (same annuity-due FV formula, solved for n):
+//   FV(n) = current*(1+r)^n + pmt*(1+r)*(((1+r)^n - 1)/r)
+//         = A*(1+r)^n - B,  where B = pmt*(1+r)/r,  A = current + B
+//   FV(n) = target  =>  n = ln((target+B)/A) / ln(1+r)
+function monthsToReachTarget(currentValue, monthlyRate, monthlyContribution, target){
+  if(target<=0) return null;
+  if(currentValue>=target) return 0;
+  const pmt = Math.max(0, +monthlyContribution||0);
+  if(monthlyRate<=0){
+    if(pmt<=0) return null; // no growth and no contribution: can never close the gap
+    return (target-currentValue)/pmt;
+  }
+  const r = monthlyRate;
+  const B = pmt*(1+r)/r;
+  const A = currentValue + B;
+  if(A<=0) return null; // zero assets and zero contribution: nothing to compound
+  const ratio = (target+B)/A;
+  if(ratio<=1) return 0;
+  return Math.log(ratio)/Math.log(1+r);
+}
+
+// Resolves which investable-assets figure is actually in use, with a safe fallback if the
+// stored preference points at a source that currently has no data (e.g. a holding was removed
+// after the user picked "Portfolio"). Pure/no side effects -- the select's onchange is the only
+// place that persists an explicit user choice.
+function effectiveAssetsSource(fi, hasPortfolio, hasNetWorthInvest){
+  let src = fi.assetsSource;
+  if(!src) src = hasPortfolio ? 'portfolio' : (hasNetWorthInvest ? 'networth' : 'manual');
+  if(src==='portfolio' && !hasPortfolio) src = hasNetWorthInvest ? 'networth' : 'manual';
+  if(src==='networth' && !hasNetWorthInvest) src = hasPortfolio ? 'portfolio' : 'manual';
+  return src;
+}
+
+function projectFI(){
+  const fi = data.fi;
+  const hasPortfolio = portfolioHasData(portfolioData);
+  const portfolioTotal = hasPortfolio ? computePortfolioTotals(portfolioData).totalValueINR : 0;
+  const nwInvestRows = (nwData && nwData.categories && nwData.categories.investments && nwData.categories.investments.rows) || [];
+  const hasNetWorthInvest = nwInvestRows.length>0;
+  const nwInvestTotal = hasNetWorthInvest ? nwInvestRows.reduce((s,r)=>s+(+r.value||0),0) : 0;
+  const src = effectiveAssetsSource(fi, hasPortfolio, hasNetWorthInvest);
+
+  let currentAssets, assetsLabel;
+  if(src==='portfolio'){ currentAssets = portfolioTotal; assetsLabel = "Portfolio Tracker's tracked value"; }
+  else if(src==='networth'){ currentAssets = nwInvestTotal; assetsLabel = "Net Worth's Investments category total"; }
+  else { currentAssets = +fi.manualAssets || 0; assetsLabel = 'Manual entry'; }
+
+  const monthlyInvestment = +fi.monthlyInvestment || 0;
+  const expectedReturn = +fi.expectedReturn || 0;
+  const monthlyRate = expectedReturn/12/100;
+  const monthlyExpenses = +fi.monthlyExpenses || 0;
+  const multiple = +fi.multiple || 0;
+  const annualExpenses = monthlyExpenses*12;
+  const fiTarget = annualExpenses*multiple;
+
+  const months = fiTarget>0 ? monthsToReachTarget(currentAssets, monthlyRate, monthlyInvestment, fiTarget) : null;
+  const fiDate = months!==null ? addMonths(new Date(), months) : null;
+
+  return { src, currentAssets, assetsLabel, portfolioTotal, nwInvestTotal, hasPortfolio, hasNetWorthInvest,
+    monthlyInvestment, expectedReturn, monthlyRate, monthlyExpenses, annualExpenses, multiple, fiTarget, months, fiDate };
+}
+
+function renderFICard(container){
+  const fi = data.fi;
+  const result = projectFI();
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const headline = result.fiTarget<=0 ? `
+    <div class="empty-state"><p>${result.monthlyExpenses<=0 ? 'Enter your monthly expenses below to see a projected date.' : 'Set the FI multiple below to a positive number to see a projected date.'}</p></div>
+  ` : result.months===null ? `
+    <div class="result-box">
+      <div class="verdict" style="color:var(--rust);">Not reachable with current assumptions</div>
+      <div class="verdict-detail">At ${result.expectedReturn}% expected return and ${fmtINR(result.monthlyInvestment)}/month invested, this never reaches the ${fmtINR(result.fiTarget)} target below. Try a higher expected return, a higher monthly investment, more starting assets, or a lower expenses/multiple target.</div>
+    </div>
+  ` : `
+    <div class="result-box">
+      <div class="verdict" style="${result.months<=0?'color:var(--green);':''}">${result.months<=0 ? "You're already there" : fmtDate(result.fiDate)}</div>
+      <div class="verdict-detail">${result.months<=0
+        ? `Investable assets already meet or exceed the ${fmtINR(result.fiTarget)} target below, based on the assumptions here.`
+        : `Roughly ${(result.months/12).toFixed(1)} years from today (${Math.round(result.months)} months) — assuming ${result.expectedReturn}% expected annual return and ${fmtINR(result.monthlyInvestment)}/month invested, growing from ${fmtINR(result.currentAssets)} today toward a ${fmtINR(result.fiTarget)} target.`}</div>
+      ${result.months>600 ? `<div class="notice warn" style="margin-top:10px;"><strong>That's a very long horizon (${Math.round(result.months/12)}+ years).</strong> Small changes to the return or monthly-investment assumptions below move a date this far out by a lot — worth sanity-checking rather than treating as precise.</div>` : ''}
+    </div>
+  `;
+
+  card.innerHTML = `
+    <h3>Financial independence</h3>
+    <div class="card-sub">The date work becomes optional, projected from your investable assets and goals' planned contributions — every assumption below is yours, and editable.</div>
+    ${headline}
+
+    <div class="stat-grid" style="margin-top:14px;">
+      <div class="stat-tile"><div class="stat-label">Investable assets now</div><div class="stat-value">${fmtINR(result.currentAssets)}</div><div class="stat-note">${result.assetsLabel}</div></div>
+      <div class="stat-tile"><div class="stat-label">FI target</div><div class="stat-value">${result.fiTarget>0?fmtINR(result.fiTarget):'—'}</div><div class="stat-note">${result.multiple||0}× annual expenses</div></div>
+      <div class="stat-tile"><div class="stat-label">Monthly investment used</div><div class="stat-value">${fmtINR(result.monthlyInvestment)}</div></div>
+    </div>
+
+    <div class="section-title" style="margin-top:20px;">Investable assets — pick one source, don't add them together</div>
+    <p class="helptext" style="margin-bottom:8px;">Net Worth's Investments category is manual-entry only (no live sync from Portfolio yet) — if you've kept both updated, the SAME holdings may be sitting in both. Summing them would double-count. Pick whichever one actually represents your real total investable assets.</p>
+    <div class="field-row">
+      <div class="field" style="flex-basis:100%;">
+        <select id="fi_assets_source">
+          <option value="portfolio" ${!result.hasPortfolio?'disabled':''} ${result.src==='portfolio'?'selected':''}>Portfolio Tracker's tracked value${result.hasPortfolio?` — ${fmtINR(result.portfolioTotal)} (live)`:' — no holdings tracked yet'}</option>
+          <option value="networth" ${!result.hasNetWorthInvest?'disabled':''} ${result.src==='networth'?'selected':''}>Net Worth's Investments category total${result.hasNetWorthInvest?` — ${fmtINR(result.nwInvestTotal)} (live)`:' — no rows entered yet'}</option>
+          <option value="manual" ${result.src==='manual'?'selected':''}>Manual entry</option>
+        </select>
+      </div>
+    </div>
+    ${result.src==='manual' ? `
+    <div class="field-row">
+      <div class="field"><label>Investable assets (₹)</label><input id="fi_manual_assets" type="number" value="${fi.manualAssets||''}" placeholder="e.g. 4500000"></div>
+    </div>
+    ` : ''}
+    ${(!result.hasPortfolio && !result.hasNetWorthInvest) ? `<p class="helptext">Neither Portfolio Tracker nor Net Worth's Investments category has data yet — add holdings in one of them, or use manual entry above.</p>` : ''}
+
+    <div class="section-title">Monthly investment</div>
+    <div class="field-row">
+      <div class="field"><label>Monthly investment (₹)</label><input id="fi_monthly_investment" type="number" value="${fi.monthlyInvestment||''}" placeholder="e.g. 40000"></div>
+    </div>
+    <p class="helptext">${goalsMonthlyTotal>0
+      ? `From your tracked goals' planned contributions: ${fmtINR(goalsMonthlyTotal)}/month total — <a href="#" id="fi_sync_investment">use this</a>. This is not a full income/savings-rate figure, just what's currently planned toward your goals.`
+      : `No goals have a planned monthly contribution set yet — enter your own figure, or add contributions in Goals.`}</p>
+
+    <div class="section-title">Expected return</div>
+    <div class="field-row">
+      <div class="field" style="flex-basis:100%;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+          ${RISK_PROFILES.map(p=>`<button type="button" class="btn small ${(+fi.expectedReturn===p.rate)?'primary':'ghost'}" data-fi-risk="${p.rate}">${p.label} (${p.sub})</button>`).join('')}
+        </div>
+        <input id="fi_expected_return" type="number" step="0.1" value="${fi.expectedReturn||''}" placeholder="e.g. 8.5">
+      </div>
+    </div>
+    <p class="helptext">Same Conservative/Balanced/Aggressive presets Goals uses for SIP projections — pressing one fills the field, it stays fully editable.</p>
+
+    <div class="section-title">Monthly expenses target</div>
+    <div class="field-row">
+      <div class="field"><label>Monthly expenses (₹)</label><input id="fi_monthly_expenses" type="number" value="${fi.monthlyExpenses||''}" placeholder="e.g. 60000"></div>
+    </div>
+    <p class="helptext">${efGoalForFI
+      ? `From your "${efGoalForFI.name||'Emergency fund'}" goal's essential-expenses figure: ${fmtINR(+efGoalForFI.efMonthlyExpenses)}/month — <a href="#" id="fi_sync_expenses">use this</a>. That's essential spend only (rent/EMI, food, utilities, premiums) from the Emergency fund calculator — a realistic full retirement/FI budget may run higher once discretionary spending is added. Adjust freely.`
+      : `No Emergency-fund goal with expenses entered was found in Goals — enter your own estimate directly. Self-reported, the same as everywhere else in this app; there's no other source for it.`}</p>
+
+    <div class="section-title">Withdrawal-rate assumption</div>
+    <div class="field-row">
+      <div class="field"><label>FI multiple (× annual expenses)</label><input id="fi_multiple" type="number" step="0.5" value="${fi.multiple||''}" placeholder="e.g. 25"></div>
+    </div>
+    <p class="helptext">25× annual expenses (a 4% safe withdrawal rate) is the standard FIRE-planning rule of thumb — editable here, not fixed. It comes from research on roughly 30-year retirement horizons against historical US market data: sequence-of-returns risk isn't modeled here, and it doesn't specifically account for the irregular, contract-based income pattern this app's other Life Confidence pillar items are built around. Treat it as a starting point, not a guarantee.</p>
+
+    <div class="notice warn" style="margin-top:16px;">
+      <strong>This is a projection, not a guarantee.</strong> It's built entirely from the assumptions above, which you control and can change any time. It's most reliable for a roughly steady monthly investment and return, and may not reflect irregular, contract-based income well (delayed contracts, lump-sum gaps between them) — the income-shock stress test item elsewhere on the roadmap covers that risk specifically; it isn't modeled here.
+    </div>
+  `;
+  container.appendChild(card);
+
+  card.querySelector('#fi_assets_source').onchange = (e)=>{ data.fi.assetsSource = e.target.value; saveData(); render(); };
+  const manualAssetsInput = card.querySelector('#fi_manual_assets');
+  if(manualAssetsInput) manualAssetsInput.onchange = (e)=>{ data.fi.manualAssets = e.target.value; saveData(); render(); };
+
+  card.querySelector('#fi_monthly_investment').onchange = (e)=>{ data.fi.monthlyInvestment = e.target.value; saveData(); render(); };
+  const syncInvBtn = card.querySelector('#fi_sync_investment');
+  if(syncInvBtn) syncInvBtn.onclick = (e)=>{ e.preventDefault(); data.fi.monthlyInvestment = goalsMonthlyTotal; saveData(); render(); };
+
+  card.querySelector('#fi_expected_return').onchange = (e)=>{ data.fi.expectedReturn = e.target.value; saveData(); render(); };
+  card.querySelectorAll('[data-fi-risk]').forEach(btn=>{
+    btn.onclick = ()=>{ data.fi.expectedReturn = btn.dataset.fiRisk; saveData(); render(); };
+  });
+
+  card.querySelector('#fi_monthly_expenses').onchange = (e)=>{ data.fi.monthlyExpenses = e.target.value; saveData(); render(); };
+  const syncExpBtn = card.querySelector('#fi_sync_expenses');
+  if(syncExpBtn) syncExpBtn.onclick = (e)=>{ e.preventDefault(); data.fi.monthlyExpenses = +efGoalForFI.efMonthlyExpenses; saveData(); render(); };
+
+  card.querySelector('#fi_multiple').onchange = (e)=>{ data.fi.multiple = e.target.value; saveData(); render(); };
+}
+
+// ============================================================
 // TOP OVERVIEW ROW -- one headline number per pillar, numbers first per the usability bar
 // ============================================================
 function renderOverview(container){
@@ -606,6 +848,17 @@ function renderOverview(container){
     tiles.push(`<div class="stat-tile"><div class="stat-label">Term cover</div><div class="stat-value" style="font-size:14px; color:var(--muted);">No data</div></div>`);
   }
 
+  const fiResult = projectFI();
+  if(fiResult.fiTarget<=0){
+    tiles.push(`<div class="stat-tile"><div class="stat-label">Financial independence</div><div class="stat-value" style="font-size:14px; color:var(--muted);">Set expenses below</div></div>`);
+  } else if(fiResult.months===null){
+    tiles.push(`<div class="stat-tile"><div class="stat-label">Financial independence</div><div class="stat-value" style="font-size:15px; color:var(--rust);">Not reachable</div><div class="stat-note">at current assumptions</div></div>`);
+  } else if(fiResult.months<=0){
+    tiles.push(`<div class="stat-tile accent"><div class="stat-label">Financial independence</div><div class="stat-value" style="color:var(--green);">Already there</div></div>`);
+  } else {
+    tiles.push(`<div class="stat-tile accent"><div class="stat-label">Financial independence</div><div class="stat-value">${fmtDate(fiResult.fiDate)}</div><div class="stat-note">~${(fiResult.months/12).toFixed(1)} years, at ${fiResult.expectedReturn}% assumed return</div></div>`);
+  }
+
   wrap.innerHTML = tiles.join('');
   container.appendChild(wrap);
 }
@@ -628,6 +881,10 @@ function render(){
 
   renderOverview(content);
 
+  const tFI = document.createElement('div'); tFI.className='section-title'; tFI.textContent='Financial independence';
+  content.appendChild(tFI);
+  renderFICard(content);
+
   const t1 = document.createElement('div'); t1.className='section-title'; t1.textContent='Net worth & investments';
   content.appendChild(t1);
   renderNetWorthCard(content);
@@ -647,13 +904,13 @@ function render(){
   details.innerHTML = `
     <summary>About this page <span class="summary-hint">— scope, and what's deliberately not here yet</span></summary>
     <div class="details-body">
-      <p>This is a read-only view. It never writes to Net Worth, Goals, Portfolio, Debt &amp; Loan, or Insurance Tracker's data — it only reads what's already there (same-origin localStorage, since every module deploys under the same site). The one exception is the annual income figure above, which belongs to Synthesis itself.</p>
-      <p>Built as a first pass at the "annual financial health report card" from the roadmap's Life Confidence pillar: net worth + trend, per-goal progress, portfolio performance, debt picture, and insurance adequacy — the parts genuinely computable from data that already exists in this app.</p>
-      <p>Deliberately left out of this first pass:</p>
+      <p>This is a read-only view. It never writes to Net Worth, Goals, Portfolio, Debt &amp; Loan, or Insurance Tracker's data — it only reads what's already there (same-origin localStorage, since every module deploys under the same site). The exceptions are Synthesis's own two owned pieces of data: the annual income figure (Insurance adequacy card) and the Financial independence inputs (assets source choice, monthly investment/expenses, return, and multiple).</p>
+      <p>Built as a first pass at the "annual financial health report card" from the roadmap's Life Confidence pillar: net worth + trend, per-goal progress, portfolio performance, debt picture, and insurance adequacy — the parts genuinely computable from data that already exists in this app. The Financial independence card (pillar item 2) was added later, as its own combined projection across investable assets and goals' planned contributions.</p>
+      <p>Deliberately left out, still:</p>
       <ul>
-        <li>What-if fund-switch / capital gains tax modeling — needs Portfolio's sold-position (realized gains) tracking, which doesn't exist yet; Portfolio currently only tracks open holdings.</li>
+        <li>What-if fund-switch / capital gains tax modeling — needs Portfolio's sold-position (realized gains) tracking joined with ITRGenie's tax logic; Portfolio has the sold-lot data now (2026-08-10) but this page hasn't been extended to surface it.</li>
         <li>Legally-reducible tax synthesis across Portfolio + ITRGenie — same blocker as above.</li>
-        <li>Financial independence date, income-shock stress test, retirement corpus projection — later Life Confidence items, not this pass's scope.</li>
+        <li>Income-shock stress test, retirement corpus projection, family resilience/estate planning, and the other later Life Confidence items — not this pass's scope.</li>
       </ul>
       <p>Refresh this page after adding data elsewhere, or use the ↻ Refresh button, if a section looks out of date — it reads localStorage once when the page loads, not continuously.</p>
     </div>
