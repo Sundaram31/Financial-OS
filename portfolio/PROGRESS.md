@@ -1009,13 +1009,10 @@ functionality to paper over them:
    module's simulator sidesteps the question entirely by refusing to compute a foreign-holding tax
    figure at all (see the dated 2026-08-10 entry above) rather than guessing at that threshold —
    flagged here so a future session doesn't assume it was checked.
-8. **The Holdings tab is noticeably heavier than the other three** (1246px tall across table,
-   add-form, bulk/CSV entry, CAS import, live-price settings, accounts, and FX — 7 cards) **vs.
-   Export & Settings at 237px with just one card** (2026-08-11 reviewer finding, tab restructure).
-   Accounts/FX and Live-price settings read more like account configuration than day-to-day
-   holdings entry — moving them to Export & Settings (maybe renamed "Accounts & Settings") would
-   balance the two tabs better. Not fixed in this pass (reviewer's own recommendation was "a
-   reasonable next iteration," not a blocker) — flagged for whoever next touches the tab grouping.
+8. ~~**The Holdings tab is noticeably heavier than the other three**~~ — **CLOSED 2026-08-11.**
+   Accounts, FX, and Live-price settings moved to the renamed "Accounts & Settings" tab (formerly
+   "Export & Settings") — see that dated entry below. Holdings is now scoped to table + entry/import
+   only; Accounts & Settings holds account configuration + the Net Worth feed export.
 
 ## Deliberately NOT done yet
 - **~~The what-if fund-switch tax-modeling UI itself~~ — built 2026-08-10 (see the dated entry
@@ -1175,8 +1172,10 @@ functionality to paper over them:
   answers a completely different question ("which FY does this date fall in," for the Sec 112A
   exemption-pool computation). Both are real, independently boundary-tested — see the 2026-08-10
   entry above for the exact FY-boundary test cases (March 31 vs April 1).
-- **The page is organized into four tabs (added 2026-08-11): Dashboard, Holdings, Realized Gains &
-  What-If, Export & Settings — see the dated entry below for the exact section-to-tab mapping.**
+- **The page is organized into four tabs (added 2026-08-11): Dashboard, Holdings, Gains & What-If,
+  Accounts & Settings (id `accounts`, renamed 2026-08-11 from "Export & Settings"/id `export` in the
+  same dated rebalance pass that moved Accounts/FX/Live-price settings there — see the dated entries
+  below for the exact section-to-tab mapping, both original and rebalanced).**
   `switchTab()` must never call the full `render()` — it only toggles `.tab-pane` visibility via
   `applyTabVisibility()`, deliberately, so that merely clicking between tabs can never wipe an
   in-progress form (all four panes are always fully built on every `render()`, just hidden/shown).
@@ -1184,8 +1183,23 @@ functionality to paper over them:
   `tab-pane` container fits it thematically (or a new one, added to the `TABS` array), not appended
   directly to `content` the way sections were before this session. Any function that
   `scrollIntoView`s a panel that isn't on the currently-active tab (the pattern
-  `openSaleForm`/`openWhatIfSale` use) must set `activeTab` to that panel's tab before calling
-  `render()`, or the scroll/focus will silently no-op against a `display:none` element.
+  `openSaleForm`/`openWhatIfSale`/`openLiveSettings` use) must set `activeTab` to that panel's tab
+  before calling `render()`, or the scroll/focus will silently no-op against a `display:none`
+  element — `openLiveSettings()` picked this up on 2026-08-11 when Live Prices settings moved to the
+  `accounts` tab (it previously didn't need to, since it lived on the same tab as every caller).
+- **`renderGainersLosersCard`/`renderConcentrationCard` (Dashboard, added 2026-08-11) must keep the
+  same honesty gates as the rest of this file.** Gainers/losers only includes holdings with
+  `hasBuyPrice` true (via `computeHoldingMetrics`) — never fabricates a gain for a CAS-imported
+  holding with no Buy Price, same pattern as `computePortfolio`/the stat tiles. Concentration's
+  top-2-holdings check only evaluates once there are `>=3` priced holdings (with 1-2 holdings
+  total, "most of the portfolio is in the top 2" is true by construction, not a real signal) — don't
+  drop that guard when touching this code later.
+- **Sold lots (Gains & What-If tab) default to showing only the most recent
+  `SOLD_LOTS_COLLAPSE_THRESHOLD` (10) via `soldLotsShowAll` (added 2026-08-11) once there are more
+  than that many.** This only limits which rows `renderRealizedGainsSection` renders in the table —
+  `computeRealizedGains()`'s STCG/LTCG/Total stat tiles and `buildCapitalGainsFeed()`'s export always
+  operate over the full `data.soldLots`, uncollapsed. Don't let a future change to the sold-lots
+  table slice the underlying array itself; only the rendered rows should ever be limited.
 
 ## Updated 2026-08-11 — Tab sub-navigation (pure reorganization, no feature/logic changes)
 The page had grown to 17 stacked render functions on one long scroll over several sessions. Per
@@ -1333,3 +1347,126 @@ within the 375px viewport. The tab-grouping-imbalance observation from the same 
 pane much taller than Export & Settings) was left as a follow-up per the reviewer's own
 recommendation, not fixed here — noted in Known gaps for whoever next touches this file's tab
 grouping.
+
+## Updated 2026-08-11 — Value Research-inspired Dashboard additions: Top Gainers & Losers, Diversification flag, sold-lots collapse; Accounts/Settings tab rebalance
+Three additive features requested against reference screenshots of Value Research's "My
+Investments" portfolio manager, plus a judgment call on a fourth. No existing render function's
+math or storage shape changed — all new code, reusing `computeHoldingMetrics`/`toINR`/`formatMoney`
+exactly as already established in this file.
+
+**1. Top Gainers & Losers widget (`renderGainersLosersCard`, Dashboard tab).** A card right after
+the summary stat tiles, two columns (Gainers / Losers), ranked by unrealized **% return** — not
+absolute ₹ gain, which would let one large position crowd out both lists regardless of how well
+anything else actually performed (the task text said "by unrealized gain/loss," read here as "the
+gain/loss calculation basis," not the sort key — both the ₹ figure and the % are shown per row
+either way, so the number itself is never hidden). Same `hasBuyPrice` honesty gate
+`computeHoldingMetrics()` already enforces everywhere else in this file: a holding with no Buy Price
+(CAS-imported, cost basis unknown) is excluded, never given a fabricated gain — the card states this
+plainly and shows an excluded-count note when it applies. A holding priced exactly flat (₹0 gain) is
+excluded from **both** lists (it's neither a gainer nor a loser). Gainers only draws from holdings
+with `gainAbs>0`, Losers only from `gainAbs<0` — so a "loser" is always a genuine loss, never just
+"the least-good performer among gains" (which would be a misleading label). Degrades gracefully at
+every edge: 0 holdings → "No holdings yet"; holdings present but none priced → "None of your
+holdings have a Buy Price set yet"; fewer than 3 real gainers or losers → shows however many exist,
+never padded; a column with zero entries shows "No holdings currently showing a gain" /
+"...at a loss" instead of a blank space.
+
+**2. Diversification/concentration flag (`renderConcentrationCard`/`computeConcentration`, Dashboard
+tab, placed directly under Asset allocation).** Two independent, threshold-based checks, each with
+its reasoning kept in the code comment directly above `computeConcentration()` (not just here):
+- **Top-2-holdings share of current INR-convertible value ≥ 50%.** Half the portfolio's value
+  resting on two positions means either one's decline meaningfully swings the whole total — 50% was
+  picked as a deliberately blunt "literally half" line rather than a more precise-sounding number a
+  rule of thumb doesn't actually earn. Only evaluated once there are **at least 3** priced holdings —
+  with only 1 or 2 holdings total, "most of the portfolio is in the top 2" is true by construction
+  (that's just what the person owns), not a genuine concentration signal, so the check doesn't fire
+  and doesn't mislabel a small/starting portfolio as "concentrated."
+- **More than 20 direct Stock/Equity positions.** Grounded in the commonly cited practitioner/
+  academic finding (Evans & Archer 1968 and its many later replications) that the marginal
+  diversification benefit of adding another individual stock is mostly exhausted by roughly 15-20
+  names — past that, more positions mainly add tracking burden, which is the literal complaint this
+  feature is modeled on (Value Research's own reference copy: "too many stocks directly...hard to
+  manage"). 20 is deliberately generous so a 12-15 stock portfolio someone runs on purpose isn't
+  flagged.
+Only ever shown when actually true for the current data — 0, 1, or both flags can appear
+independently; when neither fires, a calm green "No concentration flags right now — your top
+holdings and stock count are both in a reasonable range" note is shown instead, never silence and
+never a fabricated concern. Every render of this card ends with an explicit, unconditional
+disclosure line — "Descriptive only, based on your current holdings — not investment advice, and not
+a recommendation to buy, sell, or rebalance anything" — matching this module's existing
+not-a-recommendation pattern from the what-if simulator.
+
+**3. The "sold investments hidden by default" toggle — reconsidered, not built as Value Research
+built it, per explicit instruction to use judgment.** Checked first, as asked: this module already
+structurally separates open and closed positions (a fully-sold holding is removed from
+`data.holdings` and becomes a `soldLots` entry in the separate Gains & What-If tab), so there is
+genuinely no scenario where a sold position lingers inside the open Holdings table needing to be
+hidden — VR's exact toggle doesn't map onto this app's data model. The one real remaining case: the
+**sold-lots table itself**, inside Realized Gains, has no pagination/collapse and would grow
+unbounded for someone who has recorded many sales over years. Built that instead:
+`soldLotsShowAll` (module-level, not persisted) + `SOLD_LOTS_COLLAPSE_THRESHOLD = 10` — once there
+are more than 10 sold lots, the table defaults to showing only the 10 most recently recorded, with a
+"Show all N" / "Show recent only" toggle button in the card header and a one-line note when
+collapsed. Below the threshold, no toggle renders at all (nothing to declutter). Only the rendered
+**rows** are limited — `computeRealizedGains()`'s STCG/LTCG/Total stat tiles and
+`buildCapitalGainsFeed()`'s JSON/paste-lines export always operate over the full, uncollapsed
+`data.soldLots`, so collapsing the table view never hides a real number from the totals or the
+ITRGenie feed.
+
+**Bonus (accepted): Holdings/Export & Settings tab rebalance, closing Known gap #8.** Per the
+reviewer's own 2026-08-11 recommendation (Holdings was 1246px/7 cards vs. Export & Settings'
+237px/1 card), this was a clean, low-risk container move — no render function's internal
+markup/logic touched. `renderAccountsCard`, `renderFxCard`, and `renderLiveSettingsCard` (plus their
+"Accounts & FX" sub-heading) moved out of the Holdings tab-pane into the renamed **Accounts &
+Settings** tab (label changed, `id` changed `export` → `accounts`), which now reads: Accounts & FX
+heading → Accounts card → FX card → Live Prices settings → **Cross-module** heading (new, for
+clarity) → Net Worth feed card. Holdings is now scoped purely to viewing + entering/importing
+holdings data (table, guided form, bulk/CSV, CAS import) — 4 cards, materially lighter.
+`openLiveSettings()` (the function every "add Twelve Data key ↗" link in this file calls) now also
+sets `activeTab = 'accounts'` before its `render()` call, the same cross-tab-jump pattern
+`openSaleForm`/`openWhatIfSale` already established — without this one-line addition, clicking any
+of those links from the Holdings tab (their real-world trigger point) would leave the Live Prices
+panel built but `display:none`, since it no longer lives on the tab the click originated from.
+
+**Testing.** Real headless Chromium (Playwright), a local static server (not `file://`, to match how
+the module actually loads over HTTP on the deployed site), 66 checks, all pass:
+- **Gainers/Losers**: a seeded 7-holding portfolio (6 priced with known gains/losses spanning
+  ±10%/±15%/±25%/±33%, one deliberately given no Buy Price) — confirmed the correct top-3 gainers
+  (including a genuine 25%/25% tie both surfacing, with the clear 3rd-place 15% holding ranked below
+  both) and top-3 losers, confirmed the no-Buy-Price holding is excluded from the list (never given a
+  fabricated number) and counted in the "N holding(s) excluded" note. Degrade-gracefully checks: an
+  empty portfolio, a single profitable holding (Losers column shows a sensible "no holdings at a
+  loss" message, not blank/broken), and an all-no-Buy-Price portfolio (correct explanatory message,
+  no crash).
+- **Concentration flag**: a genuinely concentrated 3-holding portfolio (two large + one small,
+  top-2 ≈ 96.6%) correctly triggered the top-2 flag with the right rounded percentage and the actual
+  symbol names; a genuinely diversified 5-equal-holding portfolio correctly showed **no** flags and
+  the clean "well diversified" note (no false alarm); a 25-equal-value-stock portfolio correctly
+  triggered *only* the stock-count flag (not top-2, since holdings are equal-weighted) with the real
+  count (25); a 2-holding portfolio correctly did **not** trigger the top-2 flag (confirming the
+  `>=3` guard against the "100% in top 2 by construction" false positive).
+- **Sold-lots toggle**: 14 seeded sold lots correctly showed only 10 by default with a "Show all 14"
+  button; clicking it revealed all 14 and relabeled to "Show recent only"; clicking that again
+  correctly re-collapsed to 10. A separate 3-sold-lot seed correctly showed no toggle button at all
+  (under the threshold) and all 3 rows directly.
+- **Tab rebalance**: confirmed the tab bar shows "Accounts & Settings" (not the old "Export &
+  Settings" label anywhere); confirmed the Holdings tab no longer contains the FX card or Live
+  Prices settings text; confirmed the Accounts & Settings tab contains Accounts, FX, Live Prices
+  settings, *and* the Net Worth feed card; confirmed calling `openLiveSettings()` from the Holdings
+  tab correctly jumps `activeTab` to `accounts` and the panel is genuinely visible (not
+  `display:none`) afterward.
+- **Full regression**: the guided "Add a holding" form still works post-rebalance (added a holding
+  with a real ₹50 gain, confirmed it appears in Holdings *and* surfaces correctly in the new
+  Gainers/Losers widget on Dashboard); the Holdings-row "Sell" button still correctly cross-tab-jumps
+  to Gains & What-If (unaffected by the Accounts-tab-id rename, since it targets a different tab).
+- **Mobile (375×812), both themes**: zero horizontal overflow on all four tabs; both new Dashboard
+  cards (Gainers/Losers, Diversification check) visible and correctly rendering the concentration
+  flag at mobile width, not just desktop.
+- **Zero console/page errors** across all 10 seeded scenarios run in this session.
+- Full-page screenshots taken (dark/light, desktop/375px, Dashboard and the rebalanced Accounts &
+  Settings tab) for visual review — not committed to the repo, matching this module's existing
+  pattern.
+
+**Design invariants added** — see the updated tab-structure bullet and two new bullets in "Design
+invariants" above (the honesty-gate requirement for the two new Dashboard cards, and the
+sold-lots-collapse-is-display-only requirement).
