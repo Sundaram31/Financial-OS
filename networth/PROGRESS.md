@@ -308,3 +308,18 @@ parsed then silently discarded, never actually stored on the row. This predates 
 change and is unrelated to it (the guided form for Liabilities deliberately mirrors this — Label +
 Value only, no date field — rather than adding a field whose value the existing storage layer would
 just throw away). Worth a real fix in a future session if `OutstandingAsOf` is meant to be kept.
+
+### Fix (2026-08-13, same day) — reviewer-found mobile zoom bug on the inline-edit inputs
+`financial-os-reviewer` independently re-verified this build (shape parity, single-source-of-truth
+validation, inline-edit revert-on-invalid, bulk-paste regression, downstream Synthesis/Concentration
+reads, XSS-safe label escaping) and confirmed it all correct — but found the mobile fix was
+incomplete. The `@media (max-width:760px)` block this same commit added correctly bumped the guided
+form's own inputs to 16px (with an explicit comment noting 16px is the real iOS Safari zoom-on-focus
+threshold), but the inline-edit table inputs — the OTHER half of this build's stated purpose,
+turning a correction into "click the wrong field and retype" instead of delete-and-re-paste — were
+left at 14px, still under that threshold. Confirmed live at a real 375px viewport: tapping an
+inline-edit field would still trigger the exact iOS zoom-jump this build otherwise fixed, directly
+undercutting the feature's own point on the platform this whole session has centered on. One-line
+fix: raised `table.day-table input[type="text"], table.day-table input[type="number"]` to 16px
+inside the same mobile media query. Verified live: both the guided-form inputs and the inline-edit
+inputs now measure 16px via `getComputedStyle` at 375px.
