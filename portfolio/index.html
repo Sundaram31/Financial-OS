@@ -8,7 +8,7 @@
   :root{
     --bg:#0B0E11; --panel:#12161B; --panel-2:#171C22; --line:#242A31;
     --text:#E8E6E0; --muted:#9BA0A8; --gold:#C9A227; --gold-dim:#8f7419;
-    --green:#4A9B6E; --rust:#B5533C;
+    --green:#4A9B6E; --rust:#CE6C53;
     --mono: 'IBM Plex Mono', 'Courier New', monospace;
     --serif: 'Source Serif 4', Georgia, serif;
   }
@@ -25,35 +25,35 @@
   .brand{ display:flex; align-items:center; gap:10px; }
   .brand .seal{ width:28px; height:28px; border:1.5px solid var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:13px; color:var(--gold); font-weight:600; }
   .brand h1{ font-family:var(--serif); font-size:17px; font-weight:600; }
-  .brand .sub{ font-size:11px; color:var(--muted); }
+  .brand .sub{ font-size:13px; color:var(--muted); }
   .topbar-actions{ display:flex; gap:8px; flex-wrap:wrap; }
   main.content{ flex:1; overflow-y:auto; padding:26px 32px; max-width:1000px; margin:0 auto; width:100%; }
   .panel-header{ margin-bottom:22px; }
-  .panel-header .eyebrow{ font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
+  .panel-header .eyebrow{ font-size:13px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
   .panel-header h2{ font-family:var(--serif); font-size:24px; font-weight:600; }
   .panel-header p.desc{ color:var(--muted); font-size:14px; margin-top:6px; max-width:680px; }
   .card{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:18px 20px; margin-bottom:16px; }
   .card h3{ font-family:var(--serif); font-size:16px; margin-bottom:12px; }
   .field-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
   .field{ flex:1; min-width:160px; }
-  .field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
+  .field label{ display:block; font-size:13px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
   .field input, .field select, textarea{ width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:14px; }
   .field input:focus, textarea:focus{ outline:none; border-color:var(--gold-dim); }
-  .btn{ background:transparent; border:1px solid var(--gold-dim); color:var(--gold); padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  .btn{ background:transparent; border:1px solid var(--gold-dim); color:var(--gold); padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:13px; cursor:pointer; }
   .btn:hover{ background:rgba(201,162,39,0.08); border-color:var(--gold); }
   .btn.primary{ background:var(--gold); color:#141414; font-weight:600; border-color:var(--gold); }
   .btn.primary:hover{ background:#dab63a; }
   .btn.ghost{ border-color:var(--line); color:var(--muted); }
-  .btn.small{ padding:5px 10px; font-size:11px; }
+  .btn.small{ padding:5px 10px; font-size:13px; }
   .table-scroll{ overflow-x:auto; }
   table.day-table{ width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; min-width:760px; }
-  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:13px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
   table.day-table td{ padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
   table.day-table tr:last-child td{ border-bottom:none; }
-  table.day-table input[type="number"], table.day-table input[type="date"]{ width:100px; padding:4px 6px; font-size:12.5px; }
+  table.day-table input[type="number"], table.day-table input[type="date"]{ width:100px; padding:4px 6px; font-size:13px; }
   .sortable-th{ cursor:pointer; user-select:none; }
   .sortable-th:hover{ color:var(--gold); }
-  .cell-muted{ color:var(--muted); font-size:12.5px; }
+  .cell-muted{ color:var(--muted); font-size:13px; }
   .cell-strong{ font-weight:600; }
   .result-box{ border:1px solid var(--gold-dim); border-radius:6px; padding:18px 20px; background:linear-gradient(180deg, rgba(201,162,39,0.05), transparent); margin-top:16px; }
   .result-box .verdict{ font-family:var(--serif); font-size:22px; color:var(--gold); margin-bottom:4px; }
@@ -61,15 +61,15 @@
   .stat-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:12px; margin-bottom:14px; }
   .stat-tile{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:16px 18px; }
   .stat-tile.accent{ border-color:var(--gold-dim); background:linear-gradient(180deg, rgba(201,162,39,0.06), transparent); }
-  .stat-tile .stat-label{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .stat-tile .stat-label{ font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
   .stat-tile .stat-value{ font-family:var(--serif); font-size:25px; font-weight:600; }
-  .helptext{ font-size:12.5px; color:var(--muted); margin-top:4px; }
+  .helptext{ font-size:13px; color:var(--muted); margin-top:4px; }
   .breakdown-bar{ display:flex; height:28px; border-radius:4px; overflow:hidden; margin:12px 0; border:1px solid var(--line); }
-  .breakdown-bar .seg{ display:flex; align-items:center; justify-content:center; font-size:10px; color:#141414; font-weight:600; overflow:hidden; white-space:nowrap; }
+  .breakdown-bar .seg{ display:flex; align-items:center; justify-content:center; font-size:13px; color:#141414; font-weight:600; overflow:hidden; white-space:nowrap; }
   .legend{ display:flex; flex-wrap:wrap; gap:14px; margin-top:8px; }
-  .legend .item{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+  .legend .item{ display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); }
   .legend .dot{ width:9px; height:9px; border-radius:2px; }
-  .tag{ display:inline-block; font-size:10px; padding:2px 8px; border-radius:10px; text-transform:uppercase; font-weight:600; margin-left:6px; }
+  .tag{ display:inline-block; font-size:13px; padding:2px 8px; border-radius:10px; text-transform:uppercase; font-weight:600; margin-left:6px; }
   .tag.green{ background:rgba(74,155,110,0.15); color:var(--green); }
   .tag.rust{ background:rgba(181,83,60,0.15); color:var(--rust); }
   .tag.muted{ background:rgba(154,160,168,0.15); color:var(--muted); }
@@ -77,15 +77,15 @@
   .gap-card h3{ color:var(--gold); }
   .gap-card ol{ margin:8px 0 0 18px; font-size:13px; color:var(--text); }
   .gap-card li{ margin-bottom:10px; }
-  .acct-chip{ display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:20px; padding:6px 12px; margin:0 8px 8px 0; font-size:12.5px; }
-  .acct-chip .cur{ font-size:10px; color:var(--muted); }
-  .btn.tiny{ padding:2px 7px; font-size:10px; }
+  .acct-chip{ display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:20px; padding:6px 12px; margin:0 8px 8px 0; font-size:13px; }
+  .acct-chip .cur{ font-size:13px; color:var(--muted); }
+  .btn.tiny{ padding:2px 7px; font-size:13px; }
   .tag.gold{ background:rgba(201,162,39,0.15); color:var(--gold); }
-  .notice{ border:1px solid var(--gold-dim); background:rgba(201,162,39,0.08); border-radius:6px; padding:10px 14px; font-size:12.5px; color:var(--text); margin-bottom:12px; line-height:1.55; }
+  .notice{ border:1px solid var(--gold-dim); background:rgba(201,162,39,0.08); border-radius:6px; padding:10px 14px; font-size:13px; color:var(--text); margin-bottom:12px; line-height:1.55; }
   .notice strong{ color:var(--gold); }
   .notice.warn{ border-color:var(--rust); background:rgba(181,83,60,0.09); }
   .notice.warn strong{ color:var(--rust); }
-  .match-tag{ display:inline-block; font-size:10px; padding:1px 7px; border-radius:9px; text-transform:uppercase; letter-spacing:0.3px; font-weight:600; background:rgba(74,155,110,0.15); color:var(--green); margin-left:6px; }
+  .match-tag{ display:inline-block; font-size:13px; padding:1px 7px; border-radius:9px; text-transform:uppercase; letter-spacing:0.3px; font-weight:600; background:rgba(74,155,110,0.15); color:var(--green); margin-left:6px; }
   .match-tag.isin{ background:rgba(126,168,201,0.18); color:#7EA8C9; }
   .import-group{ border:1px solid var(--line); border-radius:6px; padding:12px 14px; margin-top:12px; background:var(--panel-2); }
   .import-group h4{ font-family:var(--serif); font-size:14px; margin-bottom:8px; }
@@ -97,32 +97,47 @@
   details.collapsible summary::before{ content:'▸ '; color:var(--gold); font-family:var(--mono); }
   details.collapsible[open] summary::before{ content:'▾ '; }
   details.collapsible .details-body{ margin-top:14px; }
-  details.collapsible summary .summary-hint{ font-family:var(--mono); font-size:12px; color:var(--muted); font-weight:400; margin-left:4px; }
+  details.collapsible summary .summary-hint{ font-family:var(--mono); font-size:13px; color:var(--muted); font-weight:400; margin-left:4px; }
   ::-webkit-scrollbar{ width:8px; height:8px; }
   ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+  /* Tab sub-navigation (added 2026-08-11) -- mirrors this module's existing hairline/gold-accent
+     language rather than a generic pill-tab component. Horizontally scrollable so it stays usable
+     at 375px without wrapping or overflowing off-screen. */
+  /* Reviewer-found gap (2026-08-11): at 375px the tab bar overflows (Export & Settings was 0%
+     visible) with nothing hinting more tabs exist beyond a mid-word cut. .tab-bar-wrap's ::after is a
+     right-edge fade shown only while the bar actually overflows (JS toggles .has-overflow), so wide
+     screens where every tab already fits show no fade at all. */
+  .tab-bar-wrap{ position:relative; margin-bottom:22px; }
+  /* var(--bg) is the actual page background in both themes (body's own background, which
+     main.content never overrides) -- not var(--panel), which is only for cards. */
+  .tab-bar-wrap.has-overflow::after{ content:''; position:absolute; top:0; right:0; bottom:1px; width:28px; background:linear-gradient(to right, transparent, var(--bg) 85%); pointer-events:none; }
+  .tab-bar{ display:flex; gap:4px; overflow-x:auto; border-bottom:1px solid var(--line); -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+  .tab-btn{ flex:0 0 auto; background:transparent; border:none; border-bottom:2px solid transparent; color:var(--muted); font-family:var(--mono); font-size:13px; padding:10px 16px; cursor:pointer; white-space:nowrap; transition:color .12s, border-color .12s; }
+  .tab-btn:hover{ color:var(--text); }
+  .tab-btn.active{ color:var(--gold); border-bottom-color:var(--gold); font-weight:600; }
   @media (max-width:760px){
     main.content{ padding:16px; }
     .card{ padding:14px 16px; }
     body{ font-size:16px; }
     .panel-header h2{ font-size:21px; }
     .panel-header p.desc{ font-size:14.5px; }
-    .panel-header .eyebrow{ font-size:11.5px; }
+    .panel-header .eyebrow{ font-size:13px; }
     .brand h1{ font-size:16px; }
-    .brand .sub{ font-size:12px; }
-    .field label{ font-size:12.5px; }
+    .brand .sub{ font-size:13px; }
+    .field label{ font-size:13px; }
     .field input, .field select, textarea{ font-size:16px; padding:9px 10px; } /* 16px also avoids iOS auto-zoom-on-focus */
     .btn{ font-size:14px; padding:10px 16px; }
     .btn.small{ font-size:13px; padding:9px 13px; }
-    .btn.tiny{ font-size:12px; padding:6px 10px; }
+    .btn.tiny{ font-size:13px; padding:6px 10px; }
     .helptext{ font-size:13.5px; }
     .result-box .verdict{ font-size:24px; }
     .result-box .verdict-detail{ font-size:14px; }
     .stat-tile .stat-value{ font-size:22px; }
-    .stat-tile .stat-label{ font-size:11.5px; }
+    .stat-tile .stat-label{ font-size:13px; }
     .legend .item{ font-size:13px; }
     .acct-chip{ font-size:13.5px; }
-    .acct-chip .cur{ font-size:11px; }
-    .tag{ font-size:11px; }
+    .acct-chip .cur{ font-size:13px; }
+    .tag{ font-size:13px; }
     .cell-muted{ font-size:13px; }
     details.collapsible summary{ font-size:15px; }
     details.collapsible summary .summary-hint{ display:block; margin-left:0; margin-top:3px; }
@@ -139,11 +154,12 @@
     table.day-table tr:last-child{ margin-bottom:0; }
     table.day-table td{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); white-space:normal; text-align:right; }
     table.day-table tr td:last-child{ border-bottom:none; }
-    table.day-table td[data-label]::before{ content:attr(data-label); font-size:11.5px; text-transform:uppercase; letter-spacing:0.4px; color:var(--muted); font-weight:600; text-align:left; flex-shrink:0; }
+    table.day-table td[data-label]::before{ content:attr(data-label); font-size:13px; text-transform:uppercase; letter-spacing:0.4px; color:var(--muted); font-weight:600; text-align:left; flex-shrink:0; }
     table.day-table td[data-label=""]::before{ content:none; }
     table.day-table td[data-label=""]{ justify-content:flex-end; }
     table.day-table input[type="number"], table.day-table input[type="date"]{ width:110px; font-size:14px; }
     .cp-cell{ display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+    .tab-btn{ font-size:14px; padding:11px 14px; }
   }
 </style>
 <!-- SheetJS (Excel import) and PDF.js (CAS PDF import) are self-hosted under ./lib/ but are
@@ -185,6 +201,16 @@ function defaultData(){
     ],
     holdings: [], // {id, symbol, broker(account id), assetType, qty, buyPrice, buyDate, currentPrice, asOf}
     fx: { usdInr: '', asOf: '' }, // manual USD->INR rate, entered by user -- no live feed (see Known gaps)
+    // Realized/sold-position records (added 2026-08-10, roadmap item 4's stated prerequisite).
+    // {id, symbol, broker(account id), assetType, isin, qty, buyPrice(|null -- unknown cost basis,
+    // e.g. a CAS-imported holding that was sold before its Buy Price was ever filled in), buyDate(|''),
+    // sellDate, sellPrice, soldAt}. A partial sale reduces the source holding's qty and pushes one of
+    // these; a full sale removes the holding from data.holdings entirely and pushes one of these
+    // carrying the holding's full original qty. Cost basis is always the source holding's single
+    // Avg Price at the moment of sale (this module doesn't track multiple buy-lots per holding --
+    // same limitation the holdings table's "Avg Price" naming already documents), not a true FIFO
+    // per-lot cost basis.
+    soldLots: [],
   };
 }
 function loadData(){
@@ -196,14 +222,90 @@ let data = loadData();
 if(!Array.isArray(data.accounts) || data.accounts.length===0) data.accounts = defaultData().accounts;
 if(!Array.isArray(data.holdings)) data.holdings = [];
 if(!data.fx) data.fx = { usdInr:'', asOf:'' };
+if(!Array.isArray(data.soldLots)) data.soldLots = [];
 function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 function newId(prefix){ return prefix + '_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
+
+// ---------- Tab sub-navigation (added 2026-08-11) ----------
+// The page grew to 17 stacked sections over several sessions; this groups them into tabs the way
+// Value Research's "My Investments" (and every other mature portfolio manager) does, instead of one
+// long scroll. Reorganization only -- no render function's internal markup/math changed, only which
+// container each one gets appended into and whether that container is currently visible.
+//
+// Switching tabs deliberately does NOT call the full render() (which does content.innerHTML='' and
+// rebuilds everything from scratch) -- it only toggles CSS display on already-built panes via
+// applyTabVisibility(). All 4 panes are always fully built on every render() (data-mutation-driven,
+// same as before this change), just hidden/shown -- so merely clicking between tabs can never wipe
+// an in-progress "Add a holding" / "Record a sale" / what-if form the way a fresh render() would
+// (the same class of bug found and fixed in goals/index.html). A real state change (adding a
+// holding, recording a sale, etc.) still calls the full render() exactly as it always did, and still
+// resets any *other* section's unsubmitted input -- that's pre-existing behavior across sections on
+// this page (see Known gaps #6) and out of scope for this reorganization to fix.
+let activeTab = 'dashboard';
+const TABS = [
+  { id:'dashboard', label:'Dashboard' },
+  { id:'holdings',  label:'Holdings' },
+  { id:'gains',     label:'Gains & What-If' },
+  { id:'accounts',  label:'Accounts & Settings' },
+];
+function renderTabBar(container){
+  const wrap = document.createElement('div');
+  wrap.className = 'tab-bar-wrap';
+  const bar = document.createElement('div');
+  bar.className = 'tab-bar';
+  bar.setAttribute('role','tablist');
+  TABS.forEach(t=>{
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tab-btn' + (activeTab===t.id ? ' active' : '');
+    btn.textContent = t.label;
+    btn.dataset.tabId = t.id;
+    btn.setAttribute('role','tab');
+    btn.setAttribute('aria-selected', activeTab===t.id ? 'true' : 'false');
+    btn.onclick = ()=> switchTab(t.id);
+    bar.appendChild(btn);
+  });
+  wrap.appendChild(bar);
+  container.appendChild(wrap);
+  updateTabBarOverflow(wrap, bar);
+  // Re-check on resize (rotating a phone, or a desktop window shrinking) rather than only at
+  // first render -- an overflow state computed once could go stale.
+  window.addEventListener('resize', ()=> updateTabBarOverflow(wrap, bar));
+}
+function updateTabBarOverflow(wrap, bar){
+  const overflowing = bar.scrollWidth > bar.clientWidth + 1;
+  wrap.classList.toggle('has-overflow', overflowing);
+}
+function switchTab(tabId){
+  if(tabId === activeTab) return;
+  activeTab = tabId;
+  applyTabVisibility();
+}
+function applyTabVisibility(){
+  document.querySelectorAll('.tab-pane').forEach(pane=>{
+    pane.style.display = (pane.dataset.tab === activeTab) ? '' : 'none';
+  });
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    const isActive = btn.dataset.tabId === activeTab;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+}
 
 let brokerFilter = 'all';
 let liveSettingsOpen = false; // persists the collapsible "Live prices" panel's open/closed state across render() rebuilds
 let bulkAddOpen = false;      // same, for the collapsible bulk-add/advanced entry panel
 let casImportOpen = false;    // same, for the collapsible CAS PDF import panel
 let holdingsSort = { key: null, dir: 1 }; // click-to-sort state for the holdings table (Symbol/Qty/Value/Gain-Loss)
+// Sold-lots table (Realized Gains & What-If tab) defaults to showing only the most recent
+// SOLD_LOTS_COLLAPSE_THRESHOLD lots once there are enough to be worth collapsing -- see the
+// "sold-hidden-by-default toggle" reasoning in portfolio/PROGRESS.md's 2026-08-11 entry. Unlike
+// Value Research's reference (whose open-holdings table can contain fully-exited positions inline),
+// this module already structurally removes a fully-sold holding from data.holdings, so the only
+// remaining place a "declutter historical data" toggle genuinely helps is here, once someone has
+// recorded many sales over time.
+let soldLotsShowAll = false;
+const SOLD_LOTS_COLLAPSE_THRESHOLD = 10;
 
 // Guided "Add a holding" form's transient state -- last-used broker/asset type are remembered
 // (not persisted to storage) so adding several holdings in a row doesn't require re-picking the
@@ -213,6 +315,28 @@ let addFormLastBroker = null;
 let addFormLastType = 'Stock';
 let addFormFeedbackMsg = { text: '', isError: false };
 let bulkAddFeedbackMsg = ''; // same fix applied to the bulk-paste entry panel below
+
+// "Record a sale" guided form's transient state -- which holding is currently selected (module
+// var, not persisted) and the feedback message, same fix pattern as addFormFeedbackMsg above
+// (set on a module-level var, read back in on the next render(), never written onto a DOM node
+// that render()'s content.innerHTML='' is about to detach).
+let saleFormHoldingId = null;
+let saleFormFeedbackMsg = { text: '', isError: false };
+
+// "Simulate a sale" what-if tax calculator's transient state -- purely computational, never
+// mutates data.holdings/data.soldLots (see renderWhatIfSaleSection below). whatIfHoldingId starts
+// `null` so the first render can seed sensible defaults for whichever holding ends up selected;
+// whatIfPoolOverride is `null` when the user hasn't overridden the auto-computed "already realized
+// Sec 112A LTCG this FY" figure, else the number they typed. whatIfNote is a free-text scratch
+// field ("Considering switching to: ___") for the user's own reference only -- deliberately never
+// saved to data/localStorage and never computed against, since this tool doesn't evaluate switch
+// destinations, only the tax cost of exiting the current holding.
+let whatIfHoldingId = null;
+let whatIfQty = '';
+let whatIfSellPrice = '';
+let whatIfSellDate = '';
+let whatIfPoolOverride = null;
+let whatIfNote = '';
 
 // Excel (.xlsx/.xls) import: transient, in-memory only -- holds the detected column mapping and
 // parsed rows for a chosen file, awaiting user confirmation before anything is committed to
@@ -307,9 +431,122 @@ function findDuplicateHoldingIndex(candidate){
 }
 
 // ---------- shared paste/file helpers, same pattern as every other module ----------
-function parsePastedRows(text){
-  return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
-    .map(line=>{ const sep = line.includes('\t') ? '\t' : ','; return line.split(sep).map(c=>c.trim()); });
+// 2026-08-11, THIRD ROUND (safe-by-construction rewrite). Two prior same-day fixes each patched
+// one reported failure shape while leaving the same class of silent corruption possible -- see
+// itrgenie/index.html's shared paste helpers for the full writeup (round 1's unconditional
+// whole-line regex collapse, round 2's "validated fallback" that still had no upper-bound check
+// and could fuse across a real column separator, live-reproduced on
+// "RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026" -- Qty/BuyPrice/BuyDate/etc all
+// shift once the collapse crosses the boundary between "10" and the thousands-grouped "2,450").
+// parseNumericCell() (already defined below for the Excel fuzzy importer) is reused for the plain
+// paste box's own numeric columns too, so "₹1,450" and "1450" both work there, not just Excel.
+//
+// Rewrite: naive comma-split first; if it already matches what the box expects
+// (8: Symbol,Broker,AssetType,Qty,BuyPrice,BuyDate,CurrentPrice,AsOf -- last two optional, minCols
+// 6), done, no merge attempted. If it overshoots, resolveThousandsMerge() enumerates every way to
+// merge ADJACENT pieces into a span that is a COMPLETE, correctly-shaped grouped number
+// end-to-end (Indian: 1-2 digits then 2-digit groups then one 3-digit group; Western: 1-3 digits
+// then 3-digit groups) -- never a loose "both sides look short" guess. A merge is only applied if
+// EXACTLY ONE combination lands the column count on expectedCols or minCols -- zero or multiple
+// valid combinations both mean "don't guess", and the row is returned empty so the caller's own
+// `cols.length < N` check honestly skips it (see itrgenie/index.html for the full design, same
+// shared helper shape kept identical across modules per this repo's self-contained-module
+// convention).
+// 2026-08-11, ROUND 4: one fix applied, one investigated and REVERTED, on top of the round-3
+// mechanism above -- see itrgenie/index.html's shared paste helpers for the full writeup (this is
+// the same shared helper shape kept identical across modules per this repo's self-contained-module
+// convention). (1) APPLIED: a genuinely negative grouped number (e.g. a real capital LOSS) was
+// never recognized as a merge candidate at all -- GROUPED_WESTERN/GROUPED_INDIAN/spanValid() now
+// accept an optional leading "-" the same way they already accept ₹/$. (2) INVESTIGATED, NOT
+// applied: a fix that made resolveThousandsMerge() prefer an ordinary "complete" naive reading
+// outright (naive split already lands on the box's full expected shape) was built and fuzz-tested
+// at 60,000 trials -- it produced real silently-wrong results whenever an optional trailing field is
+// genuinely omitted AND the remaining value is itself thousands-grouped (a naive-preferring shortcut
+// can't structurally tell that apart from a merely-coincidental pairwise collision, e.g. qty "10"
+// next to price "200" also reading as grouped "10,200"). Reverted rather than shipped
+// partially-safe; resolveThousandsMerge() still ends in the same strict "unique.length !== 1 --
+// don't guess" rule round 3 shipped with, unchanged -- an ordinary complete row with a coincidental
+// mergeable pair is still honestly skipped as ambiguous, a known open gap, not a new regression,
+// same as round 3's own confirmed-ambiguous "RELIANCE,Zerodha,Equity,10,2,450,01/01/2024" case.
+const GROUPED_WESTERN = /^-?(₹|\$)?\d{1,3}(,\d{3})+(\.\d+)?$/;        // 1,234,567 or -1,234,567.50
+const GROUPED_INDIAN  = /^-?(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,000 or -4,50,000.25
+function resolveThousandsMerge(naive, targets){
+  const n = naive.length;
+  function spanValid(i, j){
+    if(i===j) return true;
+    for(let k=i;k<j;k++){ if(!/^-?(₹|\$)?\d{1,3}$/.test(naive[k])) return false; }
+    if(!/^\d{1,3}(\.\d+)?$/.test(naive[j])) return false;
+    const joined = naive.slice(i, j+1).join(',');
+    return GROUPED_WESTERN.test(joined) || GROUPED_INDIAN.test(joined);
+  }
+  const spanEnds = [];
+  for(let i=0;i<n;i++){
+    spanEnds[i] = [];
+    for(let j=i;j<n;j++){ if(spanValid(i,j)) spanEnds[i].push(j); }
+  }
+  const targetSet = new Set(targets);
+  const maxTarget = Math.max(...targets);
+  const results = [];
+  let explored = 0;
+  const EXPLORE_CAP = 5000;
+  let capped = false;
+  (function dfs(i, acc){
+    if(capped) return;
+    if(++explored > EXPLORE_CAP){ capped = true; return; }
+    if(acc.length > maxTarget) return;
+    if(i===n){ if(targetSet.has(acc.length)) results.push(acc.slice()); return; }
+    for(const j of spanEnds[i]){
+      acc.push(naive.slice(i, j+1).join(','));
+      dfs(j+1, acc);
+      acc.pop();
+    }
+  })(0, []);
+  if(capped) return null;
+  const unique = Array.from(new Set(results.map(r=>JSON.stringify(r)))).map(s=>JSON.parse(s));
+  // ROUND 4, finding 2 -- investigated, NOT applied: see itrgenie/index.html's resolveThousandsMerge()
+  // for the full writeup. A "prefer the untouched reading when it already reaches a valid target"
+  // shortcut was tried (two versions) and re-verified with a 60,000-trial fuzz across every
+  // optional-trailing-field box in this app -- both produced real silently-wrong results (not rare
+  // edge cases) whenever an optional field is genuinely omitted and the remaining value is itself a
+  // thousands-grouped number. No purely structural rule can safely tell "coincidental collision"
+  // apart from "genuine field omission" here, so the shortcut was reverted rather than shipped
+  // partially-safe -- flagged for a properly-scoped future fix needing per-field type awareness.
+  if(unique.length !== 1) return null;
+  return unique[0].map(s=>s.replace(/,/g,''));
+}
+// Every whole count from minCols up to expectedCols is offered as a valid target, not just the
+// two endpoints -- a box with more than one independently-optional trailing field can legitimately
+// land on a count in between.
+//
+// IMPORTANT: this always runs the merge search, even when the naive split's raw piece count
+// already sits inside [minCols, expectedCols] and looks plausible on its own -- a thousands-
+// grouped number can coincidentally split a row down to a count that still lands in range while
+// fusing the wrong two fields together (see itrgenie/index.html's splitPastedLine for the
+// live-reproduced example: a genuinely grouped price landing an 8-col Portfolio row at 7 pieces,
+// "in range" for its 6-8 window, while actually misreading BuyPrice/BuyDate/CurrentPrice).
+// resolveThousandsMerge() always includes the untouched naive split itself as one candidate
+// reading, so a row with nothing to merge still resolves to the same naive result as before.
+function splitPastedLine(line, expectedCols, minCols){
+  const naive = line.split(',').map(c=>c.trim());
+  if(!expectedCols) return naive;
+  const floor = minCols || expectedCols;
+  const targets = [];
+  for(let t=floor; t<=expectedCols; t++) targets.push(t);
+  const resolved = resolveThousandsMerge(naive, targets);
+  return resolved || [];
+}
+function parsePastedRows(text, expectedCols, minCols){
+  const rows = text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
+    .map(line=>{
+      const hasTab = line.includes('\t');
+      return hasTab ? line.split('\t').map(c=>c.trim()) : splitPastedLine(line, expectedCols, minCols);
+    });
+  rows.ambiguousCount = rows.filter(r=>r.length===0).length;
+  return rows;
+}
+function skipNote(rows){
+  const n = rows && rows.ambiguousCount;
+  return n>0 ? ` (${n} of those: couldn't tell where the columns split -- try a tab-separated paste copied straight from a spreadsheet, or add a space after each comma)` : '';
 }
 // CSV/TXT still flow through the textarea + Parse&Add pipeline exactly as before (unchanged).
 // .xlsx/.xls are real binary Excel files -- readAsText on those produces garbage, so they're
@@ -356,6 +593,19 @@ function resolveBrokerId(text){
 }
 function accountOf(brokerId){
   return data.accounts.find(a=>a.id===brokerId) || {id:brokerId, name:brokerId, country:'IN', currency:'INR'};
+}
+// Normalizes free text (from a paste, not a strict dropdown value) to one of the 4 asset types
+// this module actually models. Returns null -- never a guess -- if nothing recognizable matches,
+// so a caller like the "Add a holding" quick-fill leaves the dropdown at its existing value
+// instead of silently picking the wrong type.
+function guessAssetTypeFromText(text){
+  const t = (text||'').trim().toLowerCase();
+  if(!t) return null;
+  if(/mutual|^mf$|\bmf\b/.test(t)) return 'Mutual Fund';
+  if(/etf/.test(t)) return 'ETF';
+  if(/stock|equity|share/.test(t)) return 'Stock';
+  if(/other/.test(t)) return 'Other';
+  return null;
 }
 
 // ---------- money formatting ----------
@@ -640,6 +890,202 @@ function computePortfolio(){
   return { totalCostINR: costForGainINR, totalValueINR, gainINR, gainPct, byBroker, byAssetType, unconvertedCount, unknownCostCount };
 }
 
+// ---------- realized gains (sold lots) ----------
+// Ported/copied deliberately, not referenced cross-module, from itrgenie/index.html's
+// holdingPeriodDays() (~line 1556) and computeRowGain() (~line 2485-2496) -- per this repo's
+// per-module self-containment convention, and per explicit instruction to match the exact
+// boundary behavior rather than re-derive it from general knowledge.
+//
+// Sec 2(42A) requires an asset be held for MORE than 365 days to qualify long-term -- exactly 365
+// days is still short-term. This must be a raw calendar-day difference with NO +1 (unlike the
+// inclusive day-counting some other modules use for travel/presence-day counts): a purchase on
+// 13-Mar-2025 sold on 13-Mar-2026 is exactly 365 days later, which is NOT "more than 365" and
+// must classify short-term.
+function holdingPeriodDays(d1, d2){
+  const a = new Date(d1), b = new Date(d2);
+  return Math.round((b - a) / (1000 * 60 * 60 * 24));
+}
+const LTCG_HOLDING_DAYS = 365; // Sec 2(42A) boundary -- see holdingPeriodDays() above; keep in sync with itrgenie's ruleSet.ltcgHoldingDays
+
+// A sold lot whose source holding never had a Buy Price (e.g. arrived via CAS import, which never
+// carries cost basis -- see the CAS import section above) cannot compute a real gain. Matches
+// ITRGenie's computeRowGain() exactly: unknown cost basis returns {gain:null, term:null} for BOTH
+// fields, not just gain -- classifying a term without a trustworthy gain figure would be a
+// half-honest result, so this deliberately withholds both rather than fabricating either.
+function computeSoldLotGain(lot){
+  if(lot.buyPrice === null || lot.buyPrice === undefined || lot.buyPrice === '') return { gain: null, term: null };
+  const gain = (lot.sellPrice - lot.buyPrice) * lot.qty;
+  let term = null;
+  if(lot.buyDate && lot.sellDate){
+    const days = holdingPeriodDays(lot.buyDate, lot.sellDate);
+    term = days > LTCG_HOLDING_DAYS ? 'LongTerm' : 'ShortTerm'; // exactly 365 days -> ShortTerm, per the boundary note above
+  }
+  return { gain, term };
+}
+
+// Aggregates realized gains into INR (same toINR()/unconvertible-USD handling as computePortfolio()
+// above -- a sold lot's gain is in its account's native currency, so summing raw numbers across
+// INR and USD lots without converting would silently mix currencies). Only classification totals
+// (STCG/LTCG) -- no Section 112A exemption, no slab-rate tax, no loss carry-forward: that's
+// ITRGenie's domain, this module supplies raw transaction facts only.
+function computeRealizedGains(){
+  let stcg = 0, ltcg = 0, totalKnownINR = 0, unknownGainCount = 0, unknownTermCount = 0, unconvertedCount = 0;
+  data.soldLots.forEach(lot=>{
+    const calc = computeSoldLotGain(lot);
+    if(calc.gain === null){ unknownGainCount++; return; }
+    const currency = accountOf(lot.broker).currency;
+    const gainINR = toINR(calc.gain, currency);
+    if(gainINR === null){ unconvertedCount++; return; }
+    totalKnownINR += gainINR;
+    if(calc.term === 'LongTerm') ltcg += gainINR;
+    else if(calc.term === 'ShortTerm') stcg += gainINR;
+    else unknownTermCount++; // known gain, but no buy date to classify -- excluded from ST/LT split, not guessed as short-term
+  });
+  return { stcg, ltcg, total: totalKnownINR, unknownGainCount, unknownTermCount, unconvertedCount };
+}
+
+// ---------- capital gains feed (Portfolio -> ITRGenie) ----------
+// Builds the exact cross-module contract array documented in MASTER_ROADMAP.md:
+// {symbol, buydate, selldate, buyprice, sellprice, qty, assetType}[]. buyprice/buydate are left
+// `null`/`''`-derived-to-null when the source holding's cost basis was never filled in -- never a
+// fabricated 0, matching this module's existing "flag it, don't fabricate it" convention.
+function buildCapitalGainsFeed(){
+  return data.soldLots.map(lot => ({
+    symbol: lot.symbol,
+    buydate: lot.buyDate || null,
+    selldate: lot.sellDate,
+    buyprice: (lot.buyPrice === null || lot.buyPrice === undefined || lot.buyPrice === '') ? null : lot.buyPrice,
+    sellprice: lot.sellPrice,
+    qty: lot.qty,
+    assetType: lot.assetType || 'Other',
+  }));
+}
+// True only for Mutual Fund rows -- everything else (Stock/ETF/Equity/Other/anything else a user
+// typed via bulk paste) is treated as equity-like and safe for ITRGenie's Equity module paste
+// format. Mutual Fund sales need a separate Sec 112A-vs-112 classification (equity-oriented vs.
+// debt-oriented fund) that this module has no basis to know -- pasting one into the Equity module
+// would make ITRGenie confidently compute a wrong tax number for that row, so the paste-ready-lines
+// shortcut below must never include one, matching this module's existing "exclude it and say why"
+// pattern used for unconverted USD lots / unknown-cost lots / unknown-term lots elsewhere.
+function isMutualFundAssetType(assetType){
+  return (assetType || '').trim().toLowerCase() === 'mutual fund';
+}
+
+// ---------- what-if sale simulator (roadmap item 4 -- "what's the tax cost if I sold this today") ----------
+// Purely computational -- never records a sold lot, never mutates data.holdings/data.soldLots.
+// Scoped to domestic (INR) Stock/ETF/Equity/Other open holdings only. Two deliberate exclusions,
+// each with an honest explanation shown in-UI rather than a fabricated number:
+//   1. Mutual Fund holdings -- a real MF redemption gain depends on the actual CAS/CAMS statement
+//      at the time of redemption (post-2023 debt-fund rules, indexation grandfathering, etc. are
+//      too fragile to derive from a formula); this is exactly why itrgenie/index.html's
+//      CapitalGainsMFModule (~line 2510) requires the user to type in the real gain figure rather
+//      than computing it -- a hypothetical future sale has no such statement to read from.
+//   2. Foreign-currency holdings (Vested-US / any non-INR account) -- verified directly against
+//      itrgenie/index.html's ForeignAssetsModule and its use in the tax computation (~line
+//      4809-4818): foreign LTCG is added to the SEPARATE `ltcg112` bucket (still 12.5%, but with NO
+//      pooled ₹1,25,000 exemption -- it never joins `ltcg112a`), and foreign STCG is taxed at the
+//      person's income SLAB rate (folded into `slabIncomeBase`), not the flat 20% Sec 111A `stcg`
+//      bucket. Sec 111A/112A's concessional rates require STT paid on a recognized Indian stock
+//      exchange, which a foreign-listed holding doesn't have by definition -- applying this
+//      simulator's flat-rate math to one would produce a confidently wrong number, so it's excluded
+//      the same honest way Mutual Funds are, pointing at ITRGenie's Foreign Assets (Schedule FA)
+//      module instead of guessing at the real foreign-asset holding-period/rate rules.
+
+// Indian financial year: April 1 -- March 31. Returns the FY range containing refDate (a Date or
+// ISO date string) as ISO date strings, so it can be string-compared against other ISO dates
+// directly (lexicographic comparison on YYYY-MM-DD strings matches chronological order).
+function getFinancialYearRange(refDate){
+  const d = refDate instanceof Date ? refDate : new Date(refDate);
+  const year = d.getFullYear();
+  const month = d.getMonth(); // 0 = Jan ... 3 = Apr
+  const fyStartYear = month >= 3 ? year : year - 1; // Jan/Feb/Mar belong to the FY that started the PREVIOUS April
+  const start = `${fyStartYear}-04-01`;
+  const end = `${fyStartYear + 1}-03-31`;
+  return { start, end, label: `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}` };
+}
+function isDateInFY(dateStr, fyRange){
+  if(!dateStr) return false;
+  return dateStr >= fyRange.start && dateStr <= fyRange.end;
+}
+
+// A holding is eligible for this simulator's Sec 111A/112A math only if it's not a Mutual Fund AND
+// its account is confirmed INR (not foreign/USD) -- see the two-exclusion comment block above.
+// Deliberately does NOT go through accountOf(brokerId).currency alone: that helper falls back to
+// {currency:'INR'} for a broker id matching no real account (e.g. a hand-edited Export/Import JSON
+// with a typo'd broker id), which would silently apply domestic Sec 111A/112A tax to what might
+// actually be a foreign holding -- exactly the confidently-wrong-number failure mode this module
+// exists to avoid everywhere else. Checking the account genuinely exists first closes that gap.
+function isSec112AEligibleHolding(h){
+  if(isMutualFundAssetType(h.assetType)) return false;
+  if(!data.accounts.some(a=>a.id===h.broker)) return false;
+  return accountOf(h.broker).currency === 'INR';
+}
+// Same eligibility rule, applied to an already-sold lot (used to build the "already realized this
+// FY" exemption pool below) -- kept as a separate small function rather than reused verbatim
+// because a sold lot and an open holding are different shapes, even though the underlying rule
+// (not MF, confirmed INR account) is identical.
+function isSec112AEligibleSoldLot(lot){
+  if(isMutualFundAssetType(lot.assetType)) return false;
+  if(!data.accounts.some(a=>a.id===lot.broker)) return false;
+  return accountOf(lot.broker).currency === 'INR';
+}
+
+// "Already realized Sec 112A LTCG this FY" -- the shared exemption pool needed to compute the
+// MARGINAL tax on a new hypothetical sale, since the ₹1,25,000 exemption is a per-FY pool, not a
+// per-transaction allowance. Sums existing data.soldLots that are Sec-112A-eligible (not MF, INR
+// account -- see isSec112AEligibleSoldLot above) and classify LongTerm, whose sell date falls
+// within the given FY. Deliberately a straight sum, not clamped to >=0 per lot -- this mirrors
+// ITRGenie's own `ltcg112a = eqLT + mf112A` aggregation (a plain sum, clamped to >=0 only once,
+// right before applying the exemption in `Math.max(0, ltcg112a - 125000)`), so a loss lot within
+// the same FY's LTCG bucket correctly nets against a gain lot rather than being silently ignored.
+function computeAlreadyRealizedLTCG112AThisFY(fyRange){
+  let total = 0, includedCount = 0;
+  data.soldLots.forEach(lot=>{
+    if(!isSec112AEligibleSoldLot(lot)) return;
+    if(!isDateInFY(lot.sellDate, fyRange)) return;
+    const calc = computeSoldLotGain(lot);
+    if(calc.gain === null || calc.term !== 'LongTerm') return;
+    total += calc.gain; // native currency -- always INR here, isSec112AEligibleSoldLot guarantees it
+    includedCount++;
+  });
+  return { total, includedCount };
+}
+
+// Core what-if tax computation -- a pure function of the numbers passed in, so it's reusable for
+// both the real UI and tests without touching data.holdings/data.soldLots at all. Caller must
+// already have confirmed the holding is Sec 112A-eligible (isSec112AEligibleHolding) -- this
+// function doesn't re-check that, it just computes the flat-rate capital-gains tax given the
+// classification. `alreadyRealizedLTCGThisFY` is the shared exemption-pool figure (the editable
+// "already realized this FY" number in the UI), not any property of this specific hypothetical sale.
+function computeWhatIfTax({ buyPrice, buyDate, sellPrice, sellDate, qty, alreadyRealizedLTCGThisFY }){
+  const gain = (sellPrice - buyPrice) * qty;
+  let term = null;
+  if(buyDate && sellDate){
+    const days = holdingPeriodDays(buyDate, sellDate);
+    term = days > LTCG_HOLDING_DAYS ? 'LongTerm' : 'ShortTerm'; // exactly 365 days -> ShortTerm, same boundary as sold lots
+  }
+  if(term === null) return { gain, term: null, tax: null };
+  if(gain <= 0) return { gain, term, tax: 0 }; // a loss (or exactly break-even) sale owes no capital-gains tax
+  if(term === 'ShortTerm') return { gain, term, tax: gain * 0.20 }; // Sec 111A, flat, no exemption
+  // LongTerm (Sec 112A) -- marginal tax against the shared FY exemption pool.
+  const pool = +alreadyRealizedLTCGThisFY || 0;
+  const taxableBefore = Math.max(0, pool - 125000);
+  const taxableAfter = Math.max(0, pool + gain - 125000);
+  const tax = (taxableAfter - taxableBefore) * 0.125;
+  return { gain, term, tax, taxableBefore, taxableAfter };
+}
+
+// Default sell price shown in the what-if form: the holding's live/last-known Current Price if
+// set (this is the same field the live-price-feed feature and manual refresh already write into,
+// so "live price if this holding has one" and "last-known/manual price" are the same field, not
+// two separate things to track), else its own Buy Price as a fallback, else blank.
+function whatIfDefaultSellPrice(h){
+  const hasCP = h.currentPrice !== '' && h.currentPrice !== null && h.currentPrice !== undefined && !isNaN(+h.currentPrice);
+  if(hasCP) return +h.currentPrice;
+  const hasBP = h.buyPrice !== '' && h.buyPrice !== null && h.buyPrice !== undefined && !isNaN(+h.buyPrice);
+  return hasBP ? +h.buyPrice : '';
+}
+
 // ---------- performance summary (front and center, right after the header) ----------
 function renderPerformanceSummary(container){
   const p = computePortfolio();
@@ -677,6 +1123,73 @@ function renderPerformanceSummary(container){
     note.style.cssText = 'margin:-8px 0 14px; color:var(--gold);';
     note.textContent = `${p.unknownCostCount} holding(s) (likely CAS-imported) have no Buy Price yet — their current value is counted above, but they're left out of Invested/Gain-Loss until you fill in Buy Price in the table below.`;
     container.appendChild(note);
+  }
+}
+
+// ---------- Top gainers & losers (Dashboard) ----------
+// Ranked by unrealized % return, the standard "performance" metric for a top-movers widget -- not
+// by absolute ₹ gain, which would let a single large position crowd out both lists regardless of
+// how well anything else actually did. Both the ₹ figure and the % are shown per row (per the task
+// spec), the % is just not the sort key.
+//
+// Honesty gate, same as the rest of this file: a holding with no Buy Price (e.g. CAS-imported,
+// cost basis unknown) can't have a gain computed -- computeHoldingMetrics()'s existing hasBuyPrice
+// flag excludes it here rather than showing a fabricated number. If that leaves fewer than 3
+// gainers or losers to show, this renders fewer -- never padded with placeholders. A holding priced
+// exactly flat (₹0 gain) shows in neither list; it's not a "gainer" or a "loser".
+function renderGainersLosersCard(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<h3>Top gainers &amp; losers</h3><p class="helptext" style="margin-bottom:10px;">Open holdings ranked by unrealized % return. Holdings with no Buy Price set yet aren't included here — a gain can't be computed for them.</p>`;
+  container.appendChild(card);
+
+  const priced = data.holdings
+    .map(h=>({ h, m: computeHoldingMetrics(h) }))
+    .filter(x=>x.m.hasBuyPrice);
+  const noCostCount = data.holdings.length - priced.length;
+
+  if(priced.length===0){
+    const msg = data.holdings.length===0
+      ? 'No holdings yet — add one in the Holdings tab.'
+      : 'None of your holdings have a Buy Price set yet, so no gain/loss can be shown here.';
+    card.innerHTML += `<div class="helptext">${msg}</div>`;
+    return;
+  }
+
+  const gainers = priced.filter(x=>x.m.gainAbs>0).sort((a,b)=>b.m.gainPct-a.m.gainPct).slice(0,3);
+  const losers = priced.filter(x=>x.m.gainAbs<0).sort((a,b)=>a.m.gainPct-b.m.gainPct).slice(0,3);
+
+  const row = (x)=>{
+    const { h, m } = x;
+    const color = m.gainAbs>=0 ? 'var(--green)' : 'var(--rust)';
+    const sign = m.gainAbs>=0 ? '+' : '';
+    return `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--line);">
+      <div><span class="cell-strong">${h.symbol}</span><br><span class="cell-muted">${accountOf(h.broker).name}</span></div>
+      <div style="text-align:right; color:${color}; flex-shrink:0;">
+        <div style="font-weight:600;">${sign}${formatMoney(m.gainAbs, m.currency)}</div>
+        <div class="helptext" style="color:${color};">${sign}${m.gainPct.toFixed(1)}%</div>
+      </div>
+    </div>`;
+  };
+  const column = (title, list, emptyMsg)=>`
+    <div style="flex:1; min-width:200px;">
+      <div style="font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">${title}</div>
+      ${list.length ? list.map(row).join('') : `<div class="helptext">${emptyMsg}</div>`}
+    </div>`;
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex; gap:24px; flex-wrap:wrap;';
+  wrap.innerHTML =
+    column('Gainers', gainers, 'No holdings currently showing a gain.') +
+    column('Losers', losers, 'No holdings currently at a loss.');
+  card.appendChild(wrap);
+
+  if(noCostCount>0){
+    const note = document.createElement('div');
+    note.className = 'helptext';
+    note.style.cssText = 'margin-top:10px; color:var(--gold);';
+    note.textContent = `${noCostCount} holding(s) with no Buy Price yet excluded — fill in Buy Price in the Holdings tab to include them here.`;
+    card.appendChild(note);
   }
 }
 
@@ -771,7 +1284,7 @@ function renderHoldingsTable(container){
              ${liveStatusHtml(h)}
            </div></div>`
       : `<div class="cp-cell"><input type="number" step="0.01" data-cp="${h.id}" value="${h.currentPrice}" placeholder="${m.buyPrice!==null?m.buyPrice:''}">
-           <div class="helptext" style="margin-top:4px; font-size:10.5px;">manual only (${h.assetType||'—'})</div></div>`;
+           <div class="helptext" style="margin-top:4px; font-size:13px;">manual only (${h.assetType||'—'})</div></div>`;
     tr.innerHTML = `
       <td data-label="Symbol"><strong>${h.symbol}</strong></td>
       <td data-label="Broker" class="cell-muted">${m.accountName}</td>
@@ -783,7 +1296,7 @@ function renderHoldingsTable(container){
       <td data-label="As Of"><input type="date" data-asof="${h.id}" value="${h.asOf||''}"></td>
       <td data-label="Value" class="cell-strong">${formatMoney(m.currentValue, m.currency)}${m.isStale?' <span class="tag muted">stale</span>':''}</td>
       <td data-label="Gain/Loss" class="cell-strong" style="color:${gainColor};">${gainCellHtml}</td>
-      <td data-label=""><button class="btn small ghost" data-rm="${h.id}">✕</button></td>
+      <td data-label=""><div style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap;"><button class="btn small ghost" data-whatif="${h.id}" title="Simulate the tax cost of selling this holding — doesn't create a sale">What-if</button><button class="btn small ghost" data-sell="${h.id}" title="Record a sale against this holding">Sell</button><button class="btn small ghost" data-rm="${h.id}">✕</button></div></td>
     `;
     tbody.appendChild(tr);
   });
@@ -833,6 +1346,12 @@ function renderHoldingsTable(container){
       saveData(); render();
     };
   });
+  wrap.querySelectorAll('[data-sell]').forEach(btn=>{
+    btn.onclick = (e)=> openSaleForm(e.currentTarget.dataset.sell);
+  });
+  wrap.querySelectorAll('[data-whatif]').forEach(btn=>{
+    btn.onclick = (e)=> openWhatIfSale(e.currentTarget.dataset.whatif);
+  });
   wrap.querySelectorAll('[data-live]').forEach(btn=>{
     btn.onclick = async (e)=>{
       const id = e.currentTarget.dataset.live;
@@ -848,6 +1367,513 @@ function renderHoldingsTable(container){
   });
 }
 
+// ---------- "Record a sale" -- guided form, the only entry path for sold-lot data ----------
+// Unlike adding a holding (which needs paste/CSV/Excel bulk paths too, per this repo's
+// data-entry convention), recording a sale is inherently relational -- it must reference an
+// existing open holding by id, which is a small closed set best picked from a dropdown, not
+// typed. A guided form is genuinely the right (and sufficient) shape here, not a shortcut.
+function openSaleForm(holdingId){
+  saleFormHoldingId = holdingId;
+  saleFormFeedbackMsg = { text: '', isError: false };
+  activeTab = 'gains'; // the sale form now lives in the Realized Gains & What-If tab, not Holdings
+  render();
+  requestAnimationFrame(()=>{
+    const panel = document.getElementById('sale-form-panel');
+    if(panel){
+      panel.scrollIntoView({behavior:'smooth', block:'start'});
+      const inp = document.getElementById('rs_qty');
+      if(inp) inp.focus({preventScroll:true});
+    }
+  });
+}
+
+// Opens the "Simulate a sale" what-if panel pre-selected on a specific holding, seeding the qty/
+// sell-price defaults for it (mirrors openSaleForm above). Never touches data.holdings/data.soldLots.
+function openWhatIfSale(holdingId){
+  const h = data.holdings.find(x=>x.id===holdingId);
+  whatIfHoldingId = holdingId;
+  whatIfQty = h ? String(h.qty) : '';
+  whatIfSellPrice = h ? String(whatIfDefaultSellPrice(h)) : '';
+  whatIfSellDate = new Date().toISOString().slice(0,10);
+  activeTab = 'gains'; // the what-if panel now lives in the Realized Gains & What-If tab, not Holdings
+  render();
+  requestAnimationFrame(()=>{
+    const panel = document.getElementById('whatif-panel');
+    if(panel) panel.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+}
+
+function renderRecordSaleForm(container){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = 'sale-form-panel';
+  const openHoldings = data.holdings.filter(h => (+h.qty || 0) > 0);
+  if(openHoldings.length === 0){
+    card.innerHTML = `
+      <h3>Record a sale</h3>
+      <p class="helptext">No open holdings yet — add one above, then come back here to record a full or partial sale against it.</p>
+    `;
+    container.appendChild(card);
+    return;
+  }
+  const selectedId = (saleFormHoldingId && openHoldings.some(h=>h.id===saleFormHoldingId)) ? saleFormHoldingId : openHoldings[0].id;
+  const holding = openHoldings.find(h=>h.id===selectedId);
+  const acc = accountOf(holding.broker);
+  const hasBuyPrice = holding.buyPrice !== '' && holding.buyPrice !== null && holding.buyPrice !== undefined && !isNaN(+holding.buyPrice);
+  card.innerHTML = `
+    <h3>Record a sale</h3>
+    <p class="helptext" style="margin-bottom:10px;">Sell all or part of an existing holding. Selling the full quantity removes it from Holdings above and moves it to Realized gains below; a partial sale reduces the open holding's quantity and adds a separate sold-lot record for the sold portion. Cost basis for the sold lot is this holding's single Avg Price (not a true per-lot FIFO cost basis — this module tracks one buy price per holding, same as the Holdings table above).</p>
+    <div class="field-row">
+      <div class="field"><label>Holding</label>
+        <select id="rs_holding">${openHoldings.map(h=>{
+          const a = accountOf(h.broker);
+          return `<option value="${h.id}" ${h.id===selectedId?'selected':''}>${h.symbol} — ${a.name} (${h.qty} available)</option>`;
+        }).join('')}</select>
+      </div>
+      <div class="field"><label>Qty to sell</label><input id="rs_qty" type="number" step="any" min="0" max="${holding.qty}" value="${holding.qty}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Sell date</label><input id="rs_selldate" type="date"></div>
+      <div class="field"><label>Sell price</label><input id="rs_sellprice" type="number" step="0.01" min="0" placeholder="per unit"></div>
+      <div class="field" style="display:flex; align-items:flex-end;"><button class="btn primary small" id="rs_add_btn" style="width:100%;">Record sale</button></div>
+    </div>
+    <p class="helptext">${hasBuyPrice
+      ? `Cost basis on file: ${formatMoney(+holding.buyPrice, acc.currency)}, bought ${holding.buyDate || '(buy date unknown)'}.`
+      : `<span style="color:var(--gold);">No Buy Price on file for this holding</span> (likely CAS-imported) — the sold lot's gain will show as unknown in Realized gains below until you fill in a Buy Price there.`}</p>
+    <div id="rs_feedback" class="helptext" style="margin-top:2px; ${saleFormFeedbackMsg.isError ? 'color:var(--rust);' : ''}">${saleFormFeedbackMsg.text}</div>
+  `;
+  container.appendChild(card);
+
+  card.querySelector('#rs_holding').onchange = (e)=>{
+    saleFormHoldingId = e.target.value;
+    saleFormFeedbackMsg = { text: '', isError: false };
+    render();
+  };
+
+  // Validation-failure path updates only the feedback message node in place, rather than calling
+  // the full render() -- render() rebuilds this whole card from scratch with fresh default
+  // `value="${holding.qty}"` / blank attributes, which was silently discarding whatever the user
+  // had actually typed into the *other* fields (e.g. Qty/Sell price survive a "Sell date is
+  // required" error, instead of reverting to holding.qty / clearing to blank). Success still calls
+  // the full render() below -- that's a genuine state change (holding qty/removal, new sold lot),
+  // so resetting the form to fresh defaults there is correct.
+  const showSaleError = (text)=>{
+    saleFormFeedbackMsg = { text, isError: true };
+    const fb = card.querySelector('#rs_feedback');
+    if(fb){ fb.textContent = text; fb.style.color = 'var(--rust)'; }
+  };
+
+  card.querySelector('#rs_add_btn').onclick = ()=>{
+    const h = data.holdings.find(x=>x.id===selectedId);
+    if(!h){ showSaleError('That holding no longer exists — pick another.'); return; }
+    const qtyRaw = card.querySelector('#rs_qty').value;
+    const sellDate = card.querySelector('#rs_selldate').value;
+    const sellPriceRaw = card.querySelector('#rs_sellprice').value;
+    const qty = +qtyRaw;
+    const sellPrice = +sellPriceRaw;
+    const available = +h.qty || 0;
+
+    if(qtyRaw === '' || isNaN(qty) || qty <= 0){ showSaleError('Enter a quantity greater than 0.'); return; }
+    if(qty > available + 1e-9){ showSaleError(`Can't sell ${qty} — only ${available} of ${h.symbol} currently held.`); return; }
+    if(!sellDate){ showSaleError('Sell date is required.'); return; }
+    if(sellPriceRaw === '' || isNaN(sellPrice) || sellPrice < 0){ showSaleError('Enter a valid sell price (0 or more).'); return; }
+    if(h.buyDate && new Date(sellDate) < new Date(h.buyDate)){ showSaleError("Sell date can't be before the buy date."); return; }
+
+    const lotHasBuyPrice = h.buyPrice !== '' && h.buyPrice !== null && h.buyPrice !== undefined && !isNaN(+h.buyPrice);
+    const soldLot = {
+      id: newId('sl'),
+      symbol: h.symbol,
+      broker: h.broker,
+      assetType: h.assetType,
+      isin: h.isin || '',
+      qty,
+      buyPrice: lotHasBuyPrice ? +h.buyPrice : null,
+      buyDate: h.buyDate || '',
+      sellDate,
+      sellPrice,
+      soldAt: new Date().toISOString(),
+    };
+    data.soldLots.push(soldLot);
+
+    const remaining = available - qty;
+    const closedFully = remaining <= 1e-9;
+    if(closedFully){
+      data.holdings = data.holdings.filter(x=>x.id!==h.id);
+    } else {
+      h.qty = remaining;
+    }
+    saleFormFeedbackMsg = {
+      text: `Recorded sale of ${qty} ${h.symbol}${closedFully ? ' — full position closed.' : ` — ${remaining} remaining open.`} See Realized gains below.`,
+      isError: false,
+    };
+    saleFormHoldingId = null; // back to default (first open holding) selection after a successful sale
+    saveData(); render();
+  };
+}
+
+// ---------- realized gains -- raw sold-lot facts, classification only, no tax computation ----------
+function renderRealizedGainsSection(container){
+  const header = document.createElement('div');
+  header.className = 'panel-header';
+  header.style.marginTop = '28px';
+  header.innerHTML = `
+    <h2 style="font-size:18px;">Realized gains</h2>
+    <p class="desc" style="margin-top:4px; max-width:none;">Raw sold-lot facts from the sales recorded above — short-term/long-term classification (Sec 2(42A): more than 365 days held is long-term, exactly 365 is still short-term) and gain/loss per lot. <strong>This is not a tax return</strong> — no Section 112A ₹1,25,000 exemption, no slab-rate tax, no loss carry-forward applied here. Full tax treatment happens in ITRGenie; export the feed below and paste it in there.</p>
+  `;
+  container.appendChild(header);
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  if(data.soldLots.length === 0){
+    card.innerHTML = `<h3>Sold lots (0)</h3><p class="helptext">No sales recorded yet — use "Record a sale" above against any open holding.</p>`;
+    container.appendChild(card);
+    return;
+  }
+
+  const g = computeRealizedGains();
+  const stcgColor = g.stcg >= 0 ? 'var(--green)' : 'var(--rust)';
+  const ltcgColor = g.ltcg >= 0 ? 'var(--green)' : 'var(--rust)';
+  const totalColor = g.total >= 0 ? 'var(--green)' : 'var(--rust)';
+  const statGrid = document.createElement('div');
+  statGrid.className = 'stat-grid';
+  statGrid.innerHTML = `
+    <div class="stat-tile"><div class="stat-label">Short-term (STCG)</div><div class="stat-value" style="color:${stcgColor};">${formatMoney(g.stcg,'INR')}</div></div>
+    <div class="stat-tile"><div class="stat-label">Long-term (LTCG)</div><div class="stat-value" style="color:${ltcgColor};">${formatMoney(g.ltcg,'INR')}</div></div>
+    <div class="stat-tile accent"><div class="stat-label">Total realized (known)</div><div class="stat-value" style="color:${totalColor};">${formatMoney(g.total,'INR')}</div></div>
+  `;
+  container.appendChild(statGrid);
+  if(g.unknownGainCount > 0){
+    const note = document.createElement('div');
+    note.className = 'helptext';
+    note.style.cssText = 'margin:-8px 0 14px; color:var(--gold);';
+    note.textContent = `${g.unknownGainCount} sold lot(s) have unknown gain — the original holding had no Buy Price on file (likely CAS-imported). Fill in Buy Price in the table below to compute a real gain instead of leaving it a guess.`;
+    container.appendChild(note);
+  }
+  if(g.unknownTermCount > 0){
+    const note2 = document.createElement('div');
+    note2.className = 'helptext';
+    note2.style.cssText = 'margin:-8px 0 14px; color:var(--gold);';
+    note2.textContent = `${g.unknownTermCount} sold lot(s) have a known cost but no Buy Date — included in "Total realized" but excluded from the ST/LT split above (not guessed as short-term) until Buy Date is filled in below.`;
+    container.appendChild(note2);
+  }
+  if(g.unconvertedCount > 0){
+    const note3 = document.createElement('div');
+    note3.className = 'helptext';
+    note3.style.cssText = 'margin:-8px 0 14px; color:var(--rust);';
+    note3.textContent = `${g.unconvertedCount} USD sold lot(s) not included in the totals above — set the USD → INR rate further down to fold Vested-US sales in.`;
+    container.appendChild(note3);
+  }
+
+  // Most-recently-recorded first (this module doesn't guarantee sellDate ordering on entry, so
+  // recording order is the same reasonable recency proxy this table already used before this
+  // toggle existed). Once there are more than SOLD_LOTS_COLLAPSE_THRESHOLD lots, default to showing
+  // only the most recent ones -- a genuine remaining case for a "declutter historical/closed data"
+  // toggle in this module (see portfolio/PROGRESS.md's 2026-08-11 entry on why this, not a Holdings-
+  // table sold-position toggle, is where that idea actually still applies here).
+  const sortedLots = data.soldLots.slice().reverse();
+  const totalLots = sortedLots.length;
+  const isCollapsed = !soldLotsShowAll && totalLots > SOLD_LOTS_COLLAPSE_THRESHOLD;
+  const visibleLots = isCollapsed ? sortedLots.slice(0, SOLD_LOTS_COLLAPSE_THRESHOLD) : sortedLots;
+  const toggleHtml = totalLots > SOLD_LOTS_COLLAPSE_THRESHOLD
+    ? `<button class="btn small ghost" id="sl_toggle_show_all">${soldLotsShowAll ? 'Show recent only' : `Show all ${totalLots}`}</button>`
+    : '';
+  card.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <h3 style="margin-bottom:0;">Sold lots (${data.soldLots.length})</h3>
+      ${toggleHtml}
+    </div>
+    ${isCollapsed ? `<p class="helptext" style="margin:8px 0;">Showing the ${SOLD_LOTS_COLLAPSE_THRESHOLD} most recently recorded of ${totalLots} sold lots.</p>` : ''}
+    <div class="table-scroll" id="sl_table_wrap"></div>
+  `;
+  container.appendChild(card);
+  if(toggleHtml){
+    card.querySelector('#sl_toggle_show_all').onclick = ()=>{ soldLotsShowAll = !soldLotsShowAll; render(); };
+  }
+  const wrap = card.querySelector('#sl_table_wrap');
+  const table = document.createElement('table');
+  table.className = 'day-table';
+  table.innerHTML = `<thead><tr>
+    <th>Symbol</th><th>Broker</th><th>Qty</th><th>Buy</th><th>Sell</th><th>Term</th><th>Gain/Loss</th><th></th>
+  </tr></thead>`;
+  const tbody = document.createElement('tbody');
+  visibleLots.forEach(lot=>{
+    const acc = accountOf(lot.broker);
+    const calc = computeSoldLotGain(lot);
+    const hasGain = calc.gain !== null;
+    const gainColor = hasGain ? (calc.gain >= 0 ? 'var(--green)' : 'var(--rust)') : 'var(--gold)';
+    const gainCellHtml = hasGain
+      ? formatMoney(calc.gain, acc.currency)
+      : `<span title="No Buy Price on file -- fill it in to the left to compute a real gain">— unknown</span>`;
+    const termTag = calc.term === 'LongTerm' ? `<span class="tag green">LTCG</span>`
+      : calc.term === 'ShortTerm' ? `<span class="tag rust">STCG</span>`
+      : `<span class="tag muted">unclassified</span>`;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td data-label="Symbol"><strong>${lot.symbol}</strong></td>
+      <td data-label="Broker" class="cell-muted">${acc.name}</td>
+      <td data-label="Qty">${lot.qty}</td>
+      <td data-label="Buy"><div class="cp-cell">
+          <input type="number" step="0.01" min="0" data-slbp="${lot.id}" value="${lot.buyPrice!==null?lot.buyPrice:''}" placeholder="unknown" style="width:100px;">
+          <input type="date" data-slbd="${lot.id}" value="${lot.buyDate||''}" style="width:130px;">
+        </div></td>
+      <td data-label="Sell">${lot.sellDate} @ ${formatMoney(lot.sellPrice, acc.currency)}</td>
+      <td data-label="Term">${termTag}</td>
+      <td data-label="Gain/Loss" class="cell-strong" style="color:${gainColor};">${gainCellHtml}</td>
+      <td data-label=""><button class="btn small ghost" data-slrm="${lot.id}">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
+
+  wrap.querySelectorAll('[data-slbp]').forEach(inp=>{
+    inp.onchange = (e)=>{
+      const lot = data.soldLots.find(x=>x.id===e.target.dataset.slbp);
+      if(!lot) return;
+      lot.buyPrice = e.target.value === '' ? null : +e.target.value;
+      saveData(); render();
+    };
+  });
+  wrap.querySelectorAll('[data-slbd]').forEach(inp=>{
+    inp.onchange = (e)=>{
+      const lot = data.soldLots.find(x=>x.id===e.target.dataset.slbd);
+      if(!lot) return;
+      lot.buyDate = e.target.value;
+      saveData(); render();
+    };
+  });
+  wrap.querySelectorAll('[data-slrm]').forEach(btn=>{
+    btn.onclick = (e)=>{
+      data.soldLots = data.soldLots.filter(x=>x.id!==e.target.dataset.slrm);
+      saveData(); render();
+    };
+  });
+
+  // ---- Capital gains feed export (Portfolio -> ITRGenie), same JSON + paste-ready-lines pattern
+  // already used for the Net Worth feed below.
+  const feedCard = document.createElement('div');
+  feedCard.className = 'card';
+  feedCard.innerHTML = `
+    <h3>Capital gains feed → ITRGenie</h3>
+    <p class="helptext" style="margin-bottom:8px;">Exports the shared <code>{symbol, buydate, selldate, buyprice, sellprice, qty, assetType}[]</code> contract for every sold lot above — including ones with an unknown Buy Price, left as <code>null</code> rather than guessed, and including Mutual Fund lots (unfiltered — a downstream consumer can filter by <code>assetType</code> itself). Download the JSON, or copy paste-ready lines matching ITRGenie's Capital Gains — Equity module's own paste format (<code>Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice</code> — leave BuyDate/BuyPrice blank where unknown, same as that module already expects) for a quick paste-in there. <strong>The paste-ready-lines button excludes Mutual Fund sold lots automatically</strong> (and says how many were excluded) — ITRGenie's Equity module taxes rows under Sec 111A/112A equity rules, and a mutual fund redemption needs its own Sec 112A-vs-112 classification that only ITRGenie's separate Capital Gains — Mutual Funds module asks for, which this module has no basis to guess at. Route those lots there by hand instead.</p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn small" id="cg_export_json">Download Capital Gains feed (JSON)</button>
+      <button class="btn small ghost" id="cg_copy_lines">Copy paste-ready lines (ITRGenie Equity format)</button>
+    </div>
+    <div id="cg_feed_fb" class="helptext" style="margin-top:8px;"></div>
+  `;
+  container.appendChild(feedCard);
+  feedCard.querySelector('#cg_export_json').onclick = ()=>{
+    const feed = buildCapitalGainsFeed();
+    const blob = new Blob([JSON.stringify(feed, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `portfolio-capitalgains-feed-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  feedCard.querySelector('#cg_copy_lines').onclick = async ()=>{
+    const feed = buildCapitalGainsFeed();
+    // Only Stock/ETF/Equity/Other lots go into this button's output -- Mutual Fund lots are
+    // excluded (see isMutualFundAssetType's comment above). The JSON export above is left
+    // unfiltered on purpose: it already carries assetType per row, so a downstream consumer can
+    // filter it itself; this button has no such safety net, so the filtering happens here.
+    const equityLikeRows = feed.filter(r => !isMutualFundAssetType(r.assetType));
+    const excludedCount = feed.length - equityLikeRows.length;
+    const exclusionNote = excludedCount > 0
+      ? ` ${excludedCount} mutual fund lot(s) excluded — route those to ITRGenie's own MF capital-gains module by hand.`
+      : '';
+    const fb = feedCard.querySelector('#cg_feed_fb');
+    if(equityLikeRows.length === 0){
+      fb.textContent = excludedCount > 0
+        ? `Nothing to copy — all ${excludedCount} sold lot(s) are Mutual Fund.${exclusionNote}`
+        : 'No sold lots to copy yet.';
+      return;
+    }
+    const lines = equityLikeRows.map(r => `${r.symbol}, ${r.qty}, ${r.buydate||''}, ${r.buyprice!==null?r.buyprice:''}, ${r.selldate}, ${r.sellprice}`).join('\n');
+    try{
+      await navigator.clipboard.writeText(lines);
+      fb.textContent = "Copied — paste directly into ITRGenie's Capital Gains — Equity module paste box." + exclusionNote;
+    }catch(e){
+      fb.textContent = 'Could not access clipboard; here it is to copy manually:\n' + lines + (exclusionNote ? '\n\n' + exclusionNote.trim() : '');
+    }
+  };
+}
+
+// ---------- "Simulate a sale" -- what-if tax calculator, purely computational ----------
+// Sits right after Realized gains, per explicit placement. Never mutates data.holdings/
+// data.soldLots -- every input here (qty/price/date/pool override/note) lives only in the
+// module-level whatIf* state vars declared near the top of the file, read fresh on every render().
+function renderWhatIfSaleSection(container){
+  const header = document.createElement('div');
+  header.className = 'panel-header';
+  header.style.marginTop = '28px';
+  header.innerHTML = `
+    <h2 style="font-size:18px;">Simulate a sale</h2>
+    <p class="desc" style="margin-top:4px; max-width:none;">"What would the tax cost be if I sold this today (or on some other date)?" — purely computational: unlike "Record a sale" above, this never creates a sold lot or changes a holding's quantity. Shows only the capital-gains-specific flat tax (Sec 111A short-term / Sec 112A long-term) — no surcharge, cess, or how this interacts with the rest of your income/tax regime. ITRGenie remains the source of truth for your actual return; this is for deciding whether (and when) to sell, not for filing. This also doesn't evaluate what the money would be switched into — only the tax cost of exiting the current holding.</p>
+  `;
+  container.appendChild(header);
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = 'whatif-panel';
+
+  const openHoldings = data.holdings.filter(h => (+h.qty || 0) > 0);
+  if(openHoldings.length === 0){
+    card.innerHTML = `<h3>Simulate a sale</h3><p class="helptext">No open holdings yet — add one above, then come back here to check the tax cost of a hypothetical sale.</p>`;
+    container.appendChild(card);
+    return;
+  }
+
+  const selectedId = (whatIfHoldingId && openHoldings.some(h=>h.id===whatIfHoldingId)) ? whatIfHoldingId : openHoldings[0].id;
+  const holding = openHoldings.find(h=>h.id===selectedId);
+  const acc = accountOf(holding.broker);
+
+  // Seed sensible defaults the first time this holding becomes selected (fresh page load, or the
+  // user switched holdings via the dropdown below) -- never re-runs on a plain re-render caused by
+  // editing qty/price/date/pool, since whatIfHoldingId already equals selectedId by then, so it
+  // never clobbers an in-progress edit.
+  if(whatIfHoldingId !== selectedId){
+    whatIfHoldingId = selectedId;
+    whatIfQty = String(holding.qty);
+    whatIfSellPrice = String(whatIfDefaultSellPrice(holding));
+    whatIfSellDate = whatIfSellDate || new Date().toISOString().slice(0,10);
+  }
+
+  const isMF = isMutualFundAssetType(holding.assetType);
+  // accountOf() falls back to {currency:'INR'} for a broker id matching no real account (reachable
+  // via a hand-edited Export/Import JSON with a typo'd broker id) -- treat an unrecognized account
+  // as NOT confirmed-domestic rather than defaulting to INR, so this never silently applies
+  // domestic Sec 111A/112A tax to a holding whose actual currency isn't actually known.
+  const accountKnown = data.accounts.some(a=>a.id===holding.broker);
+  const isForeign = !isMF && (!accountKnown || acc.currency !== 'INR');
+  const eligible = !isMF && !isForeign;
+
+  const hasBuyPrice = holding.buyPrice !== '' && holding.buyPrice !== null && holding.buyPrice !== undefined && !isNaN(+holding.buyPrice);
+  const qtyNum = +whatIfQty;
+  const sellPriceNum = +whatIfSellPrice;
+  const fyRange = getFinancialYearRange(new Date());
+  const poolCalc = computeAlreadyRealizedLTCG112AThisFY(fyRange);
+  const poolValue = whatIfPoolOverride !== null ? whatIfPoolOverride : poolCalc.total;
+
+  const errors = [];
+  if(eligible && hasBuyPrice){
+    if(whatIfQty === '' || isNaN(qtyNum) || qtyNum <= 0) errors.push('Enter a quantity greater than 0.');
+    else if(qtyNum > +holding.qty + 1e-9) errors.push(`Can't simulate selling ${qtyNum} — only ${holding.qty} of ${holding.symbol} currently held.`);
+    if(whatIfSellPrice === '' || isNaN(sellPriceNum) || sellPriceNum < 0) errors.push('Enter a valid sell price (0 or more).');
+    if(!whatIfSellDate) errors.push('Sell date is required.');
+    else if(holding.buyDate && new Date(whatIfSellDate) < new Date(holding.buyDate)) errors.push("Sell date can't be before the buy date.");
+  }
+
+  let result = null;
+  if(eligible && hasBuyPrice && errors.length === 0){
+    result = computeWhatIfTax({
+      buyPrice: +holding.buyPrice,
+      buyDate: holding.buyDate || '',
+      sellPrice: sellPriceNum,
+      sellDate: whatIfSellDate,
+      qty: qtyNum,
+      alreadyRealizedLTCGThisFY: poolValue,
+    });
+  }
+
+  let resultHtml = '';
+  if(eligible && !hasBuyPrice){
+    resultHtml = `<div class="helptext" style="color:var(--gold); margin-top:8px;">No Buy Price on file for this holding — fill it in via the Avg Price column in the Holdings table above, then come back here to simulate a sale.</div>`;
+  } else if(eligible && errors.length){
+    resultHtml = `<div class="helptext" style="color:var(--rust); margin-top:8px;">${errors.join(' ')}</div>`;
+  } else if(eligible && result && result.term === null){
+    resultHtml = `<div class="helptext" style="color:var(--gold); margin-top:8px;">No Buy Date on file for this holding — can't classify Short-term vs Long-term. Fill in Buy Date in the Holdings table above.</div>`;
+  } else if(eligible && result){
+    const gainColor = result.gain >= 0 ? 'var(--green)' : 'var(--rust)';
+    const termTag = result.term === 'LongTerm' ? `<span class="tag green">LTCG</span>` : `<span class="tag rust">STCG</span>`;
+    let detail = '';
+    if(result.gain <= 0){
+      detail = `<p class="helptext" style="margin-top:6px;">This would be a capital <strong>loss</strong> — ₹0 capital-gains tax on this sale. A loss can offset other gains (Sec 70 set-off rules) — see ITRGenie's Loss Set-off &amp; Carry Forward module for the complete picture; that ordering isn't modeled here.</p>`;
+    } else if(result.term === 'ShortTerm'){
+      detail = `<p class="helptext" style="margin-top:6px;">Held ≤365 days — Short-term (Sec 111A): flat 20% on the full gain, no exemption.</p>`;
+    } else {
+      const usedBefore = Math.min(Math.max(0,poolValue), 125000);
+      const headroomBefore = Math.max(0, 125000 - poolValue);
+      const taxablePortion = result.taxableAfter - result.taxableBefore;
+      detail = `<p class="helptext" style="margin-top:6px;">Held &gt;365 days — Long-term (Sec 112A). Exemption headroom remaining before this sale: ${formatMoney(headroomBefore,'INR')} of the shared ₹1,25,000/FY pool (${formatMoney(usedBefore,'INR')} already used by the "already realized" figure below). Of this sale's ${formatMoney(result.gain,'INR')} gain, ${formatMoney(taxablePortion,'INR')} is taxable at 12.5%.</p>`;
+    }
+    resultHtml = `
+      <div class="stat-grid" style="margin-top:10px;">
+        <div class="stat-tile"><div class="stat-label">Hypothetical gain</div><div class="stat-value" style="color:${gainColor}; font-size:20px;">${formatMoney(result.gain,'INR')}</div><div class="helptext" style="margin-top:2px;">${termTag}</div></div>
+        <div class="stat-tile accent"><div class="stat-label">Estimated capital-gains tax</div><div class="stat-value" style="font-size:20px;">${formatMoney(result.tax,'INR')}</div></div>
+      </div>
+      ${detail}
+    `;
+  }
+
+  const bodyHtml = eligible ? `
+    <div class="field-row">
+      <div class="field"><label>Qty to sell</label><input id="wi_qty" type="number" step="any" min="0" max="${holding.qty}" value="${whatIfQty}"></div>
+      <div class="field"><label>Sell price</label><input id="wi_sellprice" type="number" step="0.01" min="0" value="${whatIfSellPrice}" placeholder="per unit"></div>
+      <div class="field"><label>Sell date</label><input id="wi_selldate" type="date" value="${whatIfSellDate}"></div>
+    </div>
+    <div class="field-row" style="margin-top:-2px;">
+      <div class="field"><label>Already realized Sec 112A LTCG this FY (${fyRange.label})</label><input id="wi_pool" type="number" step="0.01" value="${poolValue}"></div>
+      ${whatIfPoolOverride !== null ? `<div class="field" style="display:flex; align-items:flex-end;"><button class="btn small ghost" id="wi_pool_reset" type="button">↺ use tracked value (${formatMoney(poolCalc.total,'INR')})</button></div>` : ''}
+    </div>
+    <p class="helptext" style="margin:-4px 0 8px;">${whatIfPoolOverride !== null
+      ? `Using your own override, not the auto-computed figure.`
+      : `Pre-filled from ${poolCalc.includedCount} sold lot${poolCalc.includedCount===1?'':'s'} tracked in this Portfolio module this financial year — check it against your own records; sales made through a broker directly, or before you started using this tracker, aren't included here.`
+    }</p>
+    ${resultHtml}
+  ` : `
+    <div class="notice${isForeign?' warn':''}" style="margin-top:10px;">
+      ${isMF
+        ? `<strong>${holding.symbol} is a Mutual Fund</strong> — this simulator doesn't compute mutual fund capital-gains tax. A real MF redemption gain depends on the actual CAS/CAMS statement at the time of redemption (post-2023 debt-fund rules, indexation grandfathering, etc. make it too fragile to derive from a formula) — this is exactly why ITRGenie's own Capital Gains — Mutual Funds module asks you to type in the real gain figure rather than computing it, and a hypothetical future sale has no statement to read from yet. When you actually redeem, use that ITRGenie module with the real numbers from your statement.`
+        : accountKnown
+          ? `<strong>${holding.symbol} is held in a foreign-currency account</strong> (${acc.name}, ${acc.currency}) — India's Sec 111A/112A concessional equity rates modeled here (flat 20% short-term, flat 12.5% long-term with the shared ₹1,25,000 exemption) only apply to equity sold with STT paid on a recognized Indian stock exchange. Foreign shares are taxed differently — long-term gains fall under Sec 112 (still 12.5%, but with no pooled exemption) and short-term gains are taxed at your income slab rate, not a flat 20%. Getting that right needs your full income picture, which is out of scope here — use ITRGenie's Foreign Assets (Schedule FA) module for the real figure.`
+          : `<strong>${holding.symbol}'s account (${holding.broker}) isn't recognized</strong> — its currency can't be confirmed, so this simulator won't guess at domestic vs. foreign tax treatment (this can happen after a hand-edited or corrupted Export/Import file). Re-check this holding's account under Holdings above before simulating a sale.`
+      }
+    </div>
+  `;
+
+  card.innerHTML = `
+    <h3>Simulate a sale</h3>
+    <div class="field-row">
+      <div class="field"><label>Holding</label>
+        <select id="wi_holding">${openHoldings.map(h=>{
+          const a = accountOf(h.broker);
+          return `<option value="${h.id}" ${h.id===selectedId?'selected':''}>${h.symbol} — ${a.name} (${h.qty} available)</option>`;
+        }).join('')}</select>
+      </div>
+      <div class="field"><label>Considering switching to <span style="text-transform:none;">(optional note, your own reference — not computed)</span></label>
+        <input id="wi_note" type="text" placeholder="e.g. an index fund" value="${whatIfNote.replace(/"/g,'&quot;')}"></div>
+    </div>
+    ${bodyHtml}
+  `;
+  container.appendChild(card);
+
+  card.querySelector('#wi_holding').onchange = (e)=>{
+    const h = openHoldings.find(x=>x.id===e.target.value);
+    whatIfHoldingId = e.target.value;
+    if(h){
+      whatIfQty = String(h.qty);
+      whatIfSellPrice = String(whatIfDefaultSellPrice(h));
+    }
+    render();
+  };
+  card.querySelector('#wi_note').onchange = (e)=>{ whatIfNote = e.target.value; };
+  if(eligible){
+    const qtyInp = card.querySelector('#wi_qty');
+    if(qtyInp) qtyInp.onchange = (e)=>{ whatIfQty = e.target.value; render(); };
+    const spInp = card.querySelector('#wi_sellprice');
+    if(spInp) spInp.onchange = (e)=>{ whatIfSellPrice = e.target.value; render(); };
+    const sdInp = card.querySelector('#wi_selldate');
+    if(sdInp) sdInp.onchange = (e)=>{ whatIfSellDate = e.target.value; render(); };
+    const poolInp = card.querySelector('#wi_pool');
+    if(poolInp) poolInp.onchange = (e)=>{ whatIfPoolOverride = e.target.value === '' ? null : +e.target.value; render(); };
+    const resetBtn = card.querySelector('#wi_pool_reset');
+    if(resetBtn) resetBtn.onclick = ()=>{ whatIfPoolOverride = null; render(); };
+  }
+}
+
 // ---------- guided "Add a holding" form -- the primary entry path ----------
 // Produces the exact same holding object shape the bulk-paste parser below produces, so nothing
 // downstream (live price fetch, Net Worth feed export, allocation/performance math) needs to
@@ -860,6 +1886,10 @@ function renderAddHoldingForm(container){
     : (data.accounts[0] && data.accounts[0].id);
   card.innerHTML = `
     <h3>Add a holding</h3>
+    <div class="field-row" style="margin-bottom:2px;">
+      <div class="field" style="flex:3;"><label>Paste one line to fill in below <span style="text-transform:none;">(optional)</span></label><input id="af_quickpaste" placeholder="e.g. INFY, Axis Direct, Stock, 50, 1450, 2022-04-15 — from a trade confirmation, same order as the bulk-paste format further down"></div>
+      <div class="field" style="max-width:140px; display:flex; align-items:flex-end;"><button class="btn small ghost" id="af_quickfill_btn" type="button" style="width:100%;">Fill fields</button></div>
+    </div>
     <div class="field-row">
       <div class="field"><label>Symbol</label><input id="af_symbol" placeholder="e.g. INFY"></div>
       <div class="field"><label>Broker</label>
@@ -883,6 +1913,80 @@ function renderAddHoldingForm(container){
   `;
   container.appendChild(card);
 
+  // "Paste one line to fill in below" -- lets someone with a trade confirmation, broker SMS/email,
+  // or a row already copied from a spreadsheet fill all 8 fields at once instead of tabbing
+  // through them one at a time, while still landing in the same editable inputs as manual entry --
+  // nothing is added to data.holdings until the existing "Add holding" click below, so every
+  // filled-in value stays fully reviewable/correctable first. Reuses the exact same column order
+  // as the bulk-paste box further down this page (Symbol, Broker, AssetType, Qty, BuyPrice,
+  // BuyDate, CurrentPrice, AsOf) so one mental model covers both entry paths. Broker/AssetType are
+  // matched against the real dropdown options (substring match, case-insensitive) and left
+  // unchanged -- never guessed -- if nothing recognizable is found; dates reuse excelDateToISO(),
+  // the same tolerant date parser already used for Excel import, rather than a third date-parsing
+  // implementation in this file.
+  card.querySelector('#af_quickfill_btn').onclick = ()=>{
+    const raw = card.querySelector('#af_quickpaste').value.trim();
+    if(!raw) return;
+    const parsedRows = parsePastedRows(raw, 8, 6);
+    const cols = parsedRows[0] || []; // Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf (last 2 optional)
+    if(cols.length===0){
+      // Never fills the form from a guess -- if the pasted line couldn't be split unambiguously
+      // (see resolveThousandsMerge() above), say so instead of silently doing nothing.
+      const fb = card.querySelector('#af_feedback');
+      fb.textContent = parsedRows.ambiguousCount>0
+        ? `Couldn't tell where the columns split -- try a tab-separated paste copied straight from a spreadsheet, or add a space after each comma.`
+        : `Couldn't read that as Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate[, CurrentPrice, AsOf] -- nothing was filled in.`;
+      fb.style.color = 'var(--rust)';
+      return;
+    }
+    const [symbol, brokerTxt, assetTypeTxt, qty, buyPrice, buyDate, currentPrice, asOf] = cols;
+    if(symbol) card.querySelector('#af_symbol').value = symbol.trim();
+    let brokerUnmatched = false;
+    const brokerSelect = card.querySelector('#af_broker');
+    brokerSelect.style.outline = '';
+    if(brokerTxt){
+      const t = brokerTxt.trim().toLowerCase();
+      const match = data.accounts.find(a => a.name.toLowerCase()===t || a.id.toLowerCase()===t || a.name.toLowerCase().includes(t) || t.includes(a.name.toLowerCase()));
+      if(match){ brokerSelect.value = match.id; }
+      else { brokerUnmatched = true; }
+    }
+    // Visible flag, not just text feedback, when a pasted broker name didn't match any account --
+    // the dropdown silently sitting at its prior/default value looked identical to a real match,
+    // which relied on someone actually reading the helptext below. Clears itself the moment the
+    // user touches the dropdown (they've now reviewed/corrected it).
+    if(brokerUnmatched){
+      brokerSelect.style.outline = '2px solid var(--rust)';
+      brokerSelect.onchange = ()=>{ brokerSelect.style.outline = ''; };
+    }
+    if(assetTypeTxt){
+      const guessed = guessAssetTypeFromText(assetTypeTxt);
+      if(guessed) card.querySelector('#af_type').value = guessed;
+    }
+    if(qty!==undefined && qty!==''){
+      const n = parseNumericCell(qty);
+      if(!isNaN(n)) card.querySelector('#af_qty').value = n;
+    }
+    if(buyPrice!==undefined && buyPrice!==''){
+      const n = parseNumericCell(buyPrice);
+      if(!isNaN(n)) card.querySelector('#af_buyprice').value = n;
+    }
+    if(buyDate){
+      const iso = excelDateToISO(buyDate);
+      if(iso) card.querySelector('#af_buydate').value = iso;
+    }
+    if(currentPrice!==undefined && currentPrice!==''){
+      const n = parseNumericCell(currentPrice);
+      if(!isNaN(n)) card.querySelector('#af_curprice').value = n;
+    }
+    if(asOf){
+      const iso = excelDateToISO(asOf);
+      if(iso) card.querySelector('#af_asof').value = iso;
+    }
+    const fb = card.querySelector('#af_feedback');
+    fb.textContent = 'Fields filled in below from the pasted line -- review (and complete Broker/Asset type if not recognized) before clicking Add holding.';
+    fb.style.color = '';
+  };
+
   card.querySelector('#af_add_btn').onclick = ()=>{
     const symbol = card.querySelector('#af_symbol').value.trim();
     const broker = card.querySelector('#af_broker').value;
@@ -893,8 +1997,8 @@ function renderAddHoldingForm(container){
     const currentPrice = card.querySelector('#af_curprice').value;
     const asOf = card.querySelector('#af_asof').value;
 
-    if(!symbol || !broker || qty==='' || isNaN(+qty) || +qty<=0 || buyPrice==='' || isNaN(+buyPrice) || +buyPrice<0 || !buyDate){
-      addFormFeedbackMsg = { text: 'Fill in Symbol, Broker, Qty (greater than 0), Buy Price and Buy Date.', isError: true };
+    if(!symbol || !broker || qty==='' || isNaN(+qty) || +qty<=0 || buyPrice==='' || isNaN(+buyPrice) || +buyPrice<0 || !buyDate || (currentPrice!=='' && !isNaN(+currentPrice) && +currentPrice<0)){
+      addFormFeedbackMsg = { text: 'Fill in Symbol, Broker, Qty (greater than 0), Buy Price and Buy Date (Current Price, if given, can\'t be negative).', isError: true };
       render();
       return;
     }
@@ -1231,11 +2335,18 @@ async function startCasUnlock(buf){
       casImport.parseFailReason = result.reason;
       render(); return;
     }
-    casImport.groups = result.groups.map(g => ({
-      label: g.label, holdings: g.holdings,
-      broker: guessBrokerForGroup(g),
-      assetType: 'Stock',
-    }));
+    casImport.groups = result.groups.map(g => {
+      const guessedBroker = guessBrokerForGroup(g);
+      return {
+        label: g.label, holdings: g.holdings,
+        // '' (not a silent account-#1 default) when the CAS group's own label didn't confidently
+        // match one of this app's accounts -- see guessBrokerForGroup() below for why. An empty
+        // broker forces an explicit account choice in the preview UI rather than letting an
+        // unmatched group look identical to a matched one.
+        broker: guessedBroker || '',
+        assetType: 'Stock',
+      };
+    });
     casImport.stage = 'parsed';
     render();
   }catch(err){
@@ -1344,10 +2455,19 @@ function parseCasPdfText(fullText, lines){
   }
   return { ok:true, groups: nonEmpty };
 }
+// Returns a matched account id, or null if the CAS group's own label (usually the DP/depository
+// line, e.g. "Zerodha Broking Ltd") doesn't confidently match one of this app's own accounts.
+// Deliberately does NOT fall back to data.accounts[0] -- a CAS aggregates every broker/demat
+// account a user actually has, which is very often more than this app's fixed account list (real
+// brokers like Zerodha, Groww, Upstox, ICICI Direct, HDFC Securities are all extremely common and
+// not pre-seeded here) -- silently defaulting to "whichever account is listed first" would tag a
+// holding onto the wrong account with zero visual difference from a real match. The caller (see
+// startCasUnlock above) surfaces a null/empty result as an explicit "-- choose account --" the
+// user must resolve before import, never a guess.
 function guessBrokerForGroup(g){
   const t = (g.label||'').toLowerCase();
   const hit = data.accounts.find(a => t.includes(a.name.toLowerCase()));
-  return (hit || data.accounts[0] || {}).id || null;
+  return hit ? hit.id : null;
 }
 
 function renderCasImportCard(container){
@@ -1380,6 +2500,14 @@ function renderCasImportCard(container){
       quantity and current market value, not your original purchase price/date — those aren't in
       this document at all. Imported holdings will have <strong>Buy Price left blank</strong> for
       you to fill in yourself (editable directly in the Holdings table above, per row).
+    </div>
+    <div class="notice">
+      <strong>A CAS aggregates every broker/demat account you actually have</strong> — that's very
+      often more than the accounts already set up here (real brokers like Zerodha, Groww, Upstox,
+      ICICI Direct, or HDFC Securities aren't pre-seeded in this app). If a group below can't be
+      matched to one of your existing accounts, you'll be asked to choose one explicitly rather
+      than have it silently assigned — add a new account first under
+      <strong>Accounts &amp; Settings</strong> if the broker you need isn't listed yet.
     </div>
     <div id="cas_body"></div>
   `;
@@ -1453,6 +2581,10 @@ function renderCasBody(container){
         if(idx >= 0) willUpdate++; else willAdd++;
       });
     });
+    // A group with an empty broker means guessBrokerForGroup() couldn't confidently match this
+    // group's label to any of the app's own accounts -- never silently resolved to "account #1",
+    // so it must be visibly distinct from a real match and block import until resolved.
+    const unmatchedGroups = casImport.groups.filter(g => !g.broker).length;
     const groupsHtml = casImport.groups.map((g, gi)=>{
       const rows = g.holdings.map(h=>{
         const perShare = (h.marketValue!==null && h.qty>0) ? (h.marketValue/h.qty) : null;
@@ -1464,12 +2596,14 @@ function renderCasBody(container){
           <td data-label="Current Price (from CAS)">${perShare!==null ? formatMoney(perShare,'INR') : '—'}</td>
         </tr>`;
       }).join('');
+      const brokerUnmatched = !g.broker;
       return `
         <div class="import-group">
           <h4>${g.label} <span class="cell-muted" style="font-weight:400;">(${g.holdings.length} holding${g.holdings.length===1?'':'s'})</span></h4>
           <div class="field-row">
             <div class="field"><label>Import into account</label>
-              <select data-cas-broker="${gi}">${data.accounts.map(a=>`<option value="${a.id}" ${a.id===g.broker?'selected':''}>${a.name}</option>`).join('')}</select>
+              <select data-cas-broker="${gi}" ${brokerUnmatched ? 'style="outline:2px solid var(--rust);"' : ''}>${brokerUnmatched ? `<option value="" selected>— choose account —</option>` : ''}${data.accounts.map(a=>`<option value="${a.id}" ${a.id===g.broker?'selected':''}>${a.name}</option>`).join('')}</select>
+              ${brokerUnmatched ? `<p class="helptext" style="color:var(--rust); margin:4px 0 0;">Couldn't match "${g.label}" to any of your accounts — choose one before importing, or add it under Accounts &amp; Settings first.</p>` : ''}
             </div>
             <div class="field"><label>Asset type (applies to this group)</label>
               <select data-cas-type="${gi}">${['Stock','ETF','Mutual Fund','Other'].map(t=>`<option value="${t}" ${t===g.assetType?'selected':''}>${t}</option>`).join('')}</select>
@@ -1481,6 +2615,12 @@ function renderCasBody(container){
     }).join('');
     container.innerHTML = `
       <p class="helptext" style="margin-bottom:4px;"><strong style="color:var(--text);">${totalHoldings} holding(s) found in ${casImport.fileName}</strong>, grouped as detected below. Review the account assignment for each group, then import.</p>
+      ${unmatchedGroups>0 ? `
+      <div class="notice warn">
+        <strong>${unmatchedGroups} group${unmatchedGroups===1?'':'s'} below couldn't be matched to one of your accounts</strong> —
+        outlined in rust. Choose an account for ${unmatchedGroups===1?'it':'each'} before importing; nothing defaults to
+        an existing account automatically.
+      </div>` : ''}
       ${willUpdate>0 ? `
       <div class="notice">
         <strong>${willUpdate} of these already exist in your holdings</strong> (matched by ISIN/symbol) —
@@ -1490,9 +2630,10 @@ function renderCasBody(container){
       </div>` : ''}
       ${groupsHtml}
       <div style="display:flex; gap:8px; margin-top:14px;">
-        <button class="btn primary small" id="cas_confirm">${willUpdate>0 ? `Import ${willAdd} new / refresh ${willUpdate} existing` : `Import ${totalHoldings} holding${totalHoldings===1?'':'s'}`}</button>
+        <button class="btn primary small" id="cas_confirm" ${unmatchedGroups>0 ? 'disabled' : ''}>${willUpdate>0 ? `Import ${willAdd} new / refresh ${willUpdate} existing` : `Import ${totalHoldings} holding${totalHoldings===1?'':'s'}`}</button>
         <button class="btn small ghost" id="cas_cancel">Cancel</button>
       </div>
+      ${unmatchedGroups>0 ? `<p class="helptext" style="margin-top:4px;">Import is disabled until every group has an account chosen.</p>` : ''}
     `;
     container.querySelectorAll('[data-cas-broker]').forEach(sel=>{
       sel.onchange = (e)=>{ casImport.groups[+e.target.dataset.casBroker].broker = e.target.value; render(); };
@@ -1560,12 +2701,12 @@ function renderHoldingsEntryCard(container){
   el.innerHTML = `
     <summary>Bulk add / advanced <span class="summary-hint">— paste multiple holdings, or upload a CSV/TXT file</span></summary>
     <div class="details-body">
-      <p class="helptext" style="margin-bottom:8px;">One holding per line: <code>Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf</code> — CurrentPrice and AsOf are optional (leave blank if you don't have a current price yet; it'll be flagged "stale" and gain/loss shown as zero until you fill it in). Dates as YYYY-MM-DD.</p>
+      <p class="helptext" style="margin-bottom:8px;">One holding per line: <code>Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf</code> — CurrentPrice and AsOf are optional (leave blank if you don't have a current price yet; it'll be flagged "stale" and gain/loss shown as zero until you fill it in). Dates as YYYY-MM-DD; ₹/$ symbols and thousands commas in the price columns are fine.</p>
       <p class="helptext" style="margin-bottom:8px;">Examples:<br>
         <code>INFY, Axis Direct, Equity, 50, 1450, 2022-04-15, 1850, 2026-08-01</code><br>
         <code>VOO, Vested-US, ETF, 10, 380.25, 2023-01-10, 512.40, 2026-08-01</code></p>
       <textarea id="h_paste" rows="4" placeholder="Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf"></textarea>
-      <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-size:12.5px; color:var(--muted);">
+      <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-size:13px; color:var(--muted);">
         <input type="checkbox" id="h_skip_dupes" ${bulkPasteSkipDuplicates ? 'checked' : ''}>
         Skip rows that already exist (matched by broker + symbol) — recommended
       </label>
@@ -1590,31 +2731,37 @@ function renderHoldingsEntryCard(container){
 
   el.querySelector('#h_btn').onclick = ()=>{
     const raw = el.querySelector('#h_paste').value;
-    const rows = parsePastedRows(raw);
+    const rows = parsePastedRows(raw, 8, 6); // Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf (last 2 optional)
     let added=0, skipped=0, dupSkipped=0;
     rows.forEach(cols=>{
       if(cols.length<6){ skipped++; return; }
       const [symbol, brokerTxt, assetType, qty, buyPrice, buyDate, currentPrice, asOf] = cols;
-      if(!symbol || !brokerTxt || isNaN(+qty) || +qty<=0 || isNaN(+buyPrice) || +buyPrice<0 || !buyDate){ skipped++; return; }
+      const qtyN = parseNumericCell(qty), buyPriceN = parseNumericCell(buyPrice);
+      if(!symbol || !brokerTxt || isNaN(qtyN) || qtyN<=0 || isNaN(buyPriceN) || buyPriceN<0 || !buyDate){ skipped++; return; }
       const brokerId = resolveBrokerId(brokerTxt);
       if(bulkPasteSkipDuplicates && findDuplicateHoldingIndex({ symbol, broker: brokerId }) >= 0){ dupSkipped++; return; }
-      const hasCurrentPrice = currentPrice!==undefined && currentPrice!=='' && !isNaN(+currentPrice);
+      const currentPriceN = parseNumericCell(currentPrice);
+      // Defense in depth, round 4: currentPrice had no >=0 guard next to it even though its
+      // siblings qty/buyPrice both do, just above -- a negative stock price isn't a realistic
+      // real-world input the way a capital loss is, but there's no reason to leave it unguarded.
+      if(currentPriceN < 0){ skipped++; return; }
+      const hasCurrentPrice = currentPrice!==undefined && currentPrice!=='' && !isNaN(currentPriceN);
       data.holdings.push({
         id: newId('h'),
         symbol: symbol.toUpperCase(),
         broker: brokerId,
         assetType: assetType || 'Equity',
-        qty: +qty,
-        buyPrice: +buyPrice,
+        qty: qtyN,
+        buyPrice: buyPriceN,
         buyDate: buyDate,
-        currentPrice: hasCurrentPrice ? +currentPrice : '',
+        currentPrice: hasCurrentPrice ? currentPriceN : '',
         asOf: (asOf && asOf.trim()) ? asOf.trim() : (hasCurrentPrice ? new Date().toISOString().slice(0,10) : ''),
       });
       added++;
     });
     bulkAddOpen = true; // keep the panel open after adding so the feedback message below is actually visible
     bulkAddFeedbackMsg = `Added ${added}`
-      + `${skipped>0?`, skipped ${skipped} (missing/invalid Symbol, Broker, AssetType, Qty, BuyPrice or BuyDate)`:''}`
+      + `${skipped>0?`, skipped ${skipped} (missing/invalid Symbol, Broker, AssetType, Qty, BuyPrice or BuyDate)${skipNote(rows)}`:''}`
       + `${dupSkipped>0?`, skipped ${dupSkipped} duplicate(s) already in your holdings (matched by broker+symbol)`:''}.`;
     saveData(); render();
   };
@@ -1657,6 +2804,88 @@ function renderAccountsCard(container){
 }
 
 // ---------- allocation + broker breakdown ----------
+// ---------- Concentration / diversification flag (Dashboard, near Allocation) ----------
+// Two independent, threshold-based checks -- deliberately descriptive, not prescriptive, matching
+// this module's existing "not a recommendation" pattern (see the what-if simulator's own disclosure
+// text). Neither threshold is an arbitrary round number:
+//   - Top-2-holdings share of total INR-convertible value >= 50%: half your invested value resting
+//     on just two positions means either one's decline meaningfully swings your whole portfolio --
+//     50% is a deliberately blunt "literally half" line, easy to justify without pretending to more
+//     precision than a rule of thumb deserves. Only evaluated once there are at least 3 priced
+//     holdings -- with only 1 or 2 holdings total, "most of your portfolio is in your top 2" is true
+//     by construction, not a genuine concentration signal worth flagging.
+//   - More than 20 direct stock/equity positions: the commonly cited practitioner rule of thumb
+//     (going back to Evans & Archer's 1968 diversification study) is that the marginal diversification
+//     benefit of adding another individual stock is mostly gone by roughly 15-20 names -- beyond that,
+//     more positions mainly add tracking effort, not real diversification. Note (2026-08-11 review):
+//     the 1968 study's own original figure was actually 8-10 stocks; later replications revised that
+//     upward to the 15-20+ range commonly cited today, and some go higher still -- so 20 sits at the
+//     LOW end of what's now considered adequate, not a deliberately generous cushion above it. Left at
+//     20 anyway since this is an explicitly descriptive, non-prescriptive rule of thumb either way, not
+//     a hard line -- just correcting the "generous" framing, not the number itself.
+// Only ever shown when actually true for the current data -- no flag, or a clean "well diversified"
+// note, when neither threshold is crossed. Never a fabricated concern.
+const CONCENTRATION_TOP2_PCT_THRESHOLD = 50;
+const CONCENTRATION_STOCK_COUNT_THRESHOLD = 20;
+
+function computeConcentration(){
+  let unconvertedCount = 0;
+  const priced = data.holdings.map(h=>{
+    const m = computeHoldingMetrics(h);
+    const valueINR = toINR(m.currentValue, m.currency);
+    if(valueINR===null) unconvertedCount++;
+    return { h, m, valueINR };
+  }).filter(x=>x.valueINR!==null && x.valueINR>0);
+  const totalINR = priced.reduce((s,x)=>s+x.valueINR, 0);
+  const sorted = [...priced].sort((a,b)=>b.valueINR-a.valueINR);
+  const top2 = sorted.slice(0,2);
+  const top2SumINR = top2.reduce((s,x)=>s+x.valueINR, 0);
+  const top2Pct = totalINR>0 ? (top2SumINR/totalINR*100) : 0;
+  const stockCount = data.holdings.filter(h=>{
+    const t = (h.assetType || '').trim().toLowerCase();
+    return t === 'stock' || t === 'equity';
+  }).length;
+  return { priced, totalINR, top2, top2Pct, stockCount, unconvertedCount };
+}
+
+function renderConcentrationCard(container){
+  const c = computeConcentration();
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<h3>Diversification check</h3>`;
+  container.appendChild(card);
+
+  if(c.priced.length===0){
+    card.innerHTML += `<div class="helptext">Add a holding with a current value to see a diversification check here.</div>`;
+    return;
+  }
+
+  const flags = [];
+  if(c.priced.length>=3 && c.top2Pct>=CONCENTRATION_TOP2_PCT_THRESHOLD){
+    const names = c.top2.map(x=>x.h.symbol).join(' and ');
+    flags.push(`<div class="notice warn"><strong>${c.top2Pct.toFixed(0)}%</strong> of your INR-convertible holdings (by current value) is in your top 2 — ${names}. A large move in either would meaningfully swing that total.</div>`);
+  }
+  if(c.stockCount > CONCENTRATION_STOCK_COUNT_THRESHOLD){
+    flags.push(`<div class="notice">You hold <strong>${c.stockCount}</strong> direct stock positions — beyond roughly 15-20 names, that typically adds tracking effort without much extra diversification benefit.</div>`);
+  }
+
+  if(flags.length===0){
+    card.innerHTML += `<div class="helptext" style="color:var(--green);">No concentration flags right now — your top holdings and stock count are both in a reasonable range.</div>`;
+  } else {
+    card.innerHTML += flags.join('');
+  }
+  // Reviewer-found gap (2026-08-11): this check silently excluded unconverted-USD holdings from its
+  // top-2 denominator, same as the totals elsewhere in this file -- but unlike those, it said "your
+  // portfolio" with no note, which could read as a clean bill of health for a portfolio actually
+  // dominated by an unpriced foreign stake. Now says "INR-convertible holdings" (above) and discloses
+  // the excluded count explicitly here, matching the exact pattern already used for the performance
+  // summary and realized-gains totals.
+  if(c.unconvertedCount>0){
+    card.innerHTML += `<div class="helptext" style="margin-top:6px;">${c.unconvertedCount} USD holding(s) not included in this check — set the USD → INR rate further down to fold Vested-US in.</div>`;
+  }
+  card.innerHTML += `<div class="helptext" style="margin-top:6px;">Descriptive only, based on your current holdings — not investment advice, and not a recommendation to buy, sell, or rebalance anything.</div>`;
+}
+
 function renderAllocationCard(container){
   const p = computePortfolio();
   const card = document.createElement('div');
@@ -1723,6 +2952,7 @@ function renderBrokerBreakdown(container){
 function openLiveSettings(e){
   if(e) e.preventDefault();
   liveSettingsOpen = true;
+  activeTab = 'accounts'; // Live Prices settings now lives on the Accounts & Settings tab (2026-08-11 rebalance pass), not Holdings
   render();
   requestAnimationFrame(()=>{
     const panel = document.getElementById('live-settings-panel');
@@ -1908,40 +3138,76 @@ function render(){
   `;
   content.appendChild(header);
 
-  // Summary + holdings, front and center.
-  renderPerformanceSummary(content);
-  renderHoldingsTable(content);
+  renderTabBar(content);
 
+  // ---- Dashboard tab: "what's my situation right now" ----
+  const dashPane = document.createElement('div');
+  dashPane.className = 'tab-pane';
+  dashPane.dataset.tab = 'dashboard';
+  renderPerformanceSummary(dashPane);
+  renderGainersLosersCard(dashPane);
+  const allocHeader = document.createElement('div');
+  allocHeader.className = 'panel-header';
+  allocHeader.style.marginTop = '28px';
+  allocHeader.innerHTML = `<h2 style="font-size:18px;">Allocation &amp; performance</h2>`;
+  dashPane.appendChild(allocHeader);
+  renderAllocationCard(dashPane);
+  renderConcentrationCard(dashPane);
+  renderBrokerBreakdown(dashPane);
+  content.appendChild(dashPane);
+
+  // ---- Holdings tab: viewing + entering/importing holdings data ----
+  // Accounts/FX and Live-price settings moved out to the Accounts & Settings tab (2026-08-11,
+  // rebalance pass) -- see that tab's comment below and portfolio/PROGRESS.md's dated entry. This
+  // tab is now scoped purely to viewing and entering/importing holdings data, closing Known gap #8
+  // (Holdings was noticeably heavier than every other tab).
+  const holdPane = document.createElement('div');
+  holdPane.className = 'tab-pane';
+  holdPane.dataset.tab = 'holdings';
+  renderHoldingsTable(holdPane);
   // Entry — guided form is the primary path; bulk paste/CSV is the collapsed "advanced" option.
-  renderAddHoldingForm(content);
-  renderHoldingsEntryCard(content);
-  renderCasImportCard(content);
-  renderLiveSettingsCard(content);
+  renderAddHoldingForm(holdPane);
+  renderHoldingsEntryCard(holdPane);
+  renderCasImportCard(holdPane);
+  content.appendChild(holdPane);
 
-  const manageHeader = document.createElement('div');
-  manageHeader.className = 'panel-header';
-  manageHeader.style.marginTop = '28px';
-  manageHeader.innerHTML = `<h2 style="font-size:18px;">Accounts &amp; FX</h2>`;
-  content.appendChild(manageHeader);
-  renderAccountsCard(content);
-  renderFxCard(content);
+  // ---- Realized Gains & What-If tab: sold-lot tracking + tax simulation ----
+  const gainsPane = document.createElement('div');
+  gainsPane.className = 'tab-pane';
+  gainsPane.dataset.tab = 'gains';
+  renderRecordSaleForm(gainsPane);
+  renderRealizedGainsSection(gainsPane);
+  renderWhatIfSaleSection(gainsPane);
+  content.appendChild(gainsPane);
 
-  const breakHeader = document.createElement('div');
-  breakHeader.className = 'panel-header';
-  breakHeader.style.marginTop = '28px';
-  breakHeader.innerHTML = `<h2 style="font-size:18px;">Allocation &amp; performance</h2>`;
-  content.appendChild(breakHeader);
-  renderAllocationCard(content);
-  renderBrokerBreakdown(content);
+  // ---- Accounts & Settings tab (renamed from "Export & Settings", 2026-08-11 rebalance pass) ----
+  // Now also holds Accounts/FX and Live-price settings, moved here from Holdings -- these read more
+  // like account configuration than day-to-day holdings entry, and this tab was previously the
+  // lightest of the four (see Known gap #8, now closed). Pure container move: none of
+  // renderAccountsCard/renderFxCard/renderLiveSettingsCard's internal markup or logic changed.
+  const acctPane = document.createElement('div');
+  acctPane.className = 'tab-pane';
+  acctPane.dataset.tab = 'accounts';
+  const acctHeader = document.createElement('div');
+  acctHeader.className = 'panel-header';
+  acctHeader.innerHTML = `<h2 style="font-size:18px;">Accounts &amp; FX</h2>`;
+  acctPane.appendChild(acctHeader);
+  renderAccountsCard(acctPane);
+  renderFxCard(acctPane);
+  renderLiveSettingsCard(acctPane);
+  const crossModuleHeader = document.createElement('div');
+  crossModuleHeader.className = 'panel-header';
+  crossModuleHeader.style.marginTop = '28px';
+  crossModuleHeader.innerHTML = `<h2 style="font-size:18px;">Cross-module</h2>`;
+  acctPane.appendChild(crossModuleHeader);
+  renderNetWorthFeedCard(acctPane);
+  content.appendChild(acctPane);
 
-  const feedHeader = document.createElement('div');
-  feedHeader.className = 'panel-header';
-  feedHeader.style.marginTop = '28px';
-  feedHeader.innerHTML = `<h2 style="font-size:18px;">Cross-module</h2>`;
-  content.appendChild(feedHeader);
-  renderNetWorthFeedCard(content);
-
+  // Known gaps is a page-wide disclosure, not gated behind one tab a user might never click —
+  // rendered once, outside the tab panes, visible regardless of which tab is active.
   renderKnownGapsCard(content);
+
+  applyTabVisibility();
 }
 
 const THEME_KEY = 'itrgenie_theme'; // deliberately shared with every other module so theme choice is consistent site-wide
@@ -1975,6 +3241,7 @@ document.getElementById('importFile').onchange = (e)=>{
       if(!Array.isArray(parsed.accounts) || parsed.accounts.length===0) parsed.accounts = defaultData().accounts;
       if(!Array.isArray(parsed.holdings)) parsed.holdings = [];
       if(!parsed.fx) parsed.fx = { usdInr:'', asOf:'' };
+      if(!Array.isArray(parsed.soldLots)) parsed.soldLots = [];
       data = parsed;
       saveData(); render();
     }

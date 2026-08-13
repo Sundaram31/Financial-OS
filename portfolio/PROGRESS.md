@@ -554,6 +554,358 @@ for contrast:
    NOT fixed in this pass (it needs a real decision about symbol/name matching across sources, not a
    quick patch) — flagged, not silently resolved.
 
+## Updated 2026-08-10 — Sold/realized capital-gains tracking built (roadmap item 4's stated prerequisite)
+`MASTER_ROADMAP.md`'s "Updated module sequence" item 4 ("What-if fund-switch tax modeling")
+explicitly states this module "currently has no sell/capital-gains workflow (only open holdings)
+-- that would need to be built as part of this item, not assumed to already exist." This session
+built exactly that prerequisite — sold-position tracking, ST/LT classification, and a capital-gains
+feed export — and nothing more; the actual what-if fund-switch simulation UI itself remains
+unbuilt (see "Deliberately NOT done yet" below and `MASTER_ROADMAP.md`'s updated item 4).
+
+**Recording a sale.** A new "Record a sale" guided form sits right after the Holdings table (also
+reachable via a "Sell" button on each holdings-table row, which scrolls/focuses the form) — select
+an open holding from a dropdown (`SYMBOL — Broker (N available)`), enter Qty to sell (defaults to
+the holding's full remaining qty, capped at it), Sell date, Sell price. This is a guided-form-only
+flow, deliberately not paste/bulk — recording a sale is inherently relational (it must reference
+one specific existing holding by id, a small closed set), unlike adding a fresh holding, so a
+dropdown-driven form is the right shape here, not a shortcut around this repo's paste+form
+convention. Validates: qty > 0, qty ≤ the holding's current open qty (real error message naming
+the actual available qty, not a silent clamp), sell date required and not before the holding's buy
+date, sell price ≥ 0.
+- **Full sale** (qty sold ≥ holding's qty): the holding is removed from `data.holdings` entirely; a
+  sold lot is created carrying the holding's full original qty.
+- **Partial sale**: the holding's `qty` is reduced by the sold amount in place; a separate sold-lot
+  record is created for just the sold portion, copying the holding's `buyPrice`/`buyDate` (cost
+  basis for the sold lot is the holding's single Avg Price — this module doesn't track multiple
+  buy-lots per holding, the same limitation the holdings table's "Avg Price" naming already
+  documents, so this is not a true per-lot FIFO cost basis; stated directly in the form's helptext).
+
+**ST/LT classification — ported, not re-derived, from ITRGenie.** Per explicit instruction,
+`holdingPeriodDays()` and the classification logic inside `computeSoldLotGain()` are copied from
+`itrgenie/index.html`'s `holdingPeriodDays()` (~line 1556) and `computeRowGain()` (~line
+2485-2496) verbatim, not referenced cross-module (this module's existing self-containment
+convention — same reasoning as the self-hosted `lib/` copies). **The exact boundary behavior
+matches ITRGenie's real-world Sec 2(42A) correction**: holding period is a raw calendar-day
+difference with no `+1`, and the classification is `days > 365 ? LongTerm : ShortTerm` — so a
+holding sold on **exactly 365 days** is Short-Term, not Long-Term. Verified by test at all three
+boundary points: 364 days → ShortTerm, exactly 365 days → ShortTerm, 366 days → LongTerm.
+
+**The missing-cost-basis case — handled the same honest way as the rest of this module.** A sold
+lot whose source holding never had a Buy Price (a CAS-imported holding sold before its Buy Price
+was ever filled in) gets `buyPrice: null` copied onto the sold lot, and `computeSoldLotGain()`
+returns `{gain: null, term: null}` for it — matching ITRGenie's own `computeRowGain()` exactly,
+which withholds BOTH gain and term (not just gain) when cost basis is unknown, since classifying a
+term without a trustworthy gain figure would be a half-honest result. The Record-a-sale form
+surfaces this *before* the user even submits ("No Buy Price on file for this holding... gain will
+show as unknown"), and the Realized Gains table shows "— unknown" (gold-colored, not a fabricated
+number) for that lot's Gain/Loss cell and an "unclassified" tag for Term. **Closing the loop**:
+unlike the holdings table (which was already inline-editable for this), the sold lot's Buy Price
+and Buy Date are now *also* inline-editable directly in the Realized Gains table — the natural
+place to fix a missing cost basis after the fact, since the source holding itself may no longer
+exist (full sale). Filling either in immediately recalculates the lot's gain/term on the next
+render.
+
+**Realized gains view.** A new page section (`renderRealizedGainsSection`) right after "Record a
+sale": three stat tiles (Short-term/STCG, Long-term/LTCG, Total realized), each summed in INR via
+the same `toINR()`/unconverted-USD-lot handling `computePortfolio()` already uses (a sold lot's
+gain is in its account's native currency — summing raw numbers across INR and USD lots without
+converting would silently mix currencies), plus a sold-lots table (Symbol, Broker, Qty, Buy,
+Sell, Term tag, Gain/Loss). Explicit gold-colored notes appear when relevant: N lot(s) with unknown
+gain (no Buy Price), N lot(s) with a known gain but no Buy Date (excluded from the ST/LT split,
+folded into "Total realized" but not guessed as short-term — same "flag it, don't fabricate it"
+pattern as ITRGenie's own equity module's `incompleteDateRows`), N unconverted USD lot(s). **This
+view is explicit that it is not a tax computation** — the section header states directly: "no
+Section 112A ₹1,25,000 exemption, no slab-rate tax, no loss carry-forward applied here. Full tax
+treatment happens in ITRGenie" — per the instruction that ITRGenie remains the single source of
+tax-computation authority; Portfolio's job here is correct raw transaction facts only.
+
+**Capital gains feed export — checked against ITRGenie's actual paste-input format, not assumed.**
+Before building this, `itrgenie/index.html`'s `CapitalGainsEquityModule` and `CapitalGainsMFModule`
+were read directly (their `render()` paste-card markup and paste-button `onclick` parsing logic) to
+confirm the real format rather than guess at one:
+- **Capital Gains — Equity module** takes `Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice` per
+  line (6 comma/tab-separated fields; BuyDate/BuyPrice may be left blank when unknown, `cols.length
+  >= 6` still required), parsed via the shared `parseFlexDate()` which accepts ISO (`YYYY-MM-DD`)
+  dates as-is.
+- **Capital Gains — Mutual Funds module** takes a fundamentally different shape:
+  `Scheme, 112A-or-112, RedemptionDate, Cost, Gain, TDS` — it needs a pre-computed Gain figure and a
+  Sec 112A (equity-oriented, STT paid) vs Sec 112 (debt-oriented) classification that Portfolio has
+  no basis to know (this module doesn't track STT/fund-category data), so this session did not try
+  to auto-map Mutual Fund sold lots into that shape — that would be guessing at a tax classification,
+  exactly what this project's conventions warn against.
+
+Given that, `buildCapitalGainsFeed()` produces the exact `{symbol, buydate, selldate, buyprice,
+sellprice, qty, assetType}[]` contract from `MASTER_ROADMAP.md` (JSON download button, same pattern
+as the existing Net Worth feed), and the "copy paste-ready lines" button formats each row as
+`Symbol, Qty, BuyDate, BuyPrice, SellDate, SellPrice` (ISO dates, blank BuyDate/BuyPrice preserved
+as empty fields, not omitted) — matching ITRGenie's Capital Gains — Equity module's paste format
+field-for-field, verified against its actual parser rather than assumed. The card's helptext states
+plainly that Mutual Fund sold lots need to be tagged Sec 112A/112 by hand once pasted into
+ITRGenie's separate MF module, since Portfolio doesn't track that classification — an honest
+limitation stated in-UI, not silently papered over.
+
+**Testing.** Real headless Chromium (Playwright), 40 checks, all pass: full sale (holding removed
+from open holdings, exactly one sold lot created carrying the full original qty, correct gain and
+LongTerm classification for a >365-day sale); the ST/LT boundary at all three points described
+above (364/365/366 days); partial sale (open holding's qty correctly reduced, sold lot correctly
+created for just the sold portion, buyPrice/buyDate correctly copied); a sale against a CAS-imported
+(no Buy Price) holding shows the "unknown gain, fix the Buy Price" state in both the sale form and
+the Realized Gains table rather than a fabricated number (`buyPrice: null`, `computeSoldLotGain`
+returns `{gain: null, term: null}`); oversell validation (selling more than the holding's current
+open qty is rejected with a real error message, no sold lot created, holding qty unchanged); the
+capital-gains feed's exact contract shape and values (including the `null` buyprice/buydate case for
+an unknown-cost lot) and the paste-ready line's 6-field format; mobile viewport (375×812) — zero
+horizontal overflow after the sale form and Realized Gains table render, helptext/table-cell fonts
+read back ≥13px via computed-style; full regression of existing open-holdings functionality (guided
+Add-a-holding form, bulk CSV paste, Net Worth feed export, and `computeHoldingMetrics`'
+null-vs-zero handling for a holding missing a Buy Price) all still pass unchanged; STCG/LTCG totals
+aggregate correctly in INR across multiple sold lots. Screenshots taken in both themes, desktop and
+375px mobile, for visual review (not committed — see this entry for the description instead).
+
+**What's still explicitly out of scope — the actual next step.** This session built the
+prerequisite roadmap item 4 named ("Portfolio currently has no sell/capital-gains workflow...that
+would need to be built as part of this item"). The what-if fund-switch simulation itself — "if I
+sold Fund A and bought Fund B today, what would the tax cost of that specific switch be" — is
+genuinely not attempted here: it needs this sold-lot/cost-basis data joined with ITRGenie's actual
+tax-rate/exemption logic in a dedicated simulation UI, which is a distinct, sizeable piece of work
+in its own right (not something to bundle into the same pass as building the underlying data model).
+See `MASTER_ROADMAP.md`'s updated item 4 entry.
+
+## Updated 2026-08-10 — Second-pass reviewer fixes on the sold-lot/realized-gains feature
+The `financial-os-reviewer` subagent independently re-verified the sold-lot/realized-capital-gains
+build above (commit `36f841d`) — confirmed the core math, ST/LT boundary logic, and honesty
+invariants (never fabricating a gain from missing cost basis) all correct — but found two real
+issues, fixed same-day, same pattern as the earlier Excel/CAS review cycles (2026-08-10 entries
+above).
+
+**1. The "Copy paste-ready lines (ITRGenie Equity format)" button didn't filter out Mutual Fund
+sold lots.** Reviewer verified directly: a Mutual Fund sold lot alongside a Stock sold lot got
+copied together, unfiltered, formatted for ITRGenie's Equity capital-gains module — which taxes
+rows under Sec 111A/112A equity rules. A mutual fund redemption needs its own Sec 112A-vs-112
+classification that only ITRGenie's separate MF module asks for; pasting one into the Equity module
+would make ITRGenie confidently compute a wrong tax number for that row. Every other honesty-gap in
+this module (unconverted USD, unknown-cost lots, unknown-term lots) was already handled by
+explicitly excluding it and telling the user why — this was the one place that pattern was missed.
+Fixed: `isMutualFundAssetType()` filters the copy-lines output to exclude Mutual Fund rows only
+(everything else — Stock/ETF/Equity/Other/any free-text bulk-paste value — is treated as
+equity-like); the feedback message now states the excluded count ("N mutual fund lot(s)
+excluded — route those to ITRGenie's own MF capital-gains module by hand"), and an all-MF-lots
+edge case shows a clear "nothing to copy" message instead of copying an empty line or crashing. The
+JSON export (`buildCapitalGainsFeed()`) is deliberately left unfiltered, as instructed — it already
+carries `assetType` per row, so a downstream consumer can filter it itself; this fix is specific to
+the one-click paste-ready-lines shortcut, which had no such safety net.
+
+**2. The "Record a sale" form silently wiped user-entered values on a validation error.**
+Reviewer reproduced: Qty=3, Sell price=1500, blank Sell date, submit → correct "Sell date is
+required" error shown, but Qty reverted to the holding's full default quantity and Sell price
+cleared to blank, because the validation-failure path called the same full `render()` used
+everywhere else, which rebuilds the form from scratch with default `value="${holding.qty}"`
+attributes — discarding whatever the user had typed into the other fields. A user who then just
+fixed the one field they saw complained about could silently sell the wrong quantity at no price
+without noticing. Fixed by having the validation-failure path (`showSaleError()`) update only the
+`#rs_feedback` text node in place, in every one of the five validation branches in the "Record
+sale" button handler, instead of calling `render()` — the success path still calls the full
+`render()` unchanged, since a real state change (holding qty/removal, new sold lot) genuinely
+warrants resetting the form to fresh defaults there.
+- **Checked, not assumed, whether the sibling "Add a holding" form already avoided this** (as the
+  reviewer's report suggested it might, worth confirming before assuming the same fix pattern
+  applied). It does **not** — a real headless-Chromium check found the exact same bug there too
+  (Symbol/Qty/etc. also revert to blank on its own validation error). This was flagged, not fixed,
+  in this pass — it wasn't part of the reviewer's two reported issues or this session's requested
+  scope (the sold-lot feature specifically), so fixing it here would have widened the diff beyond
+  what was asked; the fix pattern above (in-place feedback update instead of full `render()` on
+  validation failure) would very likely apply cleanly to it too, and is the correct one to reuse in
+  a future session. **Adding to Known gaps below.**
+
+**Testing.** Real headless Chromium (Playwright), reproducing the reviewer's exact scenarios: (1)
+seeded a Stock sold lot + a Mutual Fund sold lot, clicked the copy-lines button — clipboard
+contained only the Stock lot's 6-field line, the Mutual Fund line was absent, the feedback showed
+"1 mutual fund lot(s) excluded..."; confirmed the JSON export (`buildCapitalGainsFeed()`) still
+returned both lots unfiltered; confirmed the all-Mutual-Fund-lots edge case shows a "nothing to
+copy" message rather than an empty/broken copy. (2) Filled Qty=3/Sell price=1500, left Sell date
+blank, submitted — confirmed Qty and Sell price were still exactly 3 and 1500 after the "Sell date
+is required" error appeared (not reverted/cleared), confirmed no sold lot was created and the
+holding's qty was unchanged; then filled in the date and resubmitted — confirmed the sale went
+through with the originally-entered Qty (3) and Sell price (1500), not the holding's default full
+quantity, and the holding's open qty correctly reduced by 3. (3) Regression pass: full sale
+(holding removed, sold lot carries full qty, correct gain, LongTerm classification), ST/LT boundary
+at all three points (364/365/366 days), missing-cost-basis honesty (`buyPrice: null` →
+`{gain: null, term: null}`, never fabricated), partial sale (holding qty reduced correctly, sold
+lot created for the sold portion only), and the paste-ready-lines 6-field format for a real
+Stock-only export — all still pass unchanged. 30 checks total, all pass.
+
+## Updated 2026-08-10 — What-if fund-switch tax simulator built (roadmap item 4, the last piece)
+`MASTER_ROADMAP.md`'s item 4 stated the actual next step for this item was "the what-if
+fund-switch simulation UI itself... needs this sold-lot/cost-basis data joined with ITRGenie's
+actual tax-rate/exemption logic in a dedicated simulation UI." This session built exactly that —
+a "Simulate a sale" section right after Realized gains, reachable via a new "What-if" button on
+each Holdings-table row too.
+
+**Before writing any code, ITRGenie's actual capital-gains tax computation was re-read directly**
+(`itrgenie/index.html` ~line 4802-4818) to confirm the exact rates rather than assume them: equity
+STCG (Sec 111A) is `Math.max(0,stcg)*0.20`; equity/equity-MF LTCG (Sec 112A) is
+`Math.max(0, ltcg112a - 125000) * 0.125` — a per-financial-year pooled ₹1,25,000 exemption, not a
+per-transaction one; debt-MF/non-112A LTCG (Sec 112) is `Math.max(0,ltcg112)*0.125` with **no**
+exemption at all.
+
+**Scope: domestic (INR) Stock/ETF/Equity/Other open holdings only — two deliberate exclusions,
+each honestly explained in-UI rather than producing a wrong number.**
+1. **Mutual Fund holdings.** Same reasoning already established for the capital-gains feed export:
+   `itrgenie/index.html`'s `CapitalGainsMFModule` (~line 2510) requires the user to type in the
+   real gain figure from an actual CAS/CAMS redemption statement rather than deriving it (post-2023
+   debt-fund rule changes, indexation grandfathering, etc. are too fragile to formula-derive) — a
+   hypothetical future sale has no such statement to read from. Selecting an MF holding in the
+   simulator shows a `.notice` explanation pointing at ITRGenie's real MF module instead of a
+   computed tax figure.
+2. **Foreign-currency (non-INR / Vested-US) holdings — found while grounding this in ITRGenie's
+   real logic, not something the task spec called out explicitly.** Reading further than the given
+   line range, `itrgenie/index.html`'s `ForeignAssetsModule` and its use in the main computation
+   (~4809-4818) show foreign LTCG is added to the *separate* `ltcg112` bucket (still 12.5%, but with
+   **no** pooled exemption — it never joins `ltcg112a`), and foreign STCG is taxed at the person's
+   income **slab rate** (folded into `slabIncomeBase`), not the flat 20% Sec 111A `stcg` bucket.
+   Sec 111A/112A's concessional rates require STT paid on a recognized Indian stock exchange, which
+   a foreign-listed holding (Vested-US) doesn't have by definition. Applying this simulator's
+   domestic-equity math to a USD holding would produce a confidently wrong number, so it's excluded
+   the same honest way Mutual Funds are — a `.notice.warn` box names the real distinction and points
+   at ITRGenie's Foreign Assets (Schedule FA) module, rather than guessing at the real foreign-asset
+   holding-period/rate rules (e.g. a possible 24-month LT threshold) which weren't independently
+   verified here.
+
+**Inputs**, on any open (qty>0) holding: Qty to hypothetically sell (defaults to the holding's full
+qty, capped at it), Sell price (defaults to the holding's `currentPrice` if set — which is the same
+field the live-price-feed and manual refresh already write into, so "live price if this holding has
+one" and "last-known/manual price" are literally the same field, not two things to track separately
+— else the holding's own Buy Price, else blank, always editable), Sell date (defaults to today,
+editable — lets the user check "what if I wait until it's long-term"). A plain optional
+"Considering switching to: ___" text field exists for the user's own reference only — deliberately
+never computed against and never persisted (module-level var only, not written to
+`portfolio_data_v1`), since this tool doesn't evaluate switch destinations, only the tax cost of
+exiting the current holding.
+
+**Gain + ST/LT classification** reuses `holdingPeriodDays()`/`LTCG_HOLDING_DAYS` verbatim — the
+exact same function the sold-lot feature already ported from ITRGenie, not re-derived a third time.
+
+**The exemption-pooling math (`computeWhatIfTax`)** — a pure function, no data mutation:
+- Short-term: `tax = gain * 0.20` (gain already confirmed >0 by this point; a loss is handled
+  separately, see below).
+- Long-term: needs "how much Sec 112A LTCG has this person already realized this financial year" to
+  compute the MARGINAL tax on the new hypothetical gain, since the exemption is a shared FY pool.
+  `computeAlreadyRealizedLTCG112AThisFY(fyRange)` sums `data.soldLots` that are Sec-112A-eligible
+  (not Mutual Fund, INR account — same two exclusions as above, applied to historical sold lots too,
+  since a foreign or MF sold lot was never part of this pool in real tax law either) and classify
+  LongTerm, whose sell date falls in the given FY — a straight sum, not clamped per lot, mirroring
+  ITRGenie's own `ltcg112a = eqLT + mf112A` aggregation (clamped to >=0 only once, right before the
+  exemption is applied). Then: `taxableBefore = max(0, pool - 125000)`,
+  `taxableAfter = max(0, pool + gain - 125000)`, `tax = (taxableAfter - taxableBefore) * 0.125`.
+- **A new `getFinancialYearRange()`/`isDateInFY()` helper pair** computes the Indian FY (April 1 –
+  March 31) containing a given date and buckets other dates into it — built fresh, verified at the
+  boundary (see Testing below), not reusing any inclusive/exclusive day-counting logic from
+  elsewhere in this file that solves a different problem.
+- **The "already realized this FY" figure is shown explicitly and is fully editable/overridable** —
+  a labeled input pre-filled with the auto-computed figure, with helptext stating plainly it's only
+  as complete as sold lots tracked in *this* Portfolio module ("sales made through a broker
+  directly, or before you started using this tracker, aren't included here") and should be checked
+  against the user's own records. Editing it stores an override (`whatIfPoolOverride`, module-level,
+  not persisted); a "↺ use tracked value" button appears once overridden, to get back to the
+  auto-computed figure without manually re-typing it.
+- **A loss (negative or zero gain)** shows ₹0 tax and a note that it's a capital loss that could
+  offset gains elsewhere, pointing at ITRGenie's "Loss Set-off & Carry Forward" module for the
+  complete Sec 70 set-off ordering — deliberately not modeled here.
+
+**Explicit disclosures**, stated in the section's own intro text: this shows only the capital-
+gains-specific flat-rate tax (Sec 111A/112A) — no surcharge, cess, or interaction with the rest of
+the person's income/tax regime; ITRGenie remains the source of truth for the actual return. Also
+stated plainly: this tool doesn't model or evaluate what the money would be switched into — purely
+the tax cost of exiting the current holding.
+
+**Reachability**: a new "What-if" button sits next to the existing "Sell" button on every Holdings-
+table row (`openWhatIfSale(holdingId)`, mirrors `openSaleForm`'s scroll-into-view pattern), plus the
+section's own holding dropdown for picking any open holding directly.
+
+**No data mutation, by construction, not just by testing discipline.** Every input
+(qty/price/date/pool-override/note) lives only in module-level `whatIf*` state variables declared
+near the top of the file — the render function reads `data.holdings`/`data.soldLots` to compute
+defaults and the exemption pool, but never writes to either. Verified by test (see below): `data`
+is byte-identical (via `JSON.stringify` comparison) before and after fully filling out and
+"running" a simulation.
+
+**Testing.** Real headless Chromium (Playwright), system clock frozen to 2026-08-10 so financial-
+year math is deterministic and hand-checkable, 29 checks in the tax-logic suite + 14 in a full
+regression/mobile suite, all pass:
+- Clean equity STCG (held ~70 days): `computeWhatIfTax` and the rendered UI both match
+  `gain * 0.20` exactly for a hand-picked ₹5,000 gain → ₹1,000 tax.
+- Clean equity LTCG, zero prior sold lots this FY: a ₹60,000 gain (under the ₹1,25,000 exemption)
+  correctly showed ₹0 tax; a second case with a ₹2,00,000 gain correctly showed ₹9,375 tax
+  (`(200000-125000)*0.125`).
+- **Pooling scenario A** — seeded one prior Sec-112A sold lot with a ₹1,00,000 gain this FY: the
+  pool input auto-computed to exactly ₹1,00,000 (not a fresh ₹1,25,000); a new hypothetical
+  ₹20,000 gain (headroom is ₹25,000) correctly showed ₹0 tax; a new hypothetical ₹40,000 gain
+  (straddling the ₹25,000 headroom) correctly showed ₹1,875 tax
+  (`taxableAfter=15000, taxableBefore=0, 15000*0.125=1875`).
+- **Pooling scenario B** — seeded a prior sold lot with a ₹2,00,000 gain (already over the
+  exemption): pool auto-computed to ₹2,00,000; a new ₹50,000 hypothetical gain was fully taxed —
+  ₹6,250 (`50000*0.125`), confirming no exemption was double-applied.
+- **FY-boundary correctness**: `getFinancialYearRange('2026-03-31')` → `{2025-04-01..2026-03-31}`;
+  `getFinancialYearRange('2026-04-01')` → `{2026-04-01..2027-03-31}` — confirmed no off-by-one at
+  the actual April 1 boundary. A sold lot dated 2026-03-31 (relative to "today" 2026-08-10, current
+  FY = 2026-04-01..2027-03-31) was confirmed excluded from the pool (₹0); the same lot moved to
+  2026-04-01 was confirmed included. A sold lot from 13 months before "today" (a different FY
+  entirely) was confirmed excluded.
+- Mutual Fund holding: confirmed the exclusion `.notice` renders (naming CAS/CAMS), confirmed no
+  "Estimated capital-gains tax" figure is shown, confirmed the qty/price/date inputs aren't even
+  rendered for this case (blocked, not silently computed).
+- Foreign (Vested-US/USD) holding: confirmed the exclusion `.notice.warn` renders (naming Sec 112 /
+  slab-rate STCG / Schedule FA), confirmed no tax figure shown.
+- **Data-mutation guarantee**: filled in qty/sell price/sell date on a real holding, confirmed
+  `data.holdings`/`data.soldLots` were byte-identical before and after (via JSON comparison), and
+  the holding's `qty` was still its original value, not reduced.
+- Over-sell validation (qty > currently held) shows a real error message, not a tax figure.
+- Loss case (sell price below buy price): confirmed ₹0 tax and the capital-loss/Loss-Set-off-module
+  pointer text.
+- Full regression: guided "Add a holding" form, "Record a sale" (still creates a real sold lot and
+  reduces the source holding's qty), Realized gains section, capital-gains feed export card, Net
+  Worth feed card, Export/Import JSON round-trip, and the theme toggle all still work unchanged.
+  Opening the What-if panel via a holdings-row button was confirmed to not mutate `data.holdings`.
+- Mobile viewport (375×812): zero horizontal overflow (`scrollWidth` stayed at 375px) with the
+  What-if section rendered; its helptext read back ≥13px and labels ≥11px via computed-style
+  (matching this module's existing mobile type-size floor). Screenshots taken in both themes,
+  desktop and mobile, for visual review (not committed — matches this module's existing pattern of
+  passing screenshots back for review rather than checking them into the repo).
+
+**What's still explicitly out of scope, stated plainly in-UI, not silently done:** surcharge, cess,
+and slab-rate/other-income interaction (ITRGenie's job); Mutual Fund capital-gains tax (needs a real
+CAS/CAMS redemption statement, which a hypothetical sale can't have); foreign-holding capital-gains
+tax (needs ITRGenie's Foreign Assets/Schedule FA module — the real foreign-asset holding-period and
+rate rules weren't independently verified here beyond confirming the bucket split in ITRGenie's own
+code); loss set-off ordering across multiple gains/losses (ITRGenie's Loss Set-off & Carry Forward
+module); and what the sale proceeds would be switched into (the optional note field is for the
+user's own reference only, nothing about a destination is computed). **This closes
+`MASTER_ROADMAP.md`'s item 4** — see that file's updated entry.
+
+### Fix (2026-08-10, same day) — reviewer-found eligibility gap
+The `financial-os-reviewer` audit of the what-if simulator found one real (if
+low-reachability) safety gap: `isSec112AEligibleHolding`/`isSec112AEligibleSoldLot`
+and the what-if UI's own `isForeign` check both trusted `accountOf(brokerId)`,
+which silently falls back to `{currency:'INR'}` for a broker id matching no
+real account — reachable only via a hand-edited or corrupted Export/Import
+JSON with a typo'd broker id, since every real entry path (guided form, paste,
+Excel/CAS import) always resolves to a genuine account id. Under that one
+narrow path, the simulator would have confidently computed a domestic Sec
+111A/112A tax figure for a holding whose real currency was actually unknown —
+the exact "wrong-but-confident number" failure mode this module exists to
+avoid everywhere else. Fixed by checking `data.accounts.some(a=>a.id===...)`
+before trusting `accountOf(...).currency`, in both the exemption-pool helpers
+and the what-if UI's own eligibility gate (which didn't call those helpers at
+all — the real gate was inline `acc.currency !== 'INR'`, so both spots needed
+the fix, not just the higher-level one). An unrecognized account now shows an
+honest "account isn't recognized, currency can't be confirmed" message
+instead of either a wrong number or a self-contradictory "foreign-currency
+account (INR)" label. Verified directly: seeded a holding with a broker id
+matching no account — confirmed no tax figure is computed and the new message
+renders; re-verified the normal INR case still computes the same ₹9,375
+example from the original build, and the legitimate foreign-currency (Vested
+US) exclusion still renders unaffected.
+
 ## Known gaps — flagged deliberately, not resolved by guessing
 Per explicit instruction not to silently resolve these, and not to fabricate
 functionality to paper over them:
@@ -632,18 +984,56 @@ functionality to paper over them:
    ticker↔company-name mapping) rather than a quick patch that could
    silently merge two genuinely different holdings that happen to share a
    loosely similar name.
+6. **The "Add a holding" form has the same validation-error-wipes-input bug
+   the "Record a sale" form had (found while fixing the latter, 2026-08-10
+   second-pass review).** Confirmed with a real headless-Chromium check, not
+   assumed: filling Symbol + Qty but leaving Buy Price blank and submitting
+   shows the correct "Fill in Symbol, Broker, Qty..., Buy Price and Buy
+   Date" error, but Symbol and Qty are both wiped back to blank — same root
+   cause as the sale form's bug (the validation-failure path calls the full
+   `render()`, which rebuilds the form fresh with no `value="..."`
+   preserving what was typed). Not fixed in this pass — it wasn't one of the
+   reviewer's two reported issues or this session's requested scope (the
+   sold-lot feature specifically); flagged here rather than silently left
+   for someone to rediscover. The fix pattern used for the sale form
+   (`showSaleError()` — update the feedback text node in place instead of
+   calling `render()` on a validation failure) would very likely apply
+   cleanly here too, in a future session.
+7. **The what-if sale simulator's foreign-holding exclusion (2026-08-10) states the real bucket
+   split (Sec 112 for LTCG, slab-rate for STCG) but does NOT independently verify the exact
+   long-term holding-period threshold for foreign shares.** `itrgenie/index.html`'s
+   `ForeignAssetsModule` takes the user's STCG/LTCG figures as direct manual entry — it never
+   computes a holding-period boundary for foreign assets itself, so there was no code to read this
+   threshold from (unlike the 365-day equity boundary and the 730-day/24-month House Property
+   boundary, both of which ARE computed in ITRGenie and were verified against directly). This
+   module's simulator sidesteps the question entirely by refusing to compute a foreign-holding tax
+   figure at all (see the dated 2026-08-10 entry above) rather than guessing at that threshold —
+   flagged here so a future session doesn't assume it was checked.
+8. ~~**The Holdings tab is noticeably heavier than the other three**~~ — **CLOSED 2026-08-11.**
+   Accounts, FX, and Live-price settings moved to the renamed "Accounts & Settings" tab (formerly
+   "Export & Settings") — see that dated entry below. Holdings is now scoped to table + entry/import
+   only; Accounts & Settings holds account configuration + the Net Worth feed export.
 
 ## Deliberately NOT done yet
-- No capital-gains export (`{symbol, buydate, selldate, buyprice, sellprice,
-  qty, assetType}[]` contract, Portfolio → ITRGenie) — that's for *sold*
-  positions, and this module only tracks current holdings. Roadmap item 4
-  (what-if fund-switch tax modeling) is the natural place to build a sell
-  workflow that would produce this; not attempted here to avoid guessing at
-  a shape that isn't needed by anything yet.
-- No long-term/short-term holding-period classification or any tax
-  characterization of gains — that's ITRGenie's domain (capital gains
-  logic), deliberately kept separate per the roadmap's synthesis-layer
-  framing ("Portfolio + ITRGenie's capital gains logic" is future work).
+- **~~The what-if fund-switch tax-modeling UI itself~~ — built 2026-08-10 (see the dated entry
+  above), closing `MASTER_ROADMAP.md`'s item 4.** Scoped to "tax cost of exiting the current
+  holding," not "simulate switching Fund A to Fund B" literally — the destination-fund side was
+  deliberately left uncomputed (an optional free-text note only), per instruction, since evaluating
+  a destination investment is a different, unscoped problem from computing exit tax cost.
+- Sold-lot cost basis is this module's single per-holding Avg Price, not a
+  true per-lot FIFO cost basis — if a holding was built up from multiple buys
+  at different prices (this module only ever stores one buy price per
+  holding), a partial sale's cost basis is that one average price, not the
+  actual lot(s) sold. Real historical data (gap #3 below) would clarify
+  whether per-lot buy tracking is ever actually needed here.
+- Mutual Fund sold lots aren't auto-mapped into ITRGenie's Capital Gains —
+  Mutual Funds module's paste format (`Scheme, 112A-or-112, RedemptionDate,
+  Cost, Gain, TDS`) — that format needs a Sec 112A vs 112 classification this
+  module has no basis to know (no STT/fund-category tracking). The capital
+  gains feed's paste-ready-lines button matches the Capital Gains — Equity
+  module's format instead, which works for any assetType's raw transaction
+  facts; the UI states plainly that MF sales need manual 112A/112 tagging
+  once pasted into ITRGenie's MF module.
 - No corporate-actions handling (splits, bonuses, dividends, mergers) — buy
   price/qty are taken as entered; adjusting historical cost basis for these
   events is out of scope until real historical data (gap #3) shows it's
@@ -724,3 +1114,673 @@ functionality to paper over them:
   `ensure...Loaded()` directly, and that call is allowed to retry since it's genuinely
   user-triggered. Don't remove the `pdfjsLoadState==='idle'`/`xlsxLoadState==='idle'` guard from
   either `ontoggle` handler.
+- **Sold-lot tracking (added 2026-08-10) lives in `data.soldLots`, same storage key
+  (`portfolio_data_v1`), not a separate one** — it's this module's own data, per this repo's "own
+  data storage key" convention meaning *one key per module*, not one key per feature. A full sale
+  removes the source holding from `data.holdings`; a partial sale reduces its `qty` in place and
+  pushes one `soldLots` entry for the sold portion — any future change to the sale-recording path
+  must preserve both halves of that transaction (never leave a sold lot without correspondingly
+  updating/removing the source holding, or vice versa).
+- **`holdingPeriodDays()`/`computeSoldLotGain()`'s ST/LT boundary is copied verbatim from
+  `itrgenie/index.html`'s `holdingPeriodDays()`/`computeRowGain()`, not referenced cross-module or
+  re-derived.** The rule is `days > 365 ? LongTerm : ShortTerm` computed via a raw (`no +1`)
+  calendar-day difference — exactly 365 days held is Short-Term per the real Sec 2(42A) correction
+  already baked into ITRGenie. Do not "simplify" this to `>= 365` or reuse the inclusive
+  `daysBetween()`-style day counting used elsewhere for travel/presence-day counts — those are a
+  different, deliberately inclusive calculation for a different purpose. If ITRGenie's own
+  `holdingPeriodDays()`/`computeRowGain()` boundary logic ever changes, this module's copy needs the
+  matching update, since there's no shared reference between the two files by design.
+- A sold lot's `buyPrice`/`buyDate` can genuinely be unset (copied from a CAS-imported holding that
+  was sold before its Buy Price was ever filled in) — `computeSoldLotGain()` returns `{gain: null,
+  term: null}` for these, matching ITRGenie's `computeRowGain()`'s exact behavior of withholding
+  BOTH fields (not just gain) when cost basis is unknown. Any future change to
+  `computeSoldLotGain()`/`computeRealizedGains()` must preserve this `null`-vs-fabricated-zero
+  handling, same as the existing `hasBuyPrice` convention for open holdings above.
+- **The "Copy paste-ready lines (ITRGenie Equity format)" button must always run through
+  `isMutualFundAssetType()` before copying (fixed 2026-08-10, second-pass reviewer fix)** — never
+  copy a Mutual Fund sold lot into that button's output. ITRGenie's Equity module taxes rows under
+  Sec 111A/112A equity rules; a mutual fund needs its own Sec 112A-vs-112 classification this module
+  has no basis to know, so an unfiltered copy would make ITRGenie confidently compute a wrong tax
+  number for that row. The JSON export (`buildCapitalGainsFeed()`) is deliberately left unfiltered
+  on purpose (it carries `assetType` per row for a downstream consumer to filter itself) — don't
+  "fix" that by filtering the JSON too, and don't remove the filter from the copy-lines button
+  thinking it's now redundant with the JSON's `assetType` field.
+- **The "Record a sale" form's validation-failure path must update `#rs_feedback` in place
+  (`showSaleError()`), never call the full `render()` (fixed 2026-08-10, second-pass reviewer
+  fix).** `render()` rebuilds the form from scratch with fresh `value="${holding.qty}"` / blank
+  defaults, silently discarding whatever the user had typed into the other fields — a real risk of
+  someone unknowingly submitting the wrong qty/price after fixing just the one field they saw an
+  error about. The success path is unaffected and still calls the full `render()`, since a genuine
+  state change (holding qty/removal, new sold lot) correctly warrants resetting the form. Any new
+  validation branch added to this form's submit handler must call `showSaleError()`, not set
+  `saleFormFeedbackMsg` directly and call `render()`.
+- **The "Simulate a sale" what-if tax calculator (added 2026-08-10) must stay purely computational —
+  never write to `data.holdings`/`data.soldLots`, never call `saveData()`.** All of its state
+  (selected holding, qty/price/date, pool override, note) lives only in module-level `whatIf*`
+  variables, read fresh on every `render()`. Any future change to this section must preserve that —
+  it's the one feature in this module explicitly designed to have zero side effects on stored data.
+- **`isSec112AEligibleHolding()`/`isSec112AEligibleSoldLot()` (both MF-excluded AND non-INR-account-
+  excluded) gate both halves of the what-if simulator — the hypothetical sale itself and the
+  "already realized this FY" exemption pool it's computed against.** A future change that adds a
+  new non-INR account or a new MF-like assetType must keep both eligibility checks in sync (they're
+  intentionally two small separate functions, not one shared with the sold-lot/capital-gains-feed
+  code elsewhere in this file, since a holding and a sold lot are different shapes) — don't let one
+  learn about a new exclusion the other doesn't.
+- **`getFinancialYearRange()`/`isDateInFY()` are this module's own Indian-FY (April 1 – March 31)
+  helpers, separate from `holdingPeriodDays()`.** Don't conflate them — `holdingPeriodDays()`
+  computes a raw day-count for ST/LT classification (Sec 2(42A)), while `getFinancialYearRange()`
+  answers a completely different question ("which FY does this date fall in," for the Sec 112A
+  exemption-pool computation). Both are real, independently boundary-tested — see the 2026-08-10
+  entry above for the exact FY-boundary test cases (March 31 vs April 1).
+- **The page is organized into four tabs (added 2026-08-11): Dashboard, Holdings, Gains & What-If,
+  Accounts & Settings (id `accounts`, renamed 2026-08-11 from "Export & Settings"/id `export` in the
+  same dated rebalance pass that moved Accounts/FX/Live-price settings there — see the dated entries
+  below for the exact section-to-tab mapping, both original and rebalanced).**
+  `switchTab()` must never call the full `render()` — it only toggles `.tab-pane` visibility via
+  `applyTabVisibility()`, deliberately, so that merely clicking between tabs can never wipe an
+  in-progress form (all four panes are always fully built on every `render()`, just hidden/shown).
+  A new section added to this module in the future should be appended into whichever existing
+  `tab-pane` container fits it thematically (or a new one, added to the `TABS` array), not appended
+  directly to `content` the way sections were before this session. Any function that
+  `scrollIntoView`s a panel that isn't on the currently-active tab (the pattern
+  `openSaleForm`/`openWhatIfSale`/`openLiveSettings` use) must set `activeTab` to that panel's tab
+  before calling `render()`, or the scroll/focus will silently no-op against a `display:none`
+  element — `openLiveSettings()` picked this up on 2026-08-11 when Live Prices settings moved to the
+  `accounts` tab (it previously didn't need to, since it lived on the same tab as every caller).
+- **`renderGainersLosersCard`/`renderConcentrationCard` (Dashboard, added 2026-08-11) must keep the
+  same honesty gates as the rest of this file.** Gainers/losers only includes holdings with
+  `hasBuyPrice` true (via `computeHoldingMetrics`) — never fabricates a gain for a CAS-imported
+  holding with no Buy Price, same pattern as `computePortfolio`/the stat tiles. Concentration's
+  top-2-holdings check only evaluates once there are `>=3` priced holdings (with 1-2 holdings
+  total, "most of the portfolio is in the top 2" is true by construction, not a real signal) — don't
+  drop that guard when touching this code later.
+- **Sold lots (Gains & What-If tab) default to showing only the most recent
+  `SOLD_LOTS_COLLAPSE_THRESHOLD` (10) via `soldLotsShowAll` (added 2026-08-11) once there are more
+  than that many.** This only limits which rows `renderRealizedGainsSection` renders in the table —
+  `computeRealizedGains()`'s STCG/LTCG/Total stat tiles and `buildCapitalGainsFeed()`'s export always
+  operate over the full `data.soldLots`, uncollapsed. Don't let a future change to the sold-lots
+  table slice the underlying array itself; only the rendered rows should ever be limited.
+
+## Updated 2026-08-11 — Tab sub-navigation (pure reorganization, no feature/logic changes)
+The page had grown to 17 stacked render functions on one long scroll over several sessions. Per
+explicit direction (referencing Value Research's "My Investments" portfolio manager, which uses
+Dashboard/Overview/Performance/Analysis/Tax Report/Transactions/Alerts tabs instead of one long
+page), this session added a tab bar and regrouped the existing sections into it. **This was
+deliberately scoped as reorganization only — zero new features, zero changes to any render
+function's internal markup/math/behavior.** `git diff` on this change touches only: new CSS for
+`.tab-bar`/`.tab-btn`, a new `renderTabBar()`/`switchTab()`/`applyTabVisibility()` trio, two
+one-line additions to `openSaleForm()`/`openWhatIfSale()` (see below), and the master `render()`
+function's wiring of which container each existing `renderXxx(container)` call appends into. No
+render function's own body was touched.
+
+**Final tab structure — every one of the 17 original sections accounted for:**
+- **Dashboard** (`activeTab='dashboard'`) — `renderPerformanceSummary`, then an "Allocation &
+  performance" sub-heading, `renderAllocationCard`, `renderBrokerBreakdown`. The "what's my
+  situation right now" overview, exactly as scoped.
+- **Holdings** (`activeTab='holdings'`) — `renderHoldingsTable`, `renderAddHoldingForm`,
+  `renderHoldingsEntryCard` (which internally calls `renderXlsxImportPreview` when a file is being
+  previewed — unchanged), `renderCasImportCard` (which internally calls `renderCasBody` —
+  unchanged), `renderLiveSettingsCard`, then an "Accounts & FX" sub-heading, `renderAccountsCard`,
+  `renderFxCard`. Everything about viewing and entering/importing holdings data, matching the
+  original task grouping exactly.
+- **Realized Gains & What-If** (`activeTab='gains'`) — `renderRecordSaleForm`,
+  `renderRealizedGainsSection`, `renderWhatIfSaleSection`. The sold-lot tracking and tax-simulation
+  cluster, unchanged order.
+- **Export & Settings** (`activeTab='export'`) — `renderNetWorthFeedCard`.
+- **`renderKnownGapsCard`** was deliberately NOT put in the Export & Settings tab — per the task's
+  own suggestion, it's rendered once, outside all four tab-pane containers, so it's visible
+  regardless of which tab is active (a page-wide disclosure a user might otherwise never click into
+  if it were gated behind one specific tab). Verified there is exactly one `<details>` "Known gaps"
+  element in the DOM at all times, not duplicated per tab.
+
+**Tab labels**: Dashboard / Holdings / Realized Gains & What-If / Export & Settings — the task's
+starting-point grouping read naturally once the actual sections were laid out, so no regrouping
+was needed beyond what was proposed.
+
+**Mechanics — chosen specifically to avoid a re-render-wipes-drafts bug.** `render()` still does
+`content.innerHTML=''` and rebuilds all four tab panes plus the tab bar on every real state change
+(adding a holding, recording a sale, etc.) — that data-mutation-driven full-rebuild behavior is
+unchanged from before this session. What's new: each of the four panes is wrapped in a
+`<div class="tab-pane" data-tab="...">` and **all four are always fully built on every render()**,
+just hidden via `style.display='none'` for the non-active ones (`applyTabVisibility()`, called at
+the end of `render()` and by `switchTab()`). Clicking a tab pill calls `switchTab()`, which **does
+NOT call `render()`** — it only re-runs `applyTabVisibility()` against the already-built DOM. This
+means merely browsing between tabs can never wipe an in-progress "Add a holding" / "Record a sale"
+/ what-if form the way a fresh `render()` would (the same class of bug found and fixed earlier the
+same day in `goals/index.html`) — confirmed by test (see below), not just designed defensively.
+A genuine state change still resets *other* sections' unsubmitted input exactly as it always did
+(pre-existing behavior, tracked as Known gap #6 below — out of scope for a pure reorganization to
+fix).
+
+**Cross-tab jump fix required for two existing functions.** The Holdings table's per-row "Sell" and
+"What-if" buttons (`openSaleForm`/`openWhatIfSale`) `scrollIntoView` their target panel after
+setting state and calling `render()` — but those panels (`#sale-form-panel`, `#whatif-panel`) now
+live in the Realized Gains & What-If tab, a different tab than the Holdings table that triggers
+them. Both functions now also set `activeTab = 'gains'` before their existing `render()` call, so
+the target panel is actually visible (not `display:none`) by the time `scrollIntoView`/`.focus()`
+run. This is the one behavioral addition beyond "which container it renders into" — without it,
+clicking Sell/What-if from the Holdings tab would silently no-op (`scrollIntoView` on a hidden
+`display:none` element is a no-op, no error thrown). Verified by test: clicking either button
+switches the active tab pill to "Realized Gains & What-If" and the target panel is visible.
+
+**Mobile (375×812)**: the tab bar is a horizontally-scrollable row (`.tab-bar{overflow-x:auto}`,
+`-webkit-overflow-scrolling:touch`), not wrapped/cramped pills — confirmed all 4 tab buttons remain
+in the DOM and reachable, tab-button font-size reads back ≥13px via computed style (14px under the
+`max-width:760px` mobile block), and `document.documentElement.scrollWidth` never exceeds the
+375px viewport on any of the 4 tabs, in both themes. Screenshots taken (not committed) for visual
+review — the active tab shows the gold color + 2px gold bottom-border pattern already used
+elsewhere in this app's design language (sortable table headers, etc.), no new visual pattern
+introduced.
+
+**Testing.** Real headless Chromium (the environment's pre-installed `/opt/pw-browsers` build,
+since `cdn.playwright.dev` is blocked by this session's outbound network policy — `npx playwright
+install` fails there; used the already-present global install instead), both themes, desktop and
+375×812 mobile:
+- **Structure** (17 checks): all 4 tabs present with the expected labels; Dashboard is the default
+  active tab on load; each tab's pane becomes visible (and all others hidden) on click; each tab
+  contains the expected section headings; the Known Gaps card is visible regardless of active tab
+  and appears exactly once in the DOM; zero console/page errors in either theme.
+- **Real interactions, not just DOM presence** (23 checks): added two holdings via the guided "Add
+  a holding" form on the Holdings tab and confirmed both appear; confirmed the Dashboard tab's stat
+  tiles and asset-allocation legend reflect the new holdings; clicked a Holdings-row "Sell" button
+  and confirmed the cross-tab jump to Realized Gains & What-If with the sale form visible; recorded
+  a real partial sale (4 of 10 units) and confirmed the sold lot appears in Realized Gains and the
+  source holding's remaining qty is correct; confirmed the "Record a sale" form's existing
+  validation-error-preserves-input behavior (Qty/Sell price un-wiped on a blank-date error) still
+  works post-move; clicked a Holdings-row "What-if" button, confirmed the cross-tab jump, and
+  **reproduced this session's own documented ₹9,375 tax figure** (a ₹2,00,000 LTCG gain against a
+  fresh/zero exemption pool: `(200000-125000)*0.125 = 9375`) using a freshly seeded long-held
+  holding; clicked the capital-gains "Copy paste-ready lines" button and confirmed no crash; clicked
+  the Net Worth feed's "Download JSON" button on the Export & Settings tab and confirmed a real file
+  download fires; confirmed the Live Prices settings card renders on the Holdings tab; **confirmed
+  the Add-a-holding form's typed-but-unsubmitted Symbol/Qty values survive switching away to
+  Dashboard and back** (the specific regression this session's tab mechanics were designed to
+  avoid); confirmed the bulk-paste textarea's typed-but-unsubmitted draft also survives a tab
+  switch (see note below); multiple tabs switched in varied order (7 switches) with zero console/
+  page errors throughout the whole run.
+- **Mobile (375×812), both themes** (10 checks): zero page-level horizontal overflow on every tab;
+  tab bar has real internal `overflow-x` scroll; all 4 tab buttons present in the DOM; tab-button
+  font-size ≥13px; active tab has a visible bottom-border; zero console/page errors.
+- **Data persistence unaffected**: added a holding, reloaded the page fresh (not just re-rendered),
+  confirmed the holding survives (localStorage, unchanged by this session) and the tab correctly
+  resets to Dashboard (in-memory `activeTab`, not persisted — a fresh page load intentionally always
+  starts on Dashboard, matching how every other in-memory UI-state variable in this file already
+  behaves, e.g. `liveSettingsOpen`/`bulkAddOpen` are also not persisted across reloads).
+- **One test-methodology note, not a regression**: while testing the bulk-paste textarea's draft
+  survival, an early version of the test (typing immediately after first-opening the "Bulk add"
+  panel, then switching tabs within ~100ms) intermittently saw the draft cleared. Root-caused to a
+  **pre-existing, unrelated** background behavior: opening that panel for the first time triggers
+  `ensureXlsxLoaded()` (lazy-loading `xlsx.core.min.js`, built 2026-08-10), which calls `render()`
+  once when the load starts and again when it resolves/fails — both already existed before this
+  session and are unrelated to tab-switching (confirmed directly: the same draft-loss reproduces
+  with zero tab switches at all if you type before that second `render()` fires). This is a
+  pre-existing race between "first panel open" and "typing immediately," not something this
+  session's tab mechanism introduced or made worse — the test was adjusted to let that unrelated
+  async settle first, after which the tab-switch draft-survival check passes cleanly and
+  repeatably. Not added as a new Known gap since it's a narrow, pre-existing timing window in
+  already-shipped 2026-08-10 code, out of this reorganization's scope to touch.
+
+**What wasn't independently re-verified beyond the checks above**: the CAS PDF import flow itself
+(password unlock, ISIN-anchored parsing) and the live-price fetch providers (Yahoo/Stooq/Twelve
+Data network calls) were not re-exercised end-to-end in this pass — both were already extensively
+tested in their own 2026-08-10 sessions (see the dated entries above) and neither's internal logic
+changed here, only the container each one's render function (`renderCasImportCard`/
+`renderLiveSettingsCard`) now appends into. Their presence/rendering on the correct tab (Holdings)
+was confirmed structurally and via the "Live prices" text/element check above, but a real
+password-protected PDF and a real network fetch were not re-run in this session — reasonable given
+this was a structural move only, but noted so it isn't assumed to have been re-verified end-to-end.
+
+### Fix (2026-08-11, same day) — reviewer-found mobile tab-bar discoverability gap
+`financial-os-reviewer` confirmed the restructure structurally sound (all 17 sections accounted
+for, no lost input across any form/tab combination tried, no stuck states) but found one real,
+non-blocking gap: at 375px the tab bar overflowed (`scrollWidth` 611px vs `clientWidth` 343px) with
+**"Export & Settings" 0% visible** and nothing hinting more tabs existed beyond a mid-word cut on
+"Realized Gains & What-If" — a first-time phone user had a real chance of never finding the Net
+Worth feed export, which only lives on that tab. Fixed two ways: (1) shortened the label to "Gains
+& What-If" (saves ~70px); (2) added a right-edge fade-gradient cue (`.tab-bar-wrap.has-overflow`,
+toggled by comparing `scrollWidth`/`clientWidth` in JS, re-checked on window resize) that only
+renders when the bar actually overflows — confirmed absent at 1280px where all 4 tabs already fit,
+present at 375px in both themes with the correct `--bg` color per theme. Verified via Playwright:
+overflow correctly detected (536px vs 343px after the label shortening), the fade renders with the
+right gradient stops, and scrolling the bar fully right brings "Export & Settings" completely
+within the 375px viewport. The tab-grouping-imbalance observation from the same review (Holdings
+pane much taller than Export & Settings) was left as a follow-up per the reviewer's own
+recommendation, not fixed here — noted in Known gaps for whoever next touches this file's tab
+grouping.
+
+## Updated 2026-08-11 — Value Research-inspired Dashboard additions: Top Gainers & Losers, Diversification flag, sold-lots collapse; Accounts/Settings tab rebalance
+Three additive features requested against reference screenshots of Value Research's "My
+Investments" portfolio manager, plus a judgment call on a fourth. No existing render function's
+math or storage shape changed — all new code, reusing `computeHoldingMetrics`/`toINR`/`formatMoney`
+exactly as already established in this file.
+
+**1. Top Gainers & Losers widget (`renderGainersLosersCard`, Dashboard tab).** A card right after
+the summary stat tiles, two columns (Gainers / Losers), ranked by unrealized **% return** — not
+absolute ₹ gain, which would let one large position crowd out both lists regardless of how well
+anything else actually performed (the task text said "by unrealized gain/loss," read here as "the
+gain/loss calculation basis," not the sort key — both the ₹ figure and the % are shown per row
+either way, so the number itself is never hidden). Same `hasBuyPrice` honesty gate
+`computeHoldingMetrics()` already enforces everywhere else in this file: a holding with no Buy Price
+(CAS-imported, cost basis unknown) is excluded, never given a fabricated gain — the card states this
+plainly and shows an excluded-count note when it applies. A holding priced exactly flat (₹0 gain) is
+excluded from **both** lists (it's neither a gainer nor a loser). Gainers only draws from holdings
+with `gainAbs>0`, Losers only from `gainAbs<0` — so a "loser" is always a genuine loss, never just
+"the least-good performer among gains" (which would be a misleading label). Degrades gracefully at
+every edge: 0 holdings → "No holdings yet"; holdings present but none priced → "None of your
+holdings have a Buy Price set yet"; fewer than 3 real gainers or losers → shows however many exist,
+never padded; a column with zero entries shows "No holdings currently showing a gain" /
+"...at a loss" instead of a blank space.
+
+**2. Diversification/concentration flag (`renderConcentrationCard`/`computeConcentration`, Dashboard
+tab, placed directly under Asset allocation).** Two independent, threshold-based checks, each with
+its reasoning kept in the code comment directly above `computeConcentration()` (not just here):
+- **Top-2-holdings share of current INR-convertible value ≥ 50%.** Half the portfolio's value
+  resting on two positions means either one's decline meaningfully swings the whole total — 50% was
+  picked as a deliberately blunt "literally half" line rather than a more precise-sounding number a
+  rule of thumb doesn't actually earn. Only evaluated once there are **at least 3** priced holdings —
+  with only 1 or 2 holdings total, "most of the portfolio is in the top 2" is true by construction
+  (that's just what the person owns), not a genuine concentration signal, so the check doesn't fire
+  and doesn't mislabel a small/starting portfolio as "concentrated."
+- **More than 20 direct Stock/Equity positions.** Grounded in the commonly cited practitioner/
+  academic finding (Evans & Archer 1968 and its many later replications) that the marginal
+  diversification benefit of adding another individual stock is mostly exhausted by roughly 15-20
+  names — past that, more positions mainly add tracking burden, which is the literal complaint this
+  feature is modeled on (Value Research's own reference copy: "too many stocks directly...hard to
+  manage"). 20 is deliberately generous so a 12-15 stock portfolio someone runs on purpose isn't
+  flagged.
+Only ever shown when actually true for the current data — 0, 1, or both flags can appear
+independently; when neither fires, a calm green "No concentration flags right now — your top
+holdings and stock count are both in a reasonable range" note is shown instead, never silence and
+never a fabricated concern. Every render of this card ends with an explicit, unconditional
+disclosure line — "Descriptive only, based on your current holdings — not investment advice, and not
+a recommendation to buy, sell, or rebalance anything" — matching this module's existing
+not-a-recommendation pattern from the what-if simulator.
+
+**3. The "sold investments hidden by default" toggle — reconsidered, not built as Value Research
+built it, per explicit instruction to use judgment.** Checked first, as asked: this module already
+structurally separates open and closed positions (a fully-sold holding is removed from
+`data.holdings` and becomes a `soldLots` entry in the separate Gains & What-If tab), so there is
+genuinely no scenario where a sold position lingers inside the open Holdings table needing to be
+hidden — VR's exact toggle doesn't map onto this app's data model. The one real remaining case: the
+**sold-lots table itself**, inside Realized Gains, has no pagination/collapse and would grow
+unbounded for someone who has recorded many sales over years. Built that instead:
+`soldLotsShowAll` (module-level, not persisted) + `SOLD_LOTS_COLLAPSE_THRESHOLD = 10` — once there
+are more than 10 sold lots, the table defaults to showing only the 10 most recently recorded, with a
+"Show all N" / "Show recent only" toggle button in the card header and a one-line note when
+collapsed. Below the threshold, no toggle renders at all (nothing to declutter). Only the rendered
+**rows** are limited — `computeRealizedGains()`'s STCG/LTCG/Total stat tiles and
+`buildCapitalGainsFeed()`'s JSON/paste-lines export always operate over the full, uncollapsed
+`data.soldLots`, so collapsing the table view never hides a real number from the totals or the
+ITRGenie feed.
+
+**Bonus (accepted): Holdings/Export & Settings tab rebalance, closing Known gap #8.** Per the
+reviewer's own 2026-08-11 recommendation (Holdings was 1246px/7 cards vs. Export & Settings'
+237px/1 card), this was a clean, low-risk container move — no render function's internal
+markup/logic touched. `renderAccountsCard`, `renderFxCard`, and `renderLiveSettingsCard` (plus their
+"Accounts & FX" sub-heading) moved out of the Holdings tab-pane into the renamed **Accounts &
+Settings** tab (label changed, `id` changed `export` → `accounts`), which now reads: Accounts & FX
+heading → Accounts card → FX card → Live Prices settings → **Cross-module** heading (new, for
+clarity) → Net Worth feed card. Holdings is now scoped purely to viewing + entering/importing
+holdings data (table, guided form, bulk/CSV, CAS import) — 4 cards, materially lighter.
+`openLiveSettings()` (the function every "add Twelve Data key ↗" link in this file calls) now also
+sets `activeTab = 'accounts'` before its `render()` call, the same cross-tab-jump pattern
+`openSaleForm`/`openWhatIfSale` already established — without this one-line addition, clicking any
+of those links from the Holdings tab (their real-world trigger point) would leave the Live Prices
+panel built but `display:none`, since it no longer lives on the tab the click originated from.
+
+**Testing.** Real headless Chromium (Playwright), a local static server (not `file://`, to match how
+the module actually loads over HTTP on the deployed site), 66 checks, all pass:
+- **Gainers/Losers**: a seeded 7-holding portfolio (6 priced with known gains/losses spanning
+  ±10%/±15%/±25%/±33%, one deliberately given no Buy Price) — confirmed the correct top-3 gainers
+  (including a genuine 25%/25% tie both surfacing, with the clear 3rd-place 15% holding ranked below
+  both) and top-3 losers, confirmed the no-Buy-Price holding is excluded from the list (never given a
+  fabricated number) and counted in the "N holding(s) excluded" note. Degrade-gracefully checks: an
+  empty portfolio, a single profitable holding (Losers column shows a sensible "no holdings at a
+  loss" message, not blank/broken), and an all-no-Buy-Price portfolio (correct explanatory message,
+  no crash).
+- **Concentration flag**: a genuinely concentrated 3-holding portfolio (two large + one small,
+  top-2 ≈ 96.6%) correctly triggered the top-2 flag with the right rounded percentage and the actual
+  symbol names; a genuinely diversified 5-equal-holding portfolio correctly showed **no** flags and
+  the clean "well diversified" note (no false alarm); a 25-equal-value-stock portfolio correctly
+  triggered *only* the stock-count flag (not top-2, since holdings are equal-weighted) with the real
+  count (25); a 2-holding portfolio correctly did **not** trigger the top-2 flag (confirming the
+  `>=3` guard against the "100% in top 2 by construction" false positive).
+- **Sold-lots toggle**: 14 seeded sold lots correctly showed only 10 by default with a "Show all 14"
+  button; clicking it revealed all 14 and relabeled to "Show recent only"; clicking that again
+  correctly re-collapsed to 10. A separate 3-sold-lot seed correctly showed no toggle button at all
+  (under the threshold) and all 3 rows directly.
+- **Tab rebalance**: confirmed the tab bar shows "Accounts & Settings" (not the old "Export &
+  Settings" label anywhere); confirmed the Holdings tab no longer contains the FX card or Live
+  Prices settings text; confirmed the Accounts & Settings tab contains Accounts, FX, Live Prices
+  settings, *and* the Net Worth feed card; confirmed calling `openLiveSettings()` from the Holdings
+  tab correctly jumps `activeTab` to `accounts` and the panel is genuinely visible (not
+  `display:none`) afterward.
+- **Full regression**: the guided "Add a holding" form still works post-rebalance (added a holding
+  with a real ₹50 gain, confirmed it appears in Holdings *and* surfaces correctly in the new
+  Gainers/Losers widget on Dashboard); the Holdings-row "Sell" button still correctly cross-tab-jumps
+  to Gains & What-If (unaffected by the Accounts-tab-id rename, since it targets a different tab).
+- **Mobile (375×812), both themes**: zero horizontal overflow on all four tabs; both new Dashboard
+  cards (Gainers/Losers, Diversification check) visible and correctly rendering the concentration
+  flag at mobile width, not just desktop.
+- **Zero console/page errors** across all 10 seeded scenarios run in this session.
+- Full-page screenshots taken (dark/light, desktop/375px, Dashboard and the rebalanced Accounts &
+  Settings tab) for visual review — not committed to the repo, matching this module's existing
+  pattern.
+
+**Design invariants added** — see the updated tab-structure bullet and two new bullets in "Design
+invariants" above (the honesty-gate requirement for the two new Dashboard cards, and the
+sold-lots-collapse-is-display-only requirement).
+
+### Fix (2026-08-11, same day) — reviewer-found disclosure gap in the Diversification check
+`financial-os-reviewer` independently re-verified all three features by hand (own fixtures, not the
+builder's numbers) — confirmed the sold-lots collapse never partializes the STCG/LTCG/Total stat
+tiles or the capital-gains export (the axis scrutinized hardest, given the safety stakes of a
+silently-partial total), confirmed the Gainers/Losers ranking and no-cost-basis exclusion correct
+including the specific "smallest gainer must never appear as a Loser" edge case, and confirmed every
+threshold boundary (50% top-2, 20 stocks, 10 sold lots) behaves exactly as documented. One real gap:
+`computeConcentration()` silently excluded holdings that couldn't convert to INR (unconverted USD,
+no FX rate set) from its top-2 denominator and its `priced.length>=3` gate, but — unlike every other
+computation in this file (`renderPerformanceSummary`, `renderRealizedGainsSection`) — gave no
+disclosure and said "your portfolio" rather than qualifying the claim. Reviewer's exact repro: two
+small INR holdings + one large unconverted USD holding showed a clean "No concentration flags right
+now," silently blind to the USD position dominating the real portfolio. Fixed by adding
+`unconvertedCount` to `computeConcentration()`'s return (same pattern as the existing
+`unconvertedCount` fields elsewhere in this file), disclosing it in the card exactly like the
+performance-summary and realized-gains cards already do, and rewording the top-2 flag from "of your
+portfolio" to "of your INR-convertible holdings." Also softened an inaccurate in-code comment (the
+Evans & Archer 1968 study's own original figure was 8-10 stocks, later revised UP to 15-20+, not
+down — so 20 sits at the low end of what's considered adequate, not a generous cushion above it; left
+the threshold itself unchanged since it's explicitly a rule of thumb, not a hard line). Verified both
+changes directly: the reviewer's exact repro now shows "1 USD holding(s) not included in this check
+— set the USD → INR rate further down to fold Vested-US in," and a separately-constructed
+top-2-flag-triggering scenario confirms the reworded "INR-convertible holdings" text renders
+correctly when the flag actually fires.
+
+## Updated 2026-08-11 — App-wide font-size/contrast/consistency pass (closes out the earlier mobile UX pass's stragglers)
+Direct, blunt user feedback: font sizing is hard to see "in places" and the color scheme needs
+improvement, across the whole app, not one module — flagged repeatedly this session and deferred
+as out-of-scope until now. This is the exhaustive, whole-app fix; this module got the most
+individual changes since it has the most UI surface.
+
+The 2026-08-09 UX pass (see "Layout fonts too small to read on mobile" above) established the
+13px floor pattern and fixed most of the module, but a full fresh grep sweep of the `<style>`
+block (not assuming the earlier pass was complete) found 30 declarations still under 13px — both
+in the desktop base rules (which that pass didn't touch, only the `@media (max-width:760px)`
+block) and a few mobile overrides that were bumped previously but not all the way to 13px:
+
+- Desktop base, previously untouched: `.brand .sub` 11px→13px, `.panel-header .eyebrow`
+  11px→13px, `.field label` 11px→13px, `.btn` 12px→13px, `.btn.small` 11px→13px,
+  `table.day-table th` 11px→13px, `table.day-table input[type=number/date]` 12.5px→13px,
+  `.cell-muted` 12.5px→13px, `.stat-tile .stat-label` 11px→13px, `.helptext` 12.5px→13px,
+  `.breakdown-bar .seg` 10px→13px, `.legend .item` 12px→13px, `.tag` 10px→13px, `.acct-chip`
+  12.5px→13px, `.acct-chip .cur` 10px→13px, `.btn.tiny` 10px→13px, `.notice` 12.5px→13px,
+  `.match-tag` 10px→13px, `details.collapsible summary .summary-hint` 12px→13px, plus two inline
+  styles (an accounts-settings section label, a holding's "manual only" note, a checkbox label).
+- Mobile media-query overrides that had been bumped in the 2026-08-09 pass but landed below the
+  floor anyway: `.panel-header .eyebrow` 11.5px→13px, `.brand .sub` 12px→13px, `.field label`
+  12.5px→13px, `.btn.tiny` 12px→13px, `.stat-tile .stat-label` 11.5px→13px, `.acct-chip .cur`
+  11px→13px, `.tag` 11px→13px, `table.day-table td[data-label]::before` 11.5px→13px.
+
+`.tag` (ST/LT gain classification, holding-status badges) and `.breakdown-bar .seg` (the
+percentage label inside asset-allocation bar segments) were deliberately raised to the full 13px
+floor rather than kept as a smaller "badge exception" — both carry real information (tax
+treatment, allocation %), not decoration, and the app-wide instruction was to err toward raising.
+Verified visually (Playwright screenshot with a real holding + populated allocation bar in both
+themes) that the larger text doesn't overflow the pill/segment shapes; narrow bar segments that
+can't fit the label still degrade gracefully via the pre-existing `overflow:hidden` — same
+fallback behavior as before, just at a different width threshold.
+
+**Cross-module consistency**: `--bg/--panel/--panel-2/--line/--text/--muted/--gold/--gold-dim/
+--green/--rust` hex values (both themes) diffed byte-for-byte against every other module —
+already identical, no drift found here. One hardcoded, non-variable color noted but *not*
+changed (out of scope — not a `--variable` consistency issue): `.match-tag.isin` uses a one-off
+blue (`#7EA8C9`) not part of the gold/rust/green accent system, pre-existing from this module's
+CAS-import work. Flagging for whoever next touches the palette, not resolved here.
+
+**Contrast**: `--muted` against `--bg`/`--panel`/`--panel-2` computed at 6.5–7.4:1 dark, 4.9–5.7:1
+light — already passes WCAG AA (4.5:1) in both themes, no change needed. Separately noticed (not
+in this task's explicit scope, not changed): `--rust` used as *text* color (not just
+border/background) for warning/error copy — e.g. live-price-fetch-failed notices, form validation
+errors — computes to 3.93:1 against dark `--bg`, below AA's 4.5:1 normal-text threshold (passes
+the 3:1 large-text threshold only). This is shared across every module that uses `--rust` for
+inline warning text, not portfolio-specific, and fixing it means picking a new accessible-but-
+still-"rust" hex for a color also used for borders/icons/tags elsewhere — a real design decision,
+not something to guess at here. Flagged for a future session, not silently resolved.
+
+**Tested with real headless-Chromium (Playwright)**: full DOM text-node sweep at 375px and
+1280px, both themes, across all 4 tabs (Dashboard/Holdings/Gains & What-If/Accounts & Settings)
+with every `<details>` expanded — 0 nodes under 13px anywhere, 0 console errors. Also swept after
+populating real data: added a holding via the guided "Add a holding" form (INFY, qty 10, buy
+₹1500, current ₹1800) — holding card, gain/loss figures, and the "Add a holding" form itself all
+render at ≥13px with the pill/badge shapes intact in both themes at both viewports. Functional
+regression: guided "Add a holding" form re-verified end-to-end (feedback message, holding appears
+in the list, value/gain computed correctly) — no JS logic touched, CSS/inline-style values only.
+
+## Updated 2026-08-11 — Bulk-paste currency tolerance, plus a "paste one line to fill in" option for the guided Add-a-holding form
+Same app-wide audit as `itrgenie/`, `goals/`, `networth/`, `loans/` (see `itrgenie/PROGRESS.md`'s
+matching entry for the full rationale). Audited both this module's entry paths per the task's
+specific instruction:
+
+**1. Bulk paste/CSV box (`Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice,
+AsOf`)** — already reasonably good (the module was built with real CAS statements in mind, and
+the separate Excel upload already does real fuzzy header-matching, see the 2026-08-10 entry
+above), but the plain-text/paste path itself used bare `+qty`/`+buyPrice`/`+currentPrice`
+conversions with no currency-symbol tolerance, and `parsePastedRows()` had the same
+thousands-comma-splits-into-fake-columns risk already found and fixed in the other modules. Fixed
+by reusing `parseNumericCell()` (already defined in this file for the Excel fuzzy importer's own
+numeric parsing — one implementation, not a new duplicate) for the plain paste path's Qty/
+BuyPrice/CurrentPrice columns, and adding the same `protectThousandsCommas()` shape-detection fix
+to `parsePastedRows()`. Column order stays strictly positional here too, same reasoning as the
+other modules — 8 columns with no header row to key off of, so reordering would be guessing.
+
+**2. Guided "Add a holding" form** — this is the one the user's complaint most directly
+describes: 6+ separate typed fields (Symbol, Broker select, Asset type select, Qty, Buy price,
+Buy date) for what's fundamentally one record someone often already has written down in one
+place (a trade confirmation, broker SMS/email, or a line copied from a spreadsheet). Added a
+"Paste one line to fill in below" input + "Fill fields" button directly above the existing field
+grid, reusing the exact same column order as the bulk-paste box (`Symbol, Broker, AssetType, Qty,
+BuyPrice, BuyDate, CurrentPrice, AsOf`) so one mental model covers both entry paths. Critically,
+this only **fills the existing DOM inputs** — nothing is written to `data.holdings` until the
+user reviews/edits the now-pre-filled fields and clicks the pre-existing "Add holding" button,
+exactly matching the task's "review before submit" requirement. Broker and Asset type are
+`<select>` dropdowns, not free text, so they're matched against the real options (case-insensitive
+substring match against account names, and a small `guessAssetTypeFromText()` normalizer for
+Stock/ETF/Mutual Fund/Other) — if nothing recognizable is found, the dropdown is left at its
+existing value rather than guessed at, and the feedback message says so ("review... complete
+Broker/Asset type if not recognized"). Dates reuse `excelDateToISO()` (already defined for Excel
+import) rather than adding a third date-parsing implementation to this file.
+
+**Deliberately not extended to "Record a sale"**: that form only has 3 typed fields (Qty, Sell
+date, Sell price) plus one dropdown (which open holding) — already low-friction, not the
+"five separate fields for one holding" pattern the task specifically flagged. Adding a
+paste-to-fill option there would add complexity for a form that isn't actually the source of the
+complaint.
+
+**Verified with real headless-Chromium (Playwright), 11 checks**: bulk paste — regression (plain
+numbers `INFY, Axis Direct, Equity, 50, 1450, 2022-04-15, 1850, 2026-08-01` still work), tolerant
+($ symbol: `VOO, Vested-US, ETF, 10, $380.25, ...`), tolerant (₹ symbol + Indian
+thousands-grouping: `RELIANCE, Axis Direct, Equity, 25, ₹12,50,000, 2021-03-01` parses to
+`buyPrice: 1250000, qty: 25` — confirmed the comma-grouping doesn't corrupt the column count),
+honesty (a row with a non-numeric Qty is skipped, not pushed as `NaN`); quick-fill — Symbol field
+filled from a pasted line, Broker select correctly matched "Axis Direct" by name, Asset type
+correctly guessed "Stock" from the word "Stock", Qty/Buy price/Buy date fields all filled
+correctly (buy price `₹3,500` → field shows `3500`, currency symbol/comma stripped), and —
+critically — confirmed `data.holdings` is unchanged immediately after "Fill fields" (nothing
+written until the explicit "Add holding" click, which then does add exactly one holding with the
+reviewed values). 0 console errors. Full-app smoke pass (both viewports, both this module and the
+other 3 touched modules) — 0 console errors. `node --check` confirmed no syntax errors after
+every edit.
+
+**⚠ CORRECTION, same day (2026-08-11) — the `protectThousandsCommas()` shape-detection claim above
+("no space after the comma means a thousands separator, unlike a real field separator") was wrong
+and shipped a severe regression, caught by a second reviewer pass before it went further.** See
+`itrgenie/PROGRESS.md`'s matching correction entry for the full live-reproduced failure case
+(a plain no-space CSV row could get its digits wrongly fused). **Fix applied here**:
+`protectThousandsCommas()` is unchanged, but `parsePastedRows(text, expectedCols, minCols)` no
+longer calls it unconditionally on every line — the collapse is only attempted when a line's
+naive comma-split overshoots the box's real column shape, and only trusted if it doesn't drop
+below the box's real minimum viable column count (6 here — Symbol/Broker/AssetType/Qty/BuyPrice/
+BuyDate — since CurrentPrice/AsOf are optional trailing columns; passing the full 8-column target
+as the floor too, the first-draft version of this fix, would have wrongly rejected valid
+collapses on rows missing those optional columns). Both the bulk-paste box
+(`parsePastedRows(raw, 8, 6)`) and the guided form's quick-fill (`parsePastedRows(raw, 8, 6)`)
+updated. Re-tested live in headless Chromium: a plain no-space 8-column CSV row
+(`INFY,axis_direct,Stock,50,1450,2022-04-15,1900,2026-08-10`) now correctly adds one holding with
+every field in the right place (confirmed against the actual saved `data.holdings` record, not
+just the feedback message) instead of risking a column-count collapse; a generic
+`10,20,30,40`-shaped row against the 8-column target doesn't even trigger the collapse logic
+(no overshoot). 0 console errors.
+
+**Also fixed (reviewer's non-blocking suggestion, small/low-risk)**: quick-fill's Broker dropdown
+used to silently sit at its prior/default value when a pasted broker name didn't match any
+account, relying on the text feedback line alone. It now also gets a visible rust-colored outline
+on the dropdown itself when that happens, clearing the instant the user touches the dropdown —
+matches this app's honesty-first pattern of never letting a field look "correctly filled" when it
+wasn't. Verified live: pasting a broker name that doesn't match any account shows the outline;
+pasting one that does match ("Axis Direct") shows no outline.
+
+## THIRD ROUND fix — safe-by-construction rewrite (2026-08-11, same day)
+A second reviewer pass found the round-2 fix above still converged on the specific reported case
+rather than the underlying mechanism, and live-reproduced silent corruption on this module's own
+bulk-paste shape with a completely ordinary row:
+`RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026` (Qty `10` immediately followed by a
+genuinely thousands-grouped BuyPrice `2,450`, no space) — fused across the Qty/BuyPrice boundary.
+See `itrgenie/PROGRESS.md`'s matching entry for the full writeup of both structural gaps (no
+upper-bound check on the collapse; a whole-line regex with no concept of column boundaries) and the
+new design. This module's own `protectThousandsCommas`/`splitPastedLine`/`parsePastedRows` were
+replaced with the shared-shape implementation (`resolveThousandsMerge` + `skipNote`) used in every
+other module, applied at both call sites this module has: the bulk-paste box and the guided form's
+"paste one line to fill in" quick-fill.
+
+**The exact round-2 failure case, re-tested — genuinely unambiguous, now parses correctly:**
+`RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026` →
+`symbol:RELIANCE, broker:Zerodha, assetType:Equity, qty:10, buyPrice:2450, buyDate:"01/01/2024",
+currentPrice:2600, asOf:"10/08/2026"`. With all 8 fields present the trailing CurrentPrice/AsOf pin
+the target column count so only one merge combination (merging `2` and `450`) reaches it.
+
+**A related case found during this round's own adversarial testing (not the reported one, but the
+same class the reviewer asked to hunt for): the same row with CurrentPrice/AsOf correctly omitted**
+(`RELIANCE,Zerodha,Equity,10,2,450,01/01/2024`) — naive-splits to 7 pieces, which sits "in range"
+for this box's 6-8 column window without ever overshooting `expectedCols`. An earlier draft of this
+same round-3 rewrite still got this wrong, because it kept round 2's "no overshoot, trust the naive
+split" short-circuit — that 7-piece naive reading is BuyPrice=2, BuyDate=450, CurrentPrice=
+"01/01/2024", silently wrong despite never overshooting. Fixed by removing that short-circuit
+entirely: the merge search now always runs (the untouched naive reading is always one of its
+candidates, so a row with nothing to merge still resolves exactly as before, at no extra cost).
+With the short-circuit removed, this specific row now correctly comes back as an **honest skip**:
+the naive 7-piece reading and the merged 6-piece reading (`BuyPrice:2450`, the sensible one) are
+both structurally valid targets in the box's window, and the generic merge resolver has no
+semantic knowledge that a "BuyDate" of `450` is nonsensical — so it won't guess between them. This
+is the deliberate, documented cost of "safe by construction": the same row pasted tab-separated
+(a real spreadsheet copy) parses correctly regardless, since the tab path never touches this
+ambiguity at all.
+
+**Also re-verified**: the quick-fill single-line path (`#af_quickfill_btn`) now shows an explicit
+feedback message instead of silently doing nothing when a pasted line can't be unambiguously
+split ("Couldn't tell where the columns split — try a tab-separated paste..."), rather than the
+prior behavior of leaving the form fields untouched with no explanation. Full regression: the
+original CAS-import-style plain row (`INFY,axis_direct,Stock,50,1450,2022-04-15,1900,2026-08-10`)
+and the ₹-symbol/Indian-grouping row from the round-1 entry above (`RELIANCE, Axis Direct, Equity,
+25, ₹12,50,000, 2021-03-01`) both still parse identically. `10,20,30,40`-shaped rows still never
+fuse. `node --check` clean after every edit; 0 console errors expected (code-level verification via
+the extracted parsing functions, not a fresh live-browser pass this round — see the
+"third round" verification note in `itrgenie/PROGRESS.md` for the shared testing methodology used
+across all four touched modules).
+
+## FOURTH ROUND — negative-grouped-number safety fix; currentPrice guard added (2026-08-11, same day)
+See `itrgenie/PROGRESS.md`'s matching entry for the full writeup, live-browser test results, and
+fuzz evidence — this module shares the exact same `resolveThousandsMerge`/`spanValid` code shape.
+
+- **`GROUPED_WESTERN`/`GROUPED_INDIAN`/`spanValid()` now accept an optional leading `-`** (same as
+  the existing `₹`/`$` prefix support), so a genuinely negative grouped number is found as a merge
+  candidate instead of never being considered. Portfolio itself has no direct negative-typed field
+  in its bulk-paste shape (Symbol, Broker, AssetType, Qty, BuyPrice, BuyDate, CurrentPrice, AsOf —
+  none of which legitimately go negative), so this specific box was never at live risk the way
+  Capital Gains MF's Gain field was — applied here purely for shared-code consistency across all 4
+  touched files, re-verified with the same 60,000-trial fuzz (0/60,000 silently wrong).
+- **`currentPrice` now has the same `>= 0` guard its sibling numeric fields (`qty`, `buyPrice`)
+  already had right next to it**, in both entry paths: the bulk-paste handler (`#h_btn`'s onclick)
+  and the guided "Add a holding" form's submit handler (`#af_add_btn`'s onclick). Not a
+  live-reproduced bug — a negative stock price isn't a realistic real-world input the way a capital
+  loss is — but there was no reason to leave it unguarded when every sibling field is. Live-tested:
+  a negative Current Price on either path is now rejected with a clear message, `portfolio_data_v1`
+  stays unchanged.
+- **A "prefer the naive/untouched reading over a coincidental merge" shortcut was attempted and
+  reverted** (this module's own bulk-add box was one of the reviewer's reproduction cases —
+  `TCS,Axis Direct,Equity,10,200,01/01/2024,2600,10/08/2026`, a share qty "10" next to a sub-1000
+  price "200" wrongly flagged ambiguous). A 60,000-trial fuzz proved the shortcut reopens real
+  silent corruption for other rows in this exact box (e.g. a genuinely-omitted AsOf/CurrentPrice
+  combined with a thousands-grouped Qty or BuyPrice can coincidentally naive-split to the same
+  column count as a fully-populated row). Reverted for safety — the TCS-shaped row remains an
+  honest skip, same as before this round. See `itrgenie/PROGRESS.md` for the full fuzz numbers and
+  reasoning.
+- **Full regression, live browser**: `RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026`
+  (all 8 fields) still parses correctly (`buyPrice:2450`); the same row with CurrentPrice/AsOf
+  omitted still comes back as the same honest skip round 3 confirmed (not reopened by either
+  fix); the Broker-dropdown mismatch flag on quick-fill still shows (rust outline, 2px) for an
+  unrecognized broker name.
+
+## Fix: CAS import silently mis-assigned holdings to the wrong broker account (2026-08-13)
+`financial-os-ux-tester`'s first end-to-end usability pass found a real, reproduced
+silent-data-corruption bug: `guessBrokerForGroup()` fell back to `data.accounts[0]` — literally
+"whichever account is listed first" — whenever a CAS statement group's DP/label text didn't match
+one of this app's 4 known accounts. A CAS group labeled "Zerodha Broking Ltd" (not one of the app's
+pre-seeded accounts: Axis Direct, Tradejini, Angel One, Vested-US) got silently imported as "Axis
+Direct" — the import preview showed zero visual difference between a group that matched correctly
+and one that was silently defaulted, both rendering identically as "Import into account: [name]".
+Real-world risk: Zerodha, Groww, Upstox, ICICI Direct, HDFC Securities are all extremely common
+Indian brokers outside this app's fixed 4-account list, so this was a realistic, likely-to-recur
+failure, not an edge case.
+
+**Fix.** `guessBrokerForGroup()` no longer falls back to `data.accounts[0]` — it returns `null` when
+a group's label doesn't confidently match a real account, and the caller (`startCasUnlock`) stores
+`broker: ''` (not a guessed id) for that group. The CAS import preview (`renderCasBody`, `'parsed'`
+stage) now:
+- Outlines an unmatched group's "Import into account" `<select>` in rust (`outline:2px solid
+  var(--rust)`) and prepends a real "— choose account —" placeholder option, selected — reusing the
+  exact same visual pattern already used for the guided-form quick-fill's unmatched-broker flag
+  (`#af_broker`, see the 2026-08-11 entries above), not a new visual language.
+- Shows a per-group rust helptext line naming the unmatched label and pointing at Accounts &
+  Settings.
+- Shows a page-level warning banner counting how many groups need a choice.
+- **Disables the Import button entirely** until every group has an explicit account selected —
+  chosen over silently defaulting to account #1 (the original bug) or to a neutral no-op, since a
+  wrong account assignment corrupts real portfolio data (wrong account's totals, wrong-currency
+  aggregation for Vested-US) with no easy way to notice after the fact, unlike a merely-annoying
+  blocked button.
+- Added a `.notice` box to the CAS panel itself, shown before the user even picks a file, stating
+  plainly that a CAS aggregates every broker/demat account a user actually has (often more than the
+  4 pre-seeded here) and that additional accounts can be added under Accounts & Settings — so the
+  mis-tag risk is visible *before* import, not just caught after the fact in the preview.
+
+**Selecting a real account for a flagged group clears the outline immediately** (the existing
+`onchange` handler already re-renders with the group's `broker` updated, and the outline condition
+is driven directly off `!g.broker`) — same self-clearing behavior as the guided-form pattern this
+reuses.
+
+**Tested with real headless Chromium (Playwright)**, driving the actual page and real
+`localStorage`, not mocked:
+- `guessBrokerForGroup({label:'Zerodha Broking Ltd DP ID 12345'})` → `null` (previously would have
+  silently returned `data.accounts[0].id`, i.e. `'axis_direct'`).
+- `guessBrokerForGroup({label:'Axis Direct demat account'})` → `'axis_direct'` (still matches
+  correctly — regression).
+- A simulated parsed CAS with one unmatched group (Zerodha) and one matched group (Axis Direct):
+  the unmatched group's select has the rust outline + "— choose account —" option selected, the
+  matched group's select has no outline and the correct value pre-selected, a warning banner reads
+  "1 group below couldn't be matched to one of your accounts", and `#cas_confirm` is `disabled`.
+  Clicking the (disabled) confirm button does nothing — `data.holdings.length` stays 0.
+- Explicitly selecting an account (`tradejini`) for the unmatched group via its `<select>` clears
+  its outline and re-enables the confirm button; clicking confirm then correctly imports both
+  holdings with the right brokers — `[{symbol:'INFOSYS LTD', broker:'tradejini'}, {symbol:'HDFC
+  BANK LTD', broker:'axis_direct'}]` — proving the fix never silently substitutes a default even
+  after the user resolves it themselves.
+- **Regression — a CAS group that DOES match a known account, alone, with no other unmatched
+  groups**: no rust outline, no "couldn't be matched" warning, confirm button enabled by default,
+  and importing succeeds cleanly with the correctly pre-selected broker — confirming the fix adds
+  friction only where genuinely needed, not on every import.
+- 0 console/page errors across all scenarios; both themes and 375px/1280px viewports load with no
+  new horizontal overflow.
+
+Files touched: `/home/user/Financial-OS/portfolio/index.html` (`guessBrokerForGroup`,
+`startCasUnlock`'s group construction, `renderCasImportCard`'s notice, `renderCasBody`'s `'parsed'`
+stage rendering and confirm-button gating).

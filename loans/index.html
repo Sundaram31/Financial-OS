@@ -8,7 +8,7 @@
   :root{
     --bg:#0B0E11; --panel:#12161B; --panel-2:#171C22; --line:#242A31;
     --text:#E8E6E0; --muted:#9BA0A8; --gold:#C9A227; --gold-dim:#8f7419;
-    --green:#4A9B6E; --rust:#B5533C;
+    --green:#4A9B6E; --rust:#CE6C53;
     --mono: 'IBM Plex Mono', 'Courier New', monospace;
     --serif: 'Source Serif 4', Georgia, serif;
   }
@@ -25,38 +25,44 @@
   .brand{ display:flex; align-items:center; gap:10px; }
   .brand .seal{ width:28px; height:28px; border:1.5px solid var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:13px; color:var(--gold); font-weight:600; }
   .brand h1{ font-family:var(--serif); font-size:17px; font-weight:600; }
-  .brand .sub{ font-size:11px; color:var(--muted); }
+  .brand .sub{ font-size:13px; color:var(--muted); }
   .topbar-actions{ display:flex; gap:8px; flex-wrap:wrap; }
   main.content{ flex:1; overflow-y:auto; padding:26px 32px; max-width:900px; margin:0 auto; width:100%; }
   .panel-header{ margin-bottom:22px; }
-  .panel-header .eyebrow{ font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
+  .panel-header .eyebrow{ font-size:13px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
   .panel-header h2{ font-family:var(--serif); font-size:24px; font-weight:600; }
   .panel-header p.desc{ color:var(--muted); font-size:14px; margin-top:6px; max-width:640px; }
   .card{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:18px 20px; margin-bottom:16px; }
   .card h3{ font-family:var(--serif); font-size:16px; margin-bottom:12px; }
   .field-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
   .field{ flex:1; min-width:160px; }
-  .field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
+  .field label{ display:block; font-size:13px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
   .field input, .field select, textarea{ width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:14px; }
   .field input:focus, textarea:focus{ outline:none; border-color:var(--gold-dim); }
-  .btn{ background:transparent; border:1px solid var(--gold-dim); color:var(--gold); padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  .btn{ background:transparent; border:1px solid var(--gold-dim); color:var(--gold); padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:13px; cursor:pointer; }
   .btn:hover{ background:rgba(201,162,39,0.08); border-color:var(--gold); }
   .btn.primary{ background:var(--gold); color:#141414; font-weight:600; border-color:var(--gold); }
+  .btn.primary:hover{ background:#dab63a; }
   .btn.ghost{ border-color:var(--line); color:var(--muted); }
-  .btn.small{ padding:5px 10px; font-size:11px; }
+  .btn.small{ padding:5px 10px; font-size:13px; }
   table.day-table{ width:100%; border-collapse:collapse; margin-top:8px; font-size:13.5px; }
-  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:11.5px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:13px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
   table.day-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
   .result-box{ border:1px solid var(--gold-dim); border-radius:6px; padding:18px 20px; background:linear-gradient(180deg, rgba(201,162,39,0.05), transparent); margin-top:12px; }
   .result-box .verdict{ font-family:var(--serif); font-size:19px; color:var(--gold); margin-bottom:4px; }
   .result-box .verdict-detail{ font-size:13px; color:var(--muted); }
-  .helptext{ font-size:12.5px; color:var(--muted); margin-top:4px; }
+  .helptext{ font-size:13px; color:var(--muted); margin-top:4px; }
   .progress-track{ height:14px; background:var(--bg); border:1px solid var(--line); border-radius:7px; overflow:hidden; margin:10px 0; }
   .progress-fill{ height:100%; background:var(--green); }
   ::-webkit-scrollbar{ width:8px; height:8px; }
   ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
   @media (max-width:760px){ main.content{ padding:18px; } }
 </style>
+<!-- Vendored SheetJS (xlsx.core.min.js), self-hosted, no CDN -- lets Excel (.xlsx/.xls)
+     imports convert to CSV in-browser via the same pattern already used in
+     itrgenie/ and portfolio/. Own copy in this module's own lib/ folder, not a
+     cross-module reference, per the repo's self-contained-module convention. -->
+<script src="./lib/xlsx.core.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -89,6 +95,15 @@ let data = loadData();
 function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 function newId(){ return 'loan_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
 let expandedId = null;
+// 2026-08-13: read back into the next render() rather than written directly onto the DOM node
+// right after saveData()/render() -- render() replaces the WHOLE #content subtree on every call
+// (see render() below), so the importCard element captured by this handler's closure is already
+// detached by the time it runs; setting .textContent on it silently sets text nobody ever sees.
+// Same root cause and same fix pattern as portfolio/index.html's bulkAddFeedbackMsg (2026-08-09).
+// Keyed by loan id (not a single flat string) -- an independent review found a flat variable lets
+// one loan's scan result bleed into a DIFFERENT loan's import panel just from switching which loan
+// card is expanded, with no new scan ever run for the one now showing the message.
+let loanImportFeedbackMsg = {};
 
 // Bank-statement classifier -- validated 98.7% accurate against ground truth on a real
 // 394-transaction account (see project notes). Deliberately uses ONLY the transaction
@@ -101,17 +116,100 @@ function classifyLoanTxn(desc){
   if(/PREPAY|PART.?PAY|FORECLOS/i.test(desc)) return 'prepayment';
   return null;
 }
+// Detects and strips a likely running-balance numeric token from a statement line BEFORE the
+// EMI/prepayment amount-candidate scan runs (see l_import_btn's onclick below) -- same "exclude
+// the known-non-amount substring first, then rescan" approach as the date-digit-exclusion fix
+// applied to this same file on 2026-08-11 (see the comment above dateRe's use further down). A
+// balance/closing-balance column is present on nearly every real Indian net-banking statement
+// export and is almost always numerically LARGER than the actual transaction -- colliding directly
+// with the existing Math.min()/Math.max() amount-picking heuristic below and risking a silent
+// wrong-amount record (reproduced: "...PREPAY 1,00,000.00 DR 3,25,000.00" was previously recorded
+// as a ₹3,25,000 prepayment, the balance, not the real ₹1,00,000 transaction).
+//
+// Investigated three candidate signals against several realistic statement-line shapes.
+// Two survived as genuinely reliable (label/marker text, not position); a third
+// (position-only "the last of exactly 2 candidates is the balance") was built, then live
+// fuzz-reproduced as unsafe by an independent review and REMOVED before shipping -- same
+// standard this file's own paste-parsing safety work elsewhere in this app already holds
+// itself to (see itrgenie/PROGRESS.md's "fourth round" entry for the precedent: a shortcut
+// that fixed real cases but reopened silent corruption on others was reverted rather than
+// shipped partially-safe).
+//   1. An explicit "Bal"/"Balance"/"Avl Bal"/"Closing Balance" label immediately before the figure
+//      -- the statement is naming the figure itself, the least ambiguous signal available.
+//   2. "<amount> DR/CR <balance>" -- a very common shape in real Indian statement text/exports
+//      where a Dr/Cr marker sits directly between the transaction amount and the running balance
+//      that follows it. The number immediately BEFORE the marker is the transaction (the marker is
+//      describing that figure); the number immediately AFTER it is the balance.
+//   3. REMOVED: "no label/marker present, but exactly 2 numeric candidates -> treat the LAST as
+//      the balance." Reproduced live as unsafe: a line with a reference/cheque/account number
+//      positioned BEFORE the real transaction amount (e.g. "...LOAN EMI PAYMENT REF 123456789
+//      15,000.00") has exactly 2 candidates too, and this rule would strip the REAL amount
+//      (15,000, sitting last) and keep the reference number (123456789) as the "amount" --
+//      the exact silent-wrong-number failure class this whole fix exists to close, just moved
+//      to a different input shape rather than eliminated. Position alone can't tell a genuine
+//      "amount, balance" pair apart from "reference number, amount" or any other 2-number
+//      narration -- there is no way to prefer one reading without a real signal.
+// Any residual case with 2+ numeric candidates and neither signal 1 nor 2 present is left
+// ambiguous rather than guessed at, and reported back to the caller so the line can be honestly
+// skipped (folded into the existing "review the list below" feedback, with its own count)
+// instead of silently misreading one of them.
+function stripLikelyBalance(line, amtRe){
+  const matches = [...line.matchAll(amtRe)];
+  if(matches.length < 2) return { line, ambiguous:false };
+  const balLabelRe = /\b(?:clos(?:ing)?\s+|avl\.?\s*|available\s+)?bal(?:ance)?\b[:\-\s]{0,8}$/i;
+  for(const m of matches){
+    const before = line.slice(Math.max(0, m.index-28), m.index);
+    if(balLabelRe.test(before)){
+      return { line: line.slice(0,m.index) + ' ' + line.slice(m.index + m[0].length), ambiguous:false };
+    }
+  }
+  for(let i=0; i<matches.length-1; i++){
+    const between = line.slice(matches[i].index + matches[i][0].length, matches[i+1].index);
+    if(/^\s*(dr|cr)\.?\s*$/i.test(between)){
+      // Reviewer-found gap (2026-08-13): a reference/cheque number sitting directly before a
+      // DR/CR marker (e.g. "REF 123456789 DR 15,000.00", "CHQ NO 998877 DR 42,000.00" -- both
+      // realistic Indian bank narration) was being trusted as "the amount" on no other basis than
+      // its position before the marker, silently stripping the REAL amount after the marker as if
+      // it were the balance. Every real transaction/balance figure in this module's own verified
+      // test cases is paise-formatted (.00); a reference/cheque number never is -- so require that
+      // shape before trusting this signal. If it doesn't look like a real amount, fall through
+      // instead of guessing (matches[i+1] stays a live candidate, may still resolve via the label
+      // signal above on a later match, or the line honestly stays ambiguous).
+      if(!/\.\d{2}$/.test(matches[i][0])) continue;
+      const bal = matches[i+1];
+      return { line: line.slice(0,bal.index) + ' ' + line.slice(bal.index + bal[0].length), ambiguous:false };
+    }
+  }
+  return { line, ambiguous:true };
+}
 function parsePastedRows(text){
   return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
     .map(line=>{ const sep = line.includes('\t') ? '\t' : ','; return line.split(sep).map(c=>c.trim()); });
 }
+// Handles CSV/TXT (read as text, unchanged) and Excel .xlsx/.xls (converted to the same
+// CSV-shaped text via the vendored SheetJS lib, same pattern as itrgenie/'s py_file/oh_file
+// and portfolio/'s holdings upload) -- either way onText() receives the identical row-shaped
+// text the existing parser already expects, so parsing logic is untouched.
 function wireFileUpload(fileInputEl, onText){
-  fileInputEl.onchange = (e)=>{
+  fileInputEl.onchange = async (e)=>{
     const file = e.target.files[0];
     if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev)=>{ onText(ev.target.result); fileInputEl.value=''; };
-    reader.readAsText(file);
+    const name = file.name.toLowerCase();
+    try{
+      if(name.endsWith('.xlsx') || name.endsWith('.xls')){
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, {type:'array'});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        onText(XLSX.utils.sheet_to_csv(sheet));
+      } else {
+        const reader = new FileReader();
+        const txt = await new Promise((res,rej)=>{ reader.onload=(ev)=>res(ev.target.result); reader.onerror=rej; reader.readAsText(file); });
+        onText(txt);
+      }
+    }catch(err){
+      alert('Could not read that file: ' + err.message);
+    }
+    fileInputEl.value = '';
   };
 }
 
@@ -191,15 +289,15 @@ function renderLoanBody(container, loan){
   importCard.style.marginTop = '14px';
   importCard.innerHTML = `
     <h3>Auto-detect EMI/prepayment from a bank statement</h3>
-    <p class="helptext" style="margin-bottom:8px;">Paste raw statement text (or upload CSV/TXT) — classifies from the transaction description only, same validated approach as the AIS Reconciliation module. One per line: <code>Date, Description, Amount</code> works too if pre-extracted.</p>
+    <p class="helptext" style="margin-bottom:8px;">Paste raw statement text as-is (or upload CSV/TXT/Excel) — column order doesn't matter, since this reads the transaction description and scans for a date and amount anywhere on the line, same validated approach as the AIS Reconciliation module. Dates in DD/MM/YYYY, YYYY-MM-DD, or "01-Jan-2026"-style formats all work; amounts with ₹ symbols or thousands commas are fine too.</p>
     <textarea id="l_import_paste" rows="3" placeholder="Paste statement rows here"></textarea>
     <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
       <button class="btn small primary" id="l_import_btn">Scan &amp; add detected payments</button>
       <span class="helptext" style="margin:0;">or</span>
-      <button class="btn small ghost" id="l_file_btn">Choose file</button>
-      <input type="file" id="l_file" accept=".csv,.txt" style="display:none">
+      <button class="btn small ghost" id="l_file_btn">Choose file (CSV/TXT/Excel)</button>
+      <input type="file" id="l_file" accept=".csv,.txt,.xlsx,.xls" style="display:none">
     </div>
-    <div id="l_import_feedback" class="helptext" style="margin:6px 0;"></div>
+    <div id="l_import_feedback" class="helptext" style="margin:6px 0;">${loanImportFeedbackMsg[loan.id] || ''}</div>
     <div id="l_payment_rows"></div>
   `;
   container.appendChild(importCard);
@@ -227,21 +325,46 @@ function renderLoanBody(container, loan){
 
   importCard.querySelector('#l_import_btn').onclick = ()=>{
     const raw = importCard.querySelector('#l_import_paste').value;
-    const dateRe = /(\d{2}[-\/]\d{2}[-\/]\d{4}|\d{4}[-\/]\d{2}[-\/]\d{2})/;
+    // 2026-08-11: broadened beyond DD/MM/YYYY and YYYY-MM-DD (numeric only) to also match the
+    // month-name date format many real Indian bank e-statements use (e.g. "01-Jan-2026",
+    // "01 January 2026") and 2-digit years (e.g. "01/01/26") -- this classifier already scans
+    // raw description text rather than splitting into fixed columns, so it was never dependent
+    // on a particular column ORDER; the real gap here was date-FORMAT coverage, not column
+    // position. Amount matching (below) was already tolerant of thousands-separator commas and
+    // any digit-run length -- unchanged, since that was already reading real statement formatting
+    // fine.
+    const dateRe = /(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}|\d{4}[-\/.]\d{1,2}[-\/.]\d{1,2}|\d{1,2}[-\/ ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-\/ ]\d{2,4})/i;
     const amtRe = /([\d,]+\.\d{2}|\b[\d,]{4,}\b)/g;
-    let added = 0;
+    let added = 0, ambiguousSkipped = 0;
     raw.split('\n').forEach(line=>{
       const kind = classifyLoanTxn(line);
       if(!kind) return;
       const dateMatch = line.match(dateRe);
-      const amounts = [...line.matchAll(amtRe)].map(m=>parseFloat(m[1].replace(/,/g,''))).filter(n=>n>100);
-      if(!dateMatch || amounts.length===0) return;
+      if(!dateMatch) return;
+      // Found during this same audit (pre-existing, not introduced by the date-format widening
+      // above): scanning the whole line for amounts let a date's own digits (e.g. the "2025" in
+      // "05/04/2025") get picked up as a candidate amount, which could then win Math.min() for an
+      // EMI line and silently record the date's year as the payment amount instead of the real
+      // figure. Fixed at the root by scanning for amounts only in the line with the matched date
+      // substring removed, so a date can never be mistaken for an amount.
+      const lineWithoutDate = line.replace(dateMatch[0], ' ');
+      // 2026-08-13: a running/closing-balance figure -- present on nearly every real Indian
+      // net-banking statement export -- collides with the min/max amount-picking heuristic just
+      // below in exactly the same way the date's own digits used to (see stripLikelyBalance()'s
+      // own comment above for the full investigation and reasoning). Stripped out first, same
+      // "exclude the known-non-amount substring, then rescan" pattern as the date fix above.
+      const balanceCheck = stripLikelyBalance(lineWithoutDate, amtRe);
+      if(balanceCheck.ambiguous){ ambiguousSkipped++; return; }
+      const amounts = [...balanceCheck.line.matchAll(amtRe)].map(m=>parseFloat(m[1].replace(/,/g,''))).filter(n=>n>100);
+      if(amounts.length===0) return;
       const amount = kind==='emi' ? Math.min(...amounts) : Math.max(...amounts); // EMI is usually the smaller recurring figure; prepayment the larger lump sum
       loan.payments.push({date: dateMatch[1], type: kind, amount});
       added++;
     });
+    loanImportFeedbackMsg[loan.id] = `Detected and added ${added} payment(s).`
+      + (ambiguousSkipped>0 ? ` ${ambiguousSkipped} line(s) skipped: couldn't confidently tell the transaction amount apart from a balance/running-total figure — add those manually.` : '')
+      + ` Review the list below — this is pattern-based, not perfect; remove anything wrong.`;
     saveData(); render();
-    importCard.querySelector('#l_import_feedback').textContent = `Detected and added ${added} payment(s). Review the list below — this is pattern-based, not perfect; remove anything wrong.`;
   };
 }
 

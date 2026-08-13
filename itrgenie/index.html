@@ -15,7 +15,7 @@
     --gold:#C9A227;
     --gold-dim:#8f7419;
     --green:#4A9B6E;
-    --rust:#B5533C;
+    --rust:#CE6C53;
     --mono: 'IBM Plex Mono', 'Courier New', monospace;
     --serif: 'Source Serif 4', Georgia, serif;
   }
@@ -53,7 +53,7 @@
     font-family:var(--serif); font-size:13px; color:var(--gold); font-weight:600;
   }
   .brand h1{ font-family:var(--serif); font-size:17px; font-weight:600; letter-spacing:0.2px;}
-  .brand .sub{ font-size:11px; color:var(--muted); }
+  .brand .sub{ font-size:13px; color:var(--muted); }
   .topbar-actions{ display:flex; gap:8px; }
 
   .body-flex{ display:flex; flex:1; min-height:0; }
@@ -63,7 +63,7 @@
     background:var(--panel); padding:16px 0; overflow-y:auto;
   }
   nav.rail .rail-label{
-    font-size:10px; text-transform:uppercase; letter-spacing:1.5px;
+    font-size:13px; text-transform:uppercase; letter-spacing:1.5px;
     color:var(--muted); padding:6px 18px; margin-top:10px;
   }
   nav.rail .rail-item{
@@ -82,7 +82,7 @@
   main.content{ flex:1; overflow-y:auto; padding:26px 32px; max-width:900px; }
 
   .panel-header{ margin-bottom:22px; }
-  .panel-header .eyebrow{ font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
+  .panel-header .eyebrow{ font-size:13px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
   .panel-header h2{ font-family:var(--serif); font-size:24px; font-weight:600; }
   .panel-header p.desc{ color:var(--muted); font-size:14px; margin-top:6px; max-width:640px; }
 
@@ -93,7 +93,7 @@
   .card h3{ font-family:var(--serif); font-size:16px; margin-bottom:12px; color:var(--text); }
   .field-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
   .field{ flex:1; min-width:180px; }
-  .field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
+  .field label{ display:block; font-size:13px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
   .field input, .field select{
     width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
     padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:14px;
@@ -101,17 +101,17 @@
   .field input:focus, .field select:focus{ outline:none; border-color:var(--gold-dim); }
   .btn{
     background:transparent; border:1px solid var(--gold-dim); color:var(--gold);
-    padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:12px;
+    padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:13px;
     cursor:pointer; letter-spacing:0.3px;
   }
   .btn:hover{ background:rgba(201,162,39,0.08); border-color:var(--gold); }
   .btn.primary{ background:var(--gold); color:#141414; font-weight:600; border-color:var(--gold); }
   .btn.primary:hover{ background:#dab63a; }
   .btn.ghost{ border-color:var(--line); color:var(--muted); }
-  .btn.small{ padding:5px 10px; font-size:11px; }
+  .btn.small{ padding:5px 10px; font-size:13px; }
 
   table.day-table{ width:100%; border-collapse:collapse; margin-top:8px; font-size:13.5px; }
-  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:11.5px; text-transform:uppercase; letter-spacing:0.5px; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; padding:6px 8px; border-bottom:1px solid var(--line); }
   table.day-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
   table.day-table tr:last-child td{ border-bottom:none; }
 
@@ -123,10 +123,10 @@
   .result-box .verdict{ font-family:var(--serif); font-size:20px; color:var(--gold); margin-bottom:4px; }
   .result-box .verdict-detail{ font-size:13.5px; color:var(--muted); margin-bottom:10px; }
   .result-box .basis{ font-size:13px; color:var(--text); border-top:1px solid var(--line); padding-top:10px; margin-top:10px;}
-  .basis code{ color:var(--gold); font-size:11.5px; }
+  .basis code{ color:var(--gold); font-size:13px; }
 
   .tag{
-    display:inline-block; font-size:10px; padding:2px 8px; border-radius:10px;
+    display:inline-block; font-size:13px; padding:2px 8px; border-radius:10px;
     text-transform:uppercase; letter-spacing:0.5px; font-weight:600;
   }
   .tag.green{ background:rgba(74,155,110,0.15); color:var(--green); }
@@ -143,12 +143,12 @@
   .checklist-item .check-icon.missing{ color:var(--rust); }
   .checklist-item .check-body{ flex:1; }
   .checklist-item .doc-name{ font-size:14px; }
-  .checklist-item .doc-fallback{ font-size:12.5px; color:var(--muted); margin-top:3px; }
+  .checklist-item .doc-fallback{ font-size:13px; color:var(--muted); margin-top:3px; }
   .checklist-item .doc-fallback b{ color:var(--gold); font-weight:500; }
-  .checklist-item .doc-toggle{ font-size:11px; }
+  .checklist-item .doc-toggle{ font-size:13px; }
 
   .empty-state{ color:var(--muted); font-size:13px; padding:30px 0; text-align:center; }
-  .helptext{ font-size:12.5px; color:var(--muted); margin-top:4px; }
+  .helptext{ font-size:13px; color:var(--muted); margin-top:4px; }
   .divider{ height:1px; background:var(--line); margin:16px 0; }
 
   ::-webkit-scrollbar{ width:8px; height:8px; }
@@ -178,6 +178,7 @@
       </div>
     </div>
     <div class="topbar-actions">
+      <a class="btn small ghost" href="../">← Financial OS</a>
       <button class="btn small ghost" id="themeToggleBtn">☀ Light mode</button>
       <button class="btn small ghost" id="exportBtn">Export profile</button>
       <button class="btn small ghost" id="importBtn">Import profile</button>
@@ -349,7 +350,7 @@ function renderGuidedFooter(container, currentMod){
     <div>
       <button class="btn small ghost" id="guided_exit">Exit guide</button>
     </div>
-    <div style="font-size:12px; color:var(--muted);">Step ${idx+1} of ${activeMods.length}</div>
+    <div style="font-size:13px; color:var(--muted);">Step ${idx+1} of ${activeMods.length}</div>
     <div style="display:flex; gap:8px;">
       ${idx>0 ? `<button class="btn small ghost" id="guided_back">← Back</button>` : ''}
       ${idx<activeMods.length-1 ? `<button class="btn small primary" id="guided_next">Next →</button>` : `<button class="btn small primary" id="guided_finish">Finish — go to Document checklist</button>`}
@@ -919,10 +920,19 @@ registerModule(FormDeterminationModule);
    out of scope for this browser tool for the reasons already established).
    AIS is a structured file, not a scan, so parsing it is legitimate.
 
-   Deliberately CSV, not .xlsx: the income tax portal's own AIS download
-   page offers PDF/JSON/CSV natively -- CSV is an official export format,
-   not a third-party conversion, so parsing it needs no bundled library and
-   no format guessing. If you only have an Excel copy, "Save As CSV" first.
+   CSV and Excel (.xlsx/.xls) both accepted. CSV is the income tax portal's
+   own official AIS export format -- needs no format guessing. Excel is
+   accepted too (2026-08-11): the exact same keyword-based column matching
+   below already handles AIS's real-world header variation, and this file
+   already parses Excel reliably elsewhere (Prior Years' py_file/oh_file,
+   via the vendored xlsx.core.min.js) -- an .xlsx upload is converted to the
+   same CSV text via XLSX.utils.sheet_to_csv and fed through the identical
+   parseCSVProper + classifyAISRows path, so review-before-commit behaves
+   identically regardless of source format. PDF/JSON stay out deliberately:
+   AIS's actual PDF/JSON structure has never been verified against a live
+   sample, and rigid parsing without that verification risks silently
+   mis-extracting data -- that risk doesn't apply to Excel since it's just
+   the same tabular shape as CSV, converted losslessly.
 
    Column headers are matched by keyword (category/description/value),
    not fixed positions -- AIS's exact header wording isn't something I can
@@ -969,7 +979,7 @@ const AISImportModule = {
   hasStarted: (p) => !!(p._aisImportDone),
   isComplete: (p) => !!(p._aisImportDone),
   requiredDocs: () => ([
-    {id:'ais_csv', name:'AIS downloaded as CSV', note:'From the income tax portal: AIS section → Download → CSV. PDF/JSON are also offered but CSV is what this module reads.'},
+    {id:'ais_csv', name:'AIS downloaded as CSV or Excel', note:'From the income tax portal: AIS section → Download → CSV (or Excel). PDF/JSON are also offered but not yet supported here.'},
   ]),
   fallbackDocs: () => ({}),
   render(container, p, save){
@@ -978,16 +988,16 @@ const AISImportModule = {
     header.innerHTML = `
       <div class="eyebrow">Module 00.3 · Reads your actual AIS file — genuinely automatic, not another paste box</div>
       <h2>AIS Auto-Import</h2>
-      <p class="desc">Upload your AIS CSV once, review what it found, and confirm what goes where — Salary, Interest, Dividends, or flagged for cross-check against Capital Gains. This is optional; skip it and fill modules manually if you'd rather, or come back to it later.</p>
+      <p class="desc">Upload your AIS CSV or Excel export once, review what it found, and confirm what goes where — Salary, Interest, Dividends, or flagged for cross-check against Capital Gains. This is optional; skip it and fill modules manually if you'd rather, or come back to it later.</p>
     `;
     container.appendChild(header);
 
     const uploadCard = document.createElement('div');
     uploadCard.className = 'card';
     uploadCard.innerHTML = `
-      <h3>Upload AIS CSV</h3>
-      <button class="btn primary" id="ais_file_btn">Choose AIS CSV file</button>
-      <input type="file" id="ais_file" accept=".csv" style="display:none">
+      <h3>Upload AIS file</h3>
+      <button class="btn primary" id="ais_file_btn">Choose AIS file (CSV or Excel)</button>
+      <input type="file" id="ais_file" accept=".csv,.txt,.xlsx,.xls" style="display:none">
       <div id="ais_upload_feedback" class="helptext" style="margin-top:8px;"></div>
     `;
     container.appendChild(uploadCard);
@@ -996,21 +1006,39 @@ const AISImportModule = {
     container.appendChild(resultsWrap);
 
     uploadCard.querySelector('#ais_file_btn').onclick = ()=> uploadCard.querySelector('#ais_file').click();
-    uploadCard.querySelector('#ais_file').onchange = (e)=>{
+    uploadCard.querySelector('#ais_file').onchange = async (e)=>{
       const file = e.target.files[0];
       if(!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev)=>{
-        try{
-          const rows = parseCSVProper(ev.target.result);
-          const parsed = classifyAISRows(rows);
-          renderReview(resultsWrap, parsed);
-          uploadCard.querySelector('#ais_upload_feedback').textContent = `Parsed ${rows.length} rows from the file.`;
-        }catch(err){
-          uploadCard.querySelector('#ais_upload_feedback').textContent = `Couldn't parse that file — make sure it's the CSV export, not PDF or JSON.`;
+      const feedback = uploadCard.querySelector('#ais_upload_feedback');
+      const name = file.name.toLowerCase();
+      try{
+        let csvText;
+        if(name.endsWith('.xlsx') || name.endsWith('.xls')){
+          // Same conversion py_file/oh_file already use: read the workbook, take the
+          // first sheet, convert to CSV text, then feed it through the exact same
+          // parseCSVProper + classifyAISRows path the native CSV upload uses -- so
+          // the row/column shape and the review-before-commit step are identical
+          // regardless of which format the file came in as.
+          const buf = await file.arrayBuffer();
+          const wb = XLSX.read(buf, {type:'array'});
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          csvText = XLSX.utils.sheet_to_csv(sheet);
+        } else {
+          csvText = await new Promise((res,rej)=>{
+            const reader = new FileReader();
+            reader.onload = (ev)=> res(ev.target.result);
+            reader.onerror = rej;
+            reader.readAsText(file);
+          });
         }
-      };
-      reader.readAsText(file);
+        const rows = parseCSVProper(csvText);
+        const parsed = classifyAISRows(rows);
+        renderReview(resultsWrap, parsed);
+        feedback.textContent = `Parsed ${rows.length} rows from the file.`;
+      }catch(err){
+        uploadCard.querySelector('#ais_upload_feedback').textContent = `Couldn't parse that file — make sure it's the CSV or Excel export, not PDF or JSON.`;
+      }
+      e.target.value = '';
     };
 
     function classifyAISRows(rows){
@@ -1030,6 +1058,16 @@ const AISImportModule = {
       }
       if(headerIdx===-1) return {error:true, buckets:{}};
 
+      // nameCol's keyword list ("name"/"deductor"/"reporting entity") is narrow because the
+      // portal's exact AIS header wording has never been verified against a live sample (see this
+      // module's header comment). 2026-08-13: found a real, reproduced silent-corruption bug this
+      // narrowness caused -- a plausible real header ("Information Source") didn't match, so
+      // nameCol stayed -1, every row's `name` came back blank, and the salary-import commit handler
+      // further down silently substituted the row's Description text as the employer name instead
+      // (`name: r.name || r.description`). That's now fixed at the commit step (never falls back to
+      // Description -- see the salary import handler below); `nameColFound` is surfaced here so the
+      // review screen can show an explicit "name not found in this file" prompt rather than the
+      // blank-Deductor-cell-with-no-explanation the old behavior otherwise left behind.
       const buckets = {salary:[], interest:[], dividend:[], capgains:[], other:[]};
       for(let i=headerIdx+1;i<rows.length;i++){
         const r = rows[i];
@@ -1047,16 +1085,16 @@ const AISImportModule = {
         else if(d.includes('securit')||d.includes('mutual fund')||d.includes('sale of')||d.includes('purchase of')||d.includes('property')) buckets.capgains.push(row);
         else buckets.other.push(row);
       }
-      return {error:false, buckets};
+      return {error:false, buckets, nameColFound: nameCol>=0};
     }
 
     function renderReview(wrap, parsed){
       wrap.innerHTML = '';
       if(parsed.error){
-        wrap.innerHTML = `<div class="card"><h3 style="color:var(--rust);">Couldn't find the expected columns</h3><p class="helptext">Looking for columns with "Category" and "Description" in the header — this file's headers don't match. Fall back to manually filling Salary/Other Sources, or check that this is the unmodified AIS CSV export.</p></div>`;
+        wrap.innerHTML = `<div class="card"><h3 style="color:var(--rust);">Couldn't find the expected columns</h3><p class="helptext">Looking for columns with "Category" and "Description" in the header — this file's headers don't match. Fall back to manually filling Salary/Other Sources, or check that this is the unmodified AIS CSV/Excel export.</p></div>`;
         return;
       }
-      const { buckets } = parsed;
+      const { buckets, nameColFound } = parsed;
       const sections = [
         ['salary', 'Salary (TDS Section 192)', 'Add to Salary module'],
         ['interest', 'Interest income', 'Add to Other Sources — Interest'],
@@ -1069,8 +1107,16 @@ const AISImportModule = {
         const card = document.createElement('div');
         card.className = 'card';
         const total = rows.reduce((s,r)=>s+r.amount,0);
+        // A missing employer/deductor name (either the whole column wasn't recognized in this
+        // file's headers, or a specific row's cell was genuinely blank) used to get silently
+        // replaced with the row's Description text at import time -- a confidently-wrong name, not
+        // an honest gap. Fixed: never substitute Description; instead surface it here so the user
+        // notices and fixes it before saving, same "flag it, don't fabricate it" pattern used
+        // throughout this app.
+        const missingNameRows = key==='salary' ? rows.filter(r=>!r.name).length : 0;
         card.innerHTML = `
           <h3>${label} <span class="helptext" style="font-weight:normal;">— ${rows.length} row(s), ₹${total.toLocaleString('en-IN')} total</span></h3>
+          ${missingNameRows>0 ? `<p class="helptext" style="color:var(--rust); margin-bottom:10px;">⚠ ${missingNameRows} of these row(s) have no employer/deductor name recognized in this file${nameColFound===false ? ' — a Name/Deductor/Reporting Entity column wasn\'t found in its headers' : ''}. Enter the name directly in the Deductor column below (outlined in rust) before importing — it will not be guessed from the Description text.</p>` : ''}
           <div id="ais_rows_${key}"></div>
           <button class="btn small primary" id="ais_import_${key}" style="margin-top:10px;">${btnLabel}</button>
         `;
@@ -1081,7 +1127,10 @@ const AISImportModule = {
         table.innerHTML = `<tr><th></th><th>Description</th>${key==='salary'?'<th>Deductor</th>':''}<th>Amount</th></tr>`;
         rows.forEach((r,idx)=>{
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td><input type="checkbox" data-check-${key}="${idx}" checked></td><td>${r.description}</td>${key==='salary'?`<td>${r.name||'—'}</td>`:''}<td>₹${r.amount.toLocaleString('en-IN')}</td>`;
+          const deductorCell = r.name
+            ? `<td>${r.name}</td>`
+            : `<td><input type="text" data-name-${key}="${idx}" placeholder="name not found — enter manually" style="outline:2px solid var(--rust);"></td>`;
+          tr.innerHTML = `<td><input type="checkbox" data-check-${key}="${idx}" checked></td><td>${r.description}</td>${key==='salary'?deductorCell:''}<td>₹${r.amount.toLocaleString('en-IN')}</td>`;
           table.appendChild(tr);
         });
         rowsEl.appendChild(table);
@@ -1092,7 +1141,14 @@ const AISImportModule = {
           if(key==='salary'){
             p.salaryIncome = p.salaryIncome || {employers:[], foreignExempt:false, exemptAmount:''};
             checked.forEach(r=>{
-              p.salaryIncome.employers.push({name: r.name || r.description, gross: r.amount, exempt:0, profTax:0});
+              // Never falls back to r.description as a stand-in name (that was the bug -- a
+              // plausible-looking but wrong name silently persisting). A row whose name wasn't
+              // recognized gets whatever the user typed into its rust-outlined input (blank if
+              // they left it, which is honest and visibly incomplete rather than confidently wrong).
+              const origIdx = rows.indexOf(r);
+              const nameInput = card.querySelector(`[data-name-${key}="${origIdx}"]`);
+              const name = r.name || (nameInput ? nameInput.value.trim() : '');
+              p.salaryIncome.employers.push({name, gross: r.amount, exempt:0, profTax:0});
             });
           } else if(key==='interest'){
             p.otherSources = p.otherSources || {aisInterestTotal:'', interestRows:[], aisDividendTotal:'', dividendRows:[]};
@@ -1187,7 +1243,7 @@ const PriorYearsModule = {
         <summary class="helptext" style="cursor:pointer;">Have several years in a spreadsheet already? Bulk paste or upload instead</summary>
         <div style="margin-top:10px;">
           <p class="helptext" style="margin-bottom:8px;">One per line: <code>FY, Status(Resident/RNOR/NRI), DaysInIndia(optional), CarriedForwardLossST(optional), CarriedForwardLossLT(optional)</code></p>
-          <textarea id="py_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="2024-25, NRI, 140&#10;2023-24, NRI, 95, 0, 15000"></textarea>
+          <textarea id="py_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="2024-25, NRI, 140&#10;2023-24, NRI, 95, 0, 15000"></textarea>
           <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
             <button class="btn small" id="py_paste_btn">Parse &amp; add</button>
             <span class="helptext" style="margin:0;">or</span>
@@ -1266,24 +1322,24 @@ const PriorYearsModule = {
 
     resCard.querySelector('#py_paste_btn').onclick = ()=>{
       const raw = resCard.querySelector('#py_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 5, 2); // FY, Status, Days, CarryFwdST, CarryFwdLT (only FY+Status required)
       let added = 0, skipped = 0;
       rows.forEach(cols=>{
         if(cols.length < 2){ skipped++; return; }
         const [fy, status, days, cfST, cfLT] = cols;
         if(!fy || !status){ skipped++; return; }
-        if((days && +days < 0) || (cfST && +cfST < 0) || (cfLT && +cfLT < 0)){ skipped++; return; }
+        if((days && toNum(days) < 0) || (cfST && toNum(cfST) < 0) || (cfLT && toNum(cfLT) < 0)){ skipped++; return; }
         p.priorYears[fy.trim()] = {
           residencyStatus: status.trim(),
-          daysInIndia: days ? +days : null,
-          carriedForwardLossST: cfST ? +cfST : 0,
-          carriedForwardLossLT: cfLT ? +cfLT : 0,
+          daysInIndia: days ? toNum(days) : null,
+          carriedForwardLossST: cfST ? toNum(cfST) : 0,
+          carriedForwardLossLT: cfLT ? toNum(cfLT) : 0,
         };
         added++;
       });
       save();
       renderPYRows();
-      resCard.querySelector('#py_paste_feedback').textContent = `Added/updated ${added} year(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+      resCard.querySelector('#py_paste_feedback').textContent = `Added/updated ${added} year(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) resCard.querySelector('#py_paste').value = '';
     };
 
@@ -1310,7 +1366,7 @@ const PriorYearsModule = {
         <summary class="helptext" style="cursor:pointer;">Have a whole demat statement already? Bulk paste or upload instead</summary>
         <div style="margin-top:10px;">
           <p class="helptext" style="margin-bottom:8px;">One per line: <code>Stock, Qty, BuyDate, BuyPrice, Notes(optional)</code></p>
-          <textarea id="oh_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Infosys, 50, 15/06/2019, 720"></textarea>
+          <textarea id="oh_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="Infosys, 50, 15/06/2019, 720"></textarea>
           <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
             <button class="btn small" id="oh_paste_btn">Parse &amp; add</button>
             <span class="helptext" style="margin:0;">or</span>
@@ -1373,20 +1429,20 @@ const PriorYearsModule = {
 
     holdCard.querySelector('#oh_paste_btn').onclick = ()=>{
       const raw = holdCard.querySelector('#oh_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 5, 4); // Stock, Qty, BuyDate, BuyPrice, Notes (Notes optional)
       let added = 0, skipped = 0;
       rows.forEach(cols=>{
         if(cols.length < 4){ skipped++; return; }
         const [stock, qty, buydateRaw, buyprice, notes] = cols;
         const buydate = parseFlexDate(buydateRaw);
         if(!stock || !qty || !buydate || buyprice===''){ skipped++; return; }
-        if(+qty <= 0 || +buyprice < 0 || buydate.startsWith('INVALID:')){ skipped++; return; }
-        p.openingHoldings.push({stock, qty:+qty, buydate, buyprice:+buyprice, notes: notes||''});
+        if(isNaN(toNum(qty)) || isNaN(toNum(buyprice)) || toNum(qty) <= 0 || toNum(buyprice) < 0 || buydate.startsWith('INVALID:')){ skipped++; return; }
+        p.openingHoldings.push({stock, qty:toNum(qty), buydate, buyprice:toNum(buyprice), notes: notes||''});
         added++;
       });
       save();
       renderOHRows();
-      holdCard.querySelector('#oh_paste_feedback').textContent = `Added ${added} holding(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+      holdCard.querySelector('#oh_paste_feedback').textContent = `Added ${added} holding(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) holdCard.querySelector('#oh_paste').value = '';
     };
   }
@@ -1560,13 +1616,297 @@ function holdingPeriodDays(d1, d2){
 
 /* ---- Shared paste-import helpers: cuts down on-mobile typing across
    modules. User copies rows straight from Excel/Sheets/Notes (tab-
-   separated) or types comma-separated -- either works. ---- */
-function parsePastedRows(text){
-  return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
+   separated) or types comma-separated -- either works.
+
+   2026-08-11, THIRD ROUND (safe-by-construction rewrite): two prior same-day
+   fixes each patched one specific reported failure while leaving the same
+   class of silent corruption possible. Round 1 added an unconditional
+   whole-line regex collapse of any comma-joined run of short digit groups --
+   corrupted plain no-space CSV like "Acme Corp,1200000,50000,2400" into a
+   fused quadrillion-rupee figure. Round 2 made the collapse a "validated
+   fallback" (only attempted on overshoot, only trusted if it didn't drop
+   below the box's floor) -- but a second reviewer pass found this still had
+   two structural gaps: (a) no UPPER-bound check, so a naive split that
+   overshot but still cleared the floor was accepted AS-IS with the extra
+   fake columns still in it, silently shifting every field after; (b) the
+   collapse regex was a single global pass with no concept of column
+   boundaries, so it could fuse across a REAL separator whenever the
+   neighbouring field also started with 1-3 digits (another price, a qty, a
+   date fragment) -- live-reproduced on ordinary rows like
+   "Acme Corp,12,00,000,50,000,2,400" (Salary, Indian lakh-grouped) and
+   "RELIANCE,Zerodha,Equity,10,2,450,01/01/2024,2600,10/08/2026" (Portfolio).
+
+   This rewrite is safe BY CONSTRUCTION instead of patching another reported
+   shape:
+   1. Tab-delimited paste (a real spreadsheet copy) is unambiguous -- a tab
+      never appears inside a number -- so it's split on tab and the entire
+      comma-collapse machinery below is never touched for that row.
+   2. For comma-delimited input: naive-split on comma first, then ALWAYS run
+      resolveThousandsMerge() (below, point 3) against it -- even when the
+      naive piece count already looks "in range" for the box. An earlier
+      draft of this same rewrite short-circuited there ("no overshoot, trust
+      it"), but that's unsafe too: a genuinely grouped number can
+      coincidentally split a row down to a count that still lands in range
+      while fusing the wrong two fields together -- e.g. Portfolio's
+      "RELIANCE,Zerodha,Equity,10,2,450,01/01/2024" (BuyPrice genuinely
+      "2,450") naive-splits to 7 pieces, already "in range" for an 8-col/
+      6-min box, but taken literally that reads BuyPrice=2, BuyDate=450,
+      CurrentPrice=01/01/2024 -- wrong despite never overshooting. Running
+      the search unconditionally costs nothing on an ordinary row with
+      nothing to merge, since the untouched naive split is always one of the
+      candidate readings the search considers (see point 3) -- it only
+      changes the outcome when a genuine competing reading exists, which is
+      exactly the case that needs catching.
+   3. resolveThousandsMerge() enumerates every way to merge ADJACENT naive
+      pieces into a span that is a COMPLETE, correctly-shaped grouped number
+      end-to-end (Indian: 1-2 digits, then zero or more 2-digit groups, then
+      one 3-digit group -- "12,00,000"; Western: 1-3 digits then one-or-more
+      3-digit groups -- "1,234,567") -- never a partial/loose "both sides
+      look short" guess, which is exactly what let round 2's regex cross
+      real boundaries. Only a span that is a well-formed number from its
+      first digit to its last is ever merged; every single piece left
+      unmerged is also always a valid (trivial) one-piece "span", which is
+      how the untouched naive reading stays in the running.
+   4. If EXACTLY ONE combination of such merges (including the "merge
+      nothing" combination) lands the row's column count on an exact target
+      (expectedCols, or any count from minCols up to expectedCols for boxes
+      with a genuinely optional trailing field -- checked together, see
+      point 5), that combination is used. If merges could reach a target
+      ZERO ways or MORE THAN ONE way, the row is never guessed at -- it's
+      returned empty so the caller's own existing `cols.length < N` floor
+      check skips it exactly like any other malformed row, and
+      parsePastedRows() tags how many rows were skipped for this specific
+      reason (see ambiguousCount / skipNote() below) so the feedback text
+      can say why instead of leaving the user to guess.
+   5. For boxes with a real optional trailing field (expectedCols vs minCols,
+      e.g. Capital Gains MF's TDS, Net Worth liabilities' OutstandingAsOf):
+      every whole count from minCols up to expectedCols is checked in the
+      SAME pass, and a merge is only accepted if the row unambiguously
+      reaches exactly one of them -- if different merge choices could
+      independently satisfy different shapes (or the same shape two
+      different ways), that's genuine uncertainty, so it's skipped rather
+      than guessed.
+   toNum() (below) still strips ₹/$ and thousands commas from a cell before
+   parsing it as a number, so numeric columns work the same whether typed as
+   "450000" or "₹4,50,000" once they've been split into the right column.
+
+   2026-08-11, FOURTH ROUND: a third reviewer pass confirmed the round-3
+   mechanism above is sound (a 40,000-trial fuzz against positive numbers
+   found zero silently-wrong results) but found one live, blocking safety bug
+   and one reliability complaint -- FIXED the first, INVESTIGATED and
+   REVERTED an attempted fix for the second after fuzzing proved it unsafe.
+
+   FINDING 1 (safety, FIXED): a genuinely NEGATIVE thousands-grouped number
+   was never recognized as a merge candidate at all -- GROUPED_WESTERN/
+   GROUPED_INDIAN/spanValid() only ever allowed an optional ₹/$ prefix, never
+   a leading "-". Capital Gains MF's Gain field legitimately allows negative
+   values (a real capital LOSS), and that box's TDS column is also optional
+   (expectedCols 6, minCols 5) -- so a real loss like "-1,25,000" with TDS
+   omitted could naive-split down to a column count that coincidentally still
+   looked "in range", and get silently accepted with the wrong value (e.g.
+   Gain read as "-1" instead of "-125000", the rest fused into a fabricated
+   TDS). Fix: GROUPED_WESTERN/GROUPED_INDIAN/spanValid() now accept an
+   optional leading "-" the same way they already accept ₹/$, so a negative
+   grouped number is found as one merge candidate like any other. Live
+   re-tested against all 3 reviewer variants: each moved from silently wrong
+   to an honest skip (see itrgenie/PROGRESS.md's round-4 entry for the exact
+   before/after and why two of the three don't resolve to a full correct
+   parse -- they're genuinely, structurally ambiguous once the negative
+   merge is recognized, confirmed by hand against the live DFS output).
+
+   FINDING 2 (reliability, INVESTIGATED THEN REVERTED): whenever the
+   naive/untouched split ALREADY landed exactly on a box's full expected
+   shape (every field present, nothing omitted -- an "ordinary complete
+   row"), but ALSO happened to contain an adjacent pair that coincidentally
+   LOOKED like a grouped number once joined (e.g. a share qty "10" next to a
+   sub-1000 price "200" -> "10,200"), the search treated the untouched
+   reading and the coincidental merge as two competing valid combinations and
+   honestly-but-wrongly skipped the row as ambiguous. Real examples:
+   "TCS,Axis Direct,Equity,10,200,01/01/2024,2600,10/08/2026" (Portfolio, all
+   8 fields ordinary), "Acme Corp,100,200,300" (Salary), "PPF interest,100,200"
+   (Exempt Income) -- all three wrongly skipped, confirmed live.
+
+   Two implementations of the review's proposed fix ("prefer the untouched
+   reading whenever it already reaches a valid target") were built and each
+   re-verified with a 60,000-trial fuzz covering positive AND negative
+   numbers across every optional-trailing-field box in this app -- both
+   produced REAL silently-wrong results, not rare edge cases: whenever an
+   optional field is genuinely omitted AND the remaining value is itself a
+   thousands-grouped number (extremely common for real Indian financial
+   amounts), the untouched reading can coincidentally reach the exact same
+   valid target as the correct merged reading while assigning the wrong
+   value to the wrong field -- e.g. "Acme Corp,64,150,1262730" genuinely
+   means Gross=64,150 (merged) with ProfTax omitted, which a naive-preferring
+   shortcut silently misreads as Gross=64/Exempt=150/ProfTax=1262730. No
+   purely structural (column-count or merge-position) rule can safely tell
+   "coincidental collision" (TCS/Acme/PPF, where naive is right) apart from
+   "genuine field omission" (the fuzz-found shape above, where the merge is
+   right) -- both are structurally valid, differing only in real-world
+   plausibility a shared, field-type-agnostic helper has no way to judge.
+   This is also why round 3's own confirmed-ambiguous Portfolio case
+   ("RELIANCE,Zerodha,Equity,10,2,450,01/01/2024", naive one field short of
+   expectedCols) stays correctly ambiguous -- it's the exact same shape.
+
+   Re-running the SAME fuzz with this fix fully removed (Finding 1 alone)
+   confirmed 0/60,000 silently wrong -- the round-3 mechanism plus Finding
+   1's negative-sign support is sound on its own. Given Finding 1 is the
+   safety-blocking item and this fuzz evidence shows any naive-preference
+   shortcut reopens exactly the silent-corruption class rounds 1-3 exist to
+   close, the fix below was written, fuzz-tested, found unsafe, and REVERTED
+   rather than shipped partially-safe: resolveThousandsMerge() (below) still
+   ends with the same strict "unique.length !== 1 -> don't guess" rule round
+   3 shipped with, unchanged. TCS/Acme/PPF-shaped rows remain an honest
+   "couldn't tell where the columns split" skip -- not a new regression, just
+   not resolved. See itrgenie/PROGRESS.md's round-4 entry for the exact fuzz
+   result counts (7,462/60,000 and 2,267/60,000 wrong across the two
+   attempts) and the case for why a real fix needs per-field type/semantic
+   awareness threaded into the ambiguity check -- a materially bigger change
+   than this round's mandate, flagged there for a future session. ---- */
+
+// A COMPLETE, well-formed grouped number, anchored start-to-end -- this is
+// what keeps a merge from ever crossing a real column separator just because
+// the next field also happens to start with 1-3 digits: a span only merges
+// when EVERY piece in it has exactly the width one real grouping convention
+// requires, not merely "looks short". Optional ₹/$ prefix, and (round 4) an
+// optional leading "-" for a genuine negative/loss figure, on the first
+// digit-group only.
+const GROUPED_WESTERN = /^-?(₹|\$)?\d{1,3}(,\d{3})+(\.\d+)?$/;        // 1,234,567 or -1,234,567.50
+const GROUPED_INDIAN  = /^-?(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,000 or -4,50,000.25
+
+// Finds every way to merge adjacent pieces of a naive comma-split row into spans that are each a
+// complete grouped number, and accepts the result ONLY if exactly one combination of merges lands
+// the row's column count on one of `targets` (expectedCols, and minCols too when the box has a
+// genuinely optional trailing field). Zero matching combinations (nothing merges cleanly to any
+// target) or more than one (genuinely ambiguous -- more than one plausible reading) both return
+// null -- never a "closest guess". See the block comment above for the full design/history.
+function resolveThousandsMerge(naive, targets){
+  const n = naive.length;
+  // A span naive[i..j] is only a candidate merge if every piece from i up to (but not including)
+  // j is a bare 1-3 digit group (optionally ₹/$-prefixed, or "-"-prefixed for a genuine negative
+  // figure, at i), the last piece (j) is a bare 1-3 digit group with an optional decimal tail, AND
+  // the whole reconstructed string is a complete match for one of the two real grouping
+  // conventions above -- not just "these look numeric".
+  function spanValid(i, j){
+    if(i===j) return true; // a lone piece is always fine left as-is
+    for(let k=i;k<j;k++){ if(!/^-?(₹|\$)?\d{1,3}$/.test(naive[k])) return false; }
+    if(!/^\d{1,3}(\.\d+)?$/.test(naive[j])) return false;
+    const joined = naive.slice(i, j+1).join(',');
+    return GROUPED_WESTERN.test(joined) || GROUPED_INDIAN.test(joined);
+  }
+  const spanEnds = [];
+  for(let i=0;i<n;i++){
+    spanEnds[i] = [];
+    for(let j=i;j<n;j++){ if(spanValid(i,j)) spanEnds[i].push(j); }
+  }
+  const targetSet = new Set(targets);
+  const maxTarget = Math.max(...targets);
+  const results = [];
+  let explored = 0;
+  const EXPLORE_CAP = 5000; // defensive bound on pathological rows -- bail toward an honest skip
+  let capped = false;
+  (function dfs(i, acc){
+    if(capped) return;
+    if(++explored > EXPLORE_CAP){ capped = true; return; }
+    if(acc.length > maxTarget) return; // every remaining piece adds >=1 more column -- prune early
+    if(i===n){ if(targetSet.has(acc.length)) results.push(acc.slice()); return; }
+    for(const j of spanEnds[i]){
+      acc.push(naive.slice(i, j+1).join(','));
+      dfs(j+1, acc);
+      acc.pop();
+    }
+  })(0, []);
+  if(capped) return null; // too complex to prove unambiguous -- treat like any other unresolved row
+  const unique = Array.from(new Set(results.map(r=>JSON.stringify(r)))).map(s=>JSON.parse(s));
+  // ROUND 4, finding 2 -- investigated, NOT applied: the review proposed preferring the untouched
+  // reading outright whenever it already lands exactly on a valid target (fixing false-ambiguity
+  // skips like "TCS,Axis Direct,Equity,10,200,01/01/2024,2600,10/08/2026" or "Acme Corp,100,200,300"
+  // -- see itrgenie/PROGRESS.md's round-4 entry for the reproduction). Two attempted
+  // implementations (a version scoped to "no negative number in the row", then a more careful
+  // version scoped to "no competing merge reaches the row's own last piece") were each re-verified
+  // with a 60,000-trial fuzz across every optional-trailing-field box in this app (Salary, CG-MF,
+  // Portfolio, Net Worth liabilities, Exempt Income, Prior Years carry-forward) -- both produced
+  // real silently-wrong results (7,462/60,000 and 2,267/60,000 respectively), not rare edge cases:
+  // whenever an optional field is genuinely omitted AND the remaining value is itself a
+  // thousands-grouped number (extremely common for real Indian financial amounts), the untouched
+  // reading can coincidentally reach the SAME valid target as the correct merged reading while
+  // assigning the wrong value to the wrong field -- e.g. "Acme Corp,64,150,1262730" genuinely
+  // means Gross=64,150 (merged) with ProfTax omitted, not Gross=64/Exempt=150/ProfTax=1262730. No
+  // purely structural (column-count/position) rule can safely tell "coincidental collision" apart
+  // from "genuine field omission" in general -- both produce two structurally valid readings that
+  // differ only in real-world plausibility, which this shared, field-type-agnostic helper has no
+  // way to judge. Given Finding 1 above is the safety-blocking item and this fuzz evidence shows
+  // any naive-preference shortcut reopens exactly the silent-corruption class rounds 1-3 exist to
+  // close, this fix was reverted rather than shipped partially-safe -- the rows it targeted remain
+  // an honest "couldn't tell where the columns split" skip, same as before this round. Flagged for
+  // a properly-scoped future fix that would need per-field type/semantic awareness (e.g. knowing a
+  // field is a date vs an amount) threaded into the ambiguity check, which is a materially bigger
+  // change than this round's mandate.
+  if(unique.length !== 1) return null; // 0 = no clean reading at all, >1 = genuinely ambiguous
+  return unique[0].map(s=>s.replace(/,/g,''));
+}
+// Comma-splits one pasted line. expectedCols is the box's full/target shape; minCols is its real
+// minimum viable count when some trailing fields are optional (defaults to expectedCols when
+// every field is required). Every whole count from minCols up to expectedCols is offered as a
+// valid target, not just the two endpoints -- a box like Salary (Name, Gross, Exempt, ProfTax --
+// both Exempt and ProfTax independently optional) can legitimately land on a count in between
+// (e.g. 3, if only ProfTax is omitted).
+//
+// IMPORTANT: this always runs the merge search below, even when the naive split's raw piece count
+// already sits inside [minCols, expectedCols] and looks "plausible" on its own. An earlier version
+// of this rewrite short-circuited in that case ("no overshoot -- trust it, skip the search") --
+// live-testing found that's unsafe too: a thousands-grouped number can coincidentally split a row
+// down to a count that still lands in range while fusing the wrong two fields together, e.g.
+// Portfolio's "RELIANCE,Zerodha,Equity,10,2,450,01/01/2024" (BuyPrice genuinely "2,450") naive-
+// splits to 7 pieces -- already "in range" for an 8-col/6-min box -- but taken literally that reads
+// BuyPrice=2, BuyDate=450, CurrentPrice=01/01/2024, silently wrong despite never overshooting.
+// resolveThousandsMerge() always includes the untouched naive split itself as one of the candidate
+// readings (every single piece is trivially a valid one-piece "span"), so a genuinely unambiguous
+// row that has nothing to merge still resolves to exactly the same naive result as before -- this
+// costs nothing there. It only changes behaviour when a genuine competing reading exists, which is
+// exactly the case that needs catching.
+function splitPastedLine(line, expectedCols, minCols){
+  const naive = line.split(',').map(c=>c.trim());
+  if(!expectedCols) return naive;
+  const floor = minCols || expectedCols;
+  const targets = [];
+  for(let t=floor; t<=expectedCols; t++) targets.push(t);
+  const resolved = resolveThousandsMerge(naive, targets);
+  // Never fall through to the naive split on its own say-so -- that's exactly the silent-column-
+  // shift bug this rewrite exists to close. An unresolved/ambiguous row returns empty so the
+  // caller's own `cols.length < N` check honestly skips it, same as any other malformed row.
+  return resolved || [];
+}
+function parsePastedRows(text, expectedCols, minCols){
+  const rows = text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
     .map(line=>{
-      const sep = line.includes('\t') ? '\t' : ',';
-      return line.split(sep).map(c=>c.trim());
+      const hasTab = line.includes('\t');
+      return hasTab ? line.split('\t').map(c=>c.trim()) : splitPastedLine(line, expectedCols, minCols);
     });
+  // A row can only come back empty here because splitPastedLine() gave up on an overshooting,
+  // unresolvable comma-collapse (a genuinely empty pasted line was already filtered out above) --
+  // count those so skipNote() can tell the user WHY those rows were skipped, not just that they
+  // were.
+  rows.ambiguousCount = rows.filter(r=>r.length===0).length;
+  return rows;
+}
+// Appends a short, honest reason to a paste box's "skipped N" feedback text when some of those
+// skips were specifically rows this parser couldn't unambiguously column-split (as opposed to
+// e.g. a missing name or a negative amount, which every paste box already reports generically).
+function skipNote(rows){
+  const n = rows && rows.ambiguousCount;
+  return n>0 ? ` (${n} of those: couldn't tell where the columns split -- try a tab-separated paste copied straight from a spreadsheet, or add a space after each comma)` : '';
+}
+// Tolerant numeric parsing for a pasted cell: strips currency symbols (₹, $) and thousands-
+// separator commas/whitespace before parsing, so "₹4,50,000" or "$1,234.50" parse identically to
+// "450000"/"1234.50". A minus sign (for a loss/negative figure) is preserved. Returns NaN --
+// never a guessed value -- for anything that still isn't a clean number after stripping, so a
+// header row someone forgot to remove or a genuinely malformed cell is honestly skipped by the
+// caller's existing isNaN() check rather than silently misread.
+function toNum(s){
+  if(s===undefined || s===null) return NaN;
+  const cleaned = String(s).replace(/[₹$,\s]/g,'');
+  if(cleaned==='') return NaN;
+  return Number(cleaned);
 }
 // Wires a file input so CSV/TXT/XLSX/PDF all flow into the same textarea + Parse&Add
 // pipeline as manual paste -- one parser to trust for structured data, not several.
@@ -1863,7 +2203,7 @@ const SalaryModule = {
       addCard.innerHTML = `
         <h3>Employer(s) this FY</h3>
         <p class="helptext" style="margin-bottom:8px;">Paste one per line: <code>Employer, GrossSalary, ExemptAllowances, ProfessionalTax</code></p>
-        <textarea id="sal_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Acme Corp, 1200000, 50000, 2400"></textarea>
+        <textarea id="sal_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="Acme Corp, 1200000, 50000, 2400"></textarea>
         <button class="btn small" id="sal_paste_btn" style="margin-top:8px;">Parse &amp; add</button>
         <div id="sal_feedback" class="helptext" style="margin:6px 0;"></div>
         <div id="sal_rows"></div>
@@ -1915,18 +2255,18 @@ const SalaryModule = {
 
       addCard.querySelector('#sal_paste_btn').onclick = ()=>{
         const raw = addCard.querySelector('#sal_paste').value;
-        const rows = parsePastedRows(raw);
+        const rows = parsePastedRows(raw, 4, 2); // Name, Gross, Exempt, ProfTax (Exempt/ProfTax optional)
         let added=0, skipped=0;
         rows.forEach(cols=>{
           if(cols.length<2){ skipped++; return; }
           const [name, gross, exempt, profTax] = cols;
-          if(!name || gross===''||isNaN(+gross)){ skipped++; return; }
-          if(+gross < 0 || (exempt && +exempt < 0) || (profTax && +profTax < 0)){ skipped++; return; }
-          si.employers.push({name, gross:+gross, exempt: exempt?+exempt:0, profTax: profTax?+profTax:0});
+          if(!name || gross===''||isNaN(toNum(gross))){ skipped++; return; }
+          if(toNum(gross) < 0 || (exempt && toNum(exempt) < 0) || (profTax && toNum(profTax) < 0)){ skipped++; return; }
+          si.employers.push({name, gross:toNum(gross), exempt: exempt?toNum(exempt):0, profTax: profTax?toNum(profTax):0});
           added++;
         });
         save(); renderRows(); renderSummary();
-        addCard.querySelector('#sal_feedback').textContent = `Added ${added} employer(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+        addCard.querySelector('#sal_feedback').textContent = `Added ${added} employer(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
         if(added>0) addCard.querySelector('#sal_paste').value='';
       };
     }
@@ -1988,8 +2328,8 @@ const HRAModule = {
     addCard.className = 'card';
     addCard.innerHTML = `
       <h3>Monthly figures</h3>
-      <p class="helptext" style="margin-bottom:8px;">One per line: <code>Month, Basic+DA, HRA received, Rent paid, City(metro/nonmetro)</code></p>
-      <textarea id="hra_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Apr-2025, 55000, 25000, 22000, metro&#10;May-2025, 55000, 25000, 22000, metro"></textarea>
+      <p class="helptext" style="margin-bottom:8px;">One per line: <code>Month, Basic+DA, HRA received, Rent paid, City</code> — type the real city (Mumbai, Bengaluru, ...) or just "metro"/"nonmetro".</p>
+      <textarea id="hra_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="Apr-2025, 55000, 25000, 22000, Mumbai&#10;May-2025, 55000, 25000, 22000, Mumbai"></textarea>
       <button class="btn small" id="hra_paste_btn" style="margin-top:8px;">Parse &amp; add</button>
       <div id="hra_feedback" class="helptext" style="margin:6px 0;"></div>
       <div id="hra_rows"></div>
@@ -2048,19 +2388,33 @@ const HRAModule = {
 
     addCard.querySelector('#hra_paste_btn').onclick = ()=>{
       const raw = addCard.querySelector('#hra_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 5); // Month, BasicDA, HRA, Rent, City
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<5){ skipped++; return; }
         const [month, basicDA, hra, rent, city] = cols;
-        if(!month || isNaN(+basicDA) || isNaN(+hra) || isNaN(+rent)){ skipped++; return; }
-        if(+basicDA<0 || +hra<0 || +rent<0){ skipped++; return; }
-        const cityNorm = /metro/i.test(city) && !/non/i.test(city) ? 'metro' : 'nonmetro';
-        p.hraRows.push({month, basicDA:+basicDA, hra:+hra, rent:+rent, city:cityNorm});
+        if(!month || isNaN(toNum(basicDA)) || isNaN(toNum(hra)) || isNaN(toNum(rent))){ skipped++; return; }
+        if(toNum(basicDA)<0 || toNum(hra)<0 || toNum(rent)<0){ skipped++; return; }
+        // Reviewer-found bug (2026-08-11): this used to only recognize the literal word "metro" in
+        // the City column, so a real metro city name (e.g. "Mumbai") silently fell through to
+        // 'nonmetro' -- a genuine, silently-understated Sec 10(13A) exemption (40% instead of the
+        // correct 50%), not a display issue. The metro-city list is a closed, known set this filing
+        // year (HRAModule.ruleSet.metroCities) -- not ambiguous the way the paste-column-merging
+        // problem elsewhere in this file is, since the rule itself defines every OTHER city as
+        // non-metro. Fix: match the real city name against that list first (case-insensitive,
+        // substring match so "Mumbai" / "mumbai city" both hit), fall back to the literal
+        // metro/nonmetro keyword for anyone still using that placeholder format, and only skip the
+        // row outright when the City field is blank (nothing to classify from).
+        const cityRaw = (city||'').trim().toLowerCase();
+        if(!cityRaw){ skipped++; return; }
+        const isMetroCityName = HRAModule.ruleSet.metroCities.some(c=>cityRaw.includes(c));
+        const isMetroKeyword = /metro/i.test(cityRaw) && !/non/i.test(cityRaw);
+        const cityNorm = (isMetroCityName || isMetroKeyword) ? 'metro' : 'nonmetro';
+        p.hraRows.push({month, basicDA:toNum(basicDA), hra:toNum(hra), rent:toNum(rent), city:cityNorm});
         added++;
       });
       save(); renderRows(); renderSummary();
-      addCard.querySelector('#hra_feedback').textContent = `Added ${added} month(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+      addCard.querySelector('#hra_feedback').textContent = `Added ${added} month(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) addCard.querySelector('#hra_paste').value='';
     };
   }
@@ -2109,7 +2463,7 @@ const ClubbingModule = {
     minorCard.innerHTML = `
       <h3>Minor child investment income</h3>
       <p class="helptext" style="margin-bottom:8px;">One per line: <code>ChildName, IncomeType(investment/skill/disabled), Amount</code>. "Skill" (manual work, talent, specialised knowledge) and "disabled" (Sec 80U) are excluded entirely, not clubbed — logged here just so nothing gets missed by accident, not added to your tax.</p>
-      <textarea id="cl_minor_paste" rows="2" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Ananya, investment, 20000&#10;Aarav, skill, 50000"></textarea>
+      <textarea id="cl_minor_paste" rows="2" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="Ananya, investment, 20000&#10;Aarav, skill, 50000"></textarea>
       <button class="btn small" id="cl_minor_btn" style="margin-top:8px;">Parse &amp; add</button>
       <div id="cl_minor_feedback" class="helptext" style="margin:6px 0;"></div>
       <div id="cl_minor_rows"></div>
@@ -2147,7 +2501,7 @@ const ClubbingModule = {
     spouseCard.innerHTML = `
       <h3>Asset transferred to spouse (without adequate consideration)</h3>
       <p class="helptext" style="margin-bottom:8px;">One per line: <code>Description, IncomeGenerated</code>. Doesn't apply to assets transferred as part of a divorce settlement, or before marriage.</p>
-      <textarea id="cl_spouse_paste" rows="2" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="FD gifted to spouse, 45000"></textarea>
+      <textarea id="cl_spouse_paste" rows="2" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="FD gifted to spouse, 45000"></textarea>
       <button class="btn small" id="cl_spouse_btn" style="margin-top:8px;">Parse &amp; add</button>
       <div id="cl_spouse_feedback" class="helptext" style="margin:6px 0;"></div>
       <div id="cl_spouse_rows"></div>
@@ -2211,34 +2565,34 @@ const ClubbingModule = {
 
     minorCard.querySelector('#cl_minor_btn').onclick = ()=>{
       const raw = minorCard.querySelector('#cl_minor_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 3); // Name, Type, Amount
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<3){ skipped++; return; }
         const [name, type, amount] = cols;
         const typeNorm = /skill/i.test(type) ? 'skill' : (/disab/i.test(type) ? 'disabled' : 'investment');
-        if(!name || isNaN(+amount) || +amount<0){ skipped++; return; }
-        p.clubbingMinor.push({name, type:typeNorm, amount:+amount});
+        if(!name || isNaN(toNum(amount)) || toNum(amount)<0){ skipped++; return; }
+        p.clubbingMinor.push({name, type:typeNorm, amount:toNum(amount)});
         added++;
       });
       save(); renderMinorRows(); renderSummary();
-      minorCard.querySelector('#cl_minor_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      minorCard.querySelector('#cl_minor_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) minorCard.querySelector('#cl_minor_paste').value='';
     };
 
     spouseCard.querySelector('#cl_spouse_btn').onclick = ()=>{
       const raw = spouseCard.querySelector('#cl_spouse_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 2); // Desc, Amount
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<2){ skipped++; return; }
         const [desc, amount] = cols;
-        if(!desc || isNaN(+amount) || +amount<0){ skipped++; return; }
-        p.clubbingSpouse.push({desc, amount:+amount});
+        if(!desc || isNaN(toNum(amount)) || toNum(amount)<0){ skipped++; return; }
+        p.clubbingSpouse.push({desc, amount:toNum(amount)});
         added++;
       });
       save(); renderSpouseRows(); renderSummary();
-      spouseCard.querySelector('#cl_spouse_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      spouseCard.querySelector('#cl_spouse_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) spouseCard.querySelector('#cl_spouse_paste').value='';
     };
   }
@@ -2292,7 +2646,7 @@ const CapitalGainsEquityModule = {
     pasteCard.innerHTML = `
       <h3>Paste rows (fastest on mobile)</h3>
       <p class="helptext" style="margin-bottom:8px;">Copy rows straight from Excel/Sheets/your broker's PDF-to-text and paste below. One transaction per line: <code>Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice</code> — leave BuyDate/BuyPrice blank if unknown. Works with tabs (from Excel) or commas.</p>
-      <textarea id="cg_paste_area" rows="4" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Muthoot Finance, 275, 21/07/2022, 105.14, 21/05/2025, 207.14"></textarea>
+      <textarea id="cg_paste_area" rows="4" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="Muthoot Finance, 275, 21/07/2022, 105.14, 21/05/2025, 207.14"></textarea>
       <button class="btn small" id="cg_paste_btn" style="margin-top:8px;">Parse &amp; add rows</button>
       <div id="cg_paste_feedback" class="helptext" style="margin-top:6px;"></div>
     `;
@@ -2443,7 +2797,7 @@ const CapitalGainsEquityModule = {
 
     pasteCard.querySelector('#cg_paste_btn').onclick = ()=>{
       const raw = pasteCard.querySelector('#cg_paste_area').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 6); // Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice
       let added = 0, skipped = 0;
       rows.forEach(cols=>{
         if(cols.length < 4) { skipped++; return; }
@@ -2453,15 +2807,19 @@ const CapitalGainsEquityModule = {
         let entry;
         if(cols.length >= 6){
           entry = {
-            stock, qty:+qty,
-            buydate: parseFlexDate(buydateRaw), buyprice: buypriceRaw==='' ? null : +buypriceRaw,
-            selldate: parseFlexDate(selldateRaw), sellprice: sellpriceRaw==='' ? null : +sellpriceRaw,
+            stock, qty: toNum(qty),
+            buydate: parseFlexDate(buydateRaw), buyprice: buypriceRaw==='' ? null : toNum(buypriceRaw),
+            selldate: parseFlexDate(selldateRaw), sellprice: toNum(sellpriceRaw),
             source: ''
           };
         } else {
           skipped++; return;
         }
-        if(!entry.stock || !entry.qty || !entry.selldate || entry.sellprice===null){ skipped++; return; }
+        // NaN-aware (not just falsy/null) -- a currency-symbol or otherwise unparseable qty/price
+        // cell must be honestly skipped here, not silently pushed through as NaN and shown as a
+        // fabricated "gain" or blank figure downstream.
+        if(!entry.stock || !entry.qty || isNaN(entry.qty) || !entry.selldate || entry.sellprice===null || isNaN(entry.sellprice)){ skipped++; return; }
+        if(entry.buyprice!==null && isNaN(entry.buyprice)){ skipped++; return; }
         if(entry.qty <= 0){ skipped++; return; }
         if(entry.sellprice < 0 || (entry.buyprice!==null && entry.buyprice < 0)){ skipped++; return; }
         if(entry.buydate && entry.buydate.startsWith('INVALID:')){ skipped++; return; }
@@ -2473,7 +2831,7 @@ const CapitalGainsEquityModule = {
       });
       save();
       renderRows(); renderSummary();
-      pasteCard.querySelector('#cg_paste_feedback').textContent = `Added ${added} row(s)${skipped>0 ? `, skipped ${skipped} (need 6 columns: Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice; qty/prices must be positive; sell date can't be before buy date; a buy price needs a buy date too)` : ''}.`;
+      pasteCard.querySelector('#cg_paste_feedback').textContent = `Added ${added} row(s)${skipped>0 ? `, skipped ${skipped} (need 6 columns: Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice; qty/prices must be positive; sell date can't be before buy date; a buy price needs a buy date too)${skipNote(rows)}` : ''}.`;
       if(added>0) pasteCard.querySelector('#cg_paste_area').value = '';
     };
 
@@ -2542,7 +2900,7 @@ const CapitalGainsMFModule = {
     pasteCard.innerHTML = `
       <h3>Paste redemptions (fastest on mobile)</h3>
       <p class="helptext" style="margin-bottom:8px;">One redemption per line: <code>Scheme, 112A-or-112, RedemptionDate, Cost, Gain, TDS</code>. TDS can be left blank.</p>
-      <textarea id="mf_paste_area" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Parag Parikh Flexi Cap Fund, 112A, 03/10/2025, 94689.14, 255314.35, 31914"></textarea>
+      <textarea id="mf_paste_area" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="Parag Parikh Flexi Cap Fund, 112A, 03/10/2025, 94689.14, 255314.35, 31914"></textarea>
       <button class="btn small" id="mf_paste_btn" style="margin-top:8px;">Parse &amp; add rows</button>
       <div id="mf_paste_feedback" class="helptext" style="margin-top:6px;"></div>
     `;
@@ -2642,21 +3000,23 @@ const CapitalGainsMFModule = {
 
     pasteCard.querySelector('#mf_paste_btn').onclick = ()=>{
       const raw = pasteCard.querySelector('#mf_paste_area').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 6, 5); // Scheme, Type, RedemptionDate, Cost, Gain, TDS (TDS optional)
       let added = 0, skipped = 0;
       rows.forEach(cols=>{
         if(cols.length < 5){ skipped++; return; }
         const [scheme, typeRaw, rdateRaw, cost, gain, tds] = cols;
         const type = /112a/i.test(typeRaw) ? '112A' : '112';
         const rdate = parseFlexDate(rdateRaw);
-        if(!scheme || !rdate || gain===''){ skipped++; return; }
-        if((tds!==undefined && tds!=='' && +tds < 0) || (cost!=='' && +cost < 0)){ skipped++; return; }
-        p.cgMFRows.push({scheme, type, rdate, cost: cost==='' ? null : +cost, gain:+gain, tds: (tds===undefined||tds==='') ? 0 : +tds});
+        if(!scheme || !rdate || gain===''|| isNaN(toNum(gain))){ skipped++; return; }
+        if(cost!=='' && isNaN(toNum(cost))){ skipped++; return; }
+        if(tds!==undefined && tds!=='' && isNaN(toNum(tds))){ skipped++; return; }
+        if((tds!==undefined && tds!=='' && toNum(tds) < 0) || (cost!=='' && toNum(cost) < 0)){ skipped++; return; }
+        p.cgMFRows.push({scheme, type, rdate, cost: cost==='' ? null : toNum(cost), gain:toNum(gain), tds: (tds===undefined||tds==='') ? 0 : toNum(tds)});
         added++;
       });
       save();
       renderRows(); renderSummary();
-      pasteCard.querySelector('#mf_paste_feedback').textContent = `Added ${added} row(s)${skipped>0 ? `, skipped ${skipped} (need Scheme, Type, RedemptionDate, Cost, Gain — 5 columns minimum)` : ''}.`;
+      pasteCard.querySelector('#mf_paste_feedback').textContent = `Added ${added} row(s)${skipped>0 ? `, skipped ${skipped} (need Scheme, Type, RedemptionDate, Cost, Gain — 5 columns minimum)${skipNote(rows)}` : ''}.`;
       if(added>0) pasteCard.querySelector('#mf_paste_area').value = '';
     };
 
@@ -2728,7 +3088,7 @@ const VDAModule = {
       pasteCard.innerHTML = `
         <h3>Transactions</h3>
         <p class="helptext" style="margin-bottom:8px;">One per line: <code>Asset, SellDate, CostOfAcquisition, SaleValue</code></p>
-        <textarea id="vda_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Bitcoin, 15/06/2025, 100000, 150000&#10;Ethereum, 20/07/2025, 50000, 35000"></textarea>
+        <textarea id="vda_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="Bitcoin, 15/06/2025, 100000, 150000&#10;Ethereum, 20/07/2025, 50000, 35000"></textarea>
         <button class="btn small" id="vda_paste_btn" style="margin-top:8px;">Parse &amp; add</button>
         <div id="vda_feedback" class="helptext" style="margin:6px 0;"></div>
         <div id="vda_rows"></div>
@@ -2785,19 +3145,19 @@ const VDAModule = {
 
       pasteCard.querySelector('#vda_paste_btn').onclick = ()=>{
         const raw = pasteCard.querySelector('#vda_paste').value;
-        const rows = parsePastedRows(raw);
+        const rows = parsePastedRows(raw, 4); // Asset, SellDate, Cost, SaleValue
         let added=0, skipped=0;
         rows.forEach(cols=>{
           if(cols.length<4){ skipped++; return; }
           const [asset, selldateRaw, cost, saleValue] = cols;
           const selldate = parseFlexDate(selldateRaw);
-          if(!asset || !selldate || cost===''||saleValue===''|| isNaN(+cost) || isNaN(+saleValue)){ skipped++; return; }
-          if(+cost < 0 || +saleValue < 0 || selldate.startsWith('INVALID:')){ skipped++; return; }
-          p.vdaTransactions.push({asset, selldate, cost:+cost, saleValue:+saleValue});
+          if(!asset || !selldate || cost===''||saleValue===''|| isNaN(toNum(cost)) || isNaN(toNum(saleValue))){ skipped++; return; }
+          if(toNum(cost) < 0 || toNum(saleValue) < 0 || selldate.startsWith('INVALID:')){ skipped++; return; }
+          p.vdaTransactions.push({asset, selldate, cost:toNum(cost), saleValue:toNum(saleValue)});
           added++;
         });
         save(); renderRows(); renderSummary();
-        pasteCard.querySelector('#vda_feedback').textContent = `Added ${added} transaction(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+        pasteCard.querySelector('#vda_feedback').textContent = `Added ${added} transaction(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
         if(added>0) pasteCard.querySelector('#vda_paste').value='';
       };
     }
@@ -3002,7 +3362,7 @@ const OtherSourcesModule = {
       <div class="divider"></div>
       <h3>Itemise instead (optional, for cross-checking)</h3>
       <p class="helptext" style="margin-bottom:8px;">One per line: <code>Bank/Source, Type(FD/SB/RD/NSC/Other), Amount</code></p>
-      <textarea id="os_int_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Axis Bank NRO, SB, 1811&#10;HDFC Bank FD 4521, FD, 12500"></textarea>
+      <textarea id="os_int_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="Axis Bank NRO, SB, 1811&#10;HDFC Bank FD 4521, FD, 12500"></textarea>
       <button class="btn small" id="os_int_paste_btn" style="margin-top:8px;">Parse &amp; add</button>
       <div id="os_int_feedback" class="helptext" style="margin:6px 0;"></div>
       <div id="os_int_rows"></div>
@@ -3045,18 +3405,18 @@ const OtherSourcesModule = {
     intCard.querySelector('#os_ais_int').onchange = (e)=>{ os.aisInterestTotal = e.target.value; save(); renderIntRows(); };
     intCard.querySelector('#os_int_paste_btn').onclick = ()=>{
       const raw = intCard.querySelector('#os_int_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 3); // Source, Type, Amount
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<3){ skipped++; return; }
         const [source, type, amount] = cols;
-        if(!source || amount==='' || isNaN(+amount)){ skipped++; return; }
-        if(+amount < 0){ skipped++; return; }
-        os.interestRows.push({source, type: type||'Other', amount:+amount});
+        if(!source || amount==='' || isNaN(toNum(amount))){ skipped++; return; }
+        if(toNum(amount) < 0){ skipped++; return; }
+        os.interestRows.push({source, type: type||'Other', amount:toNum(amount)});
         added++;
       });
       save(); renderIntRows();
-      intCard.querySelector('#os_int_feedback').textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+      intCard.querySelector('#os_int_feedback').textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) intCard.querySelector('#os_int_paste').value='';
     };
 
@@ -3071,7 +3431,7 @@ const OtherSourcesModule = {
       <div class="divider"></div>
       <h3>Itemise instead (optional)</h3>
       <p class="helptext" style="margin-bottom:8px;">One per line: <code>Company, Amount</code></p>
-      <textarea id="os_div_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="ITC Limited, 49888&#10;HDFC Bank, 18900"></textarea>
+      <textarea id="os_div_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="ITC Limited, 49888&#10;HDFC Bank, 18900"></textarea>
       <button class="btn small" id="os_div_paste_btn" style="margin-top:8px;">Parse &amp; add</button>
       <div id="os_div_feedback" class="helptext" style="margin:6px 0;"></div>
       <div id="os_div_rows"></div>
@@ -3114,18 +3474,18 @@ const OtherSourcesModule = {
     divCard.querySelector('#os_ais_div').onchange = (e)=>{ os.aisDividendTotal = e.target.value; save(); renderDivRows(); };
     divCard.querySelector('#os_div_paste_btn').onclick = ()=>{
       const raw = divCard.querySelector('#os_div_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 2); // Company, Amount
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<2){ skipped++; return; }
         const [company, amount] = cols;
-        if(!company || amount==='' || isNaN(+amount)){ skipped++; return; }
-        if(+amount < 0){ skipped++; return; }
-        os.dividendRows.push({company, amount:+amount});
+        if(!company || amount==='' || isNaN(toNum(amount))){ skipped++; return; }
+        if(toNum(amount) < 0){ skipped++; return; }
+        os.dividendRows.push({company, amount:toNum(amount)});
         added++;
       });
       save(); renderDivRows();
-      divCard.querySelector('#os_div_feedback').textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+      divCard.querySelector('#os_div_feedback').textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) divCard.querySelector('#os_div_paste').value='';
     };
   }
@@ -3227,7 +3587,7 @@ const BusinessIncomeModule = {
       card.innerHTML = `
         <h3>F&amp;O trades</h3>
         <p class="helptext" style="margin-bottom:8px;">Paste from your broker's P&L statement: <code>Contract, Profit/Loss</code> — one trade per line. Turnover is computed as the sum of absolute values, per standard F&O turnover convention (this simplified method doesn't separately add options premium — check with a professional if you have significant options selling activity, where premium received is sometimes added on top).</p>
-        <textarea id="bi_fno_paste" rows="4" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="AARTIIND-FUTSTK-23Feb2023, -30599.62&#10;BHARTIARTL-FUTSTK-23Feb2023, 5717.24"></textarea>
+        <textarea id="bi_fno_paste" rows="4" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="AARTIIND-FUTSTK-23Feb2023, -30599.62&#10;BHARTIARTL-FUTSTK-23Feb2023, 5717.24"></textarea>
         <button class="btn small" id="bi_fno_paste_btn" style="margin-top:8px;">Parse &amp; add</button>
         <div id="bi_fno_feedback" class="helptext" style="margin:6px 0;"></div>
         <div id="bi_fno_rows"></div>
@@ -3277,17 +3637,17 @@ const BusinessIncomeModule = {
 
       card.querySelector('#bi_fno_paste_btn').onclick = ()=>{
         const raw = card.querySelector('#bi_fno_paste').value;
-        const rows = parsePastedRows(raw);
+        const rows = parsePastedRows(raw, 2); // Contract, P&L
         let added=0, skipped=0;
         rows.forEach(cols=>{
           if(cols.length<2){ skipped++; return; }
           const [contract, pl] = cols;
-          if(!contract || pl===''||isNaN(+pl)){ skipped++; return; }
-          bi.fnoTrades.push({contract, pl:+pl});
+          if(!contract || pl===''||isNaN(toNum(pl))){ skipped++; return; }
+          bi.fnoTrades.push({contract, pl:toNum(pl)});
           added++;
         });
         save(); renderFNORows(); renderFNOSummary();
-        card.querySelector('#bi_fno_feedback').textContent = `Added ${added} trade(s)${skipped>0?`, skipped ${skipped}`:''}.`;
+        card.querySelector('#bi_fno_feedback').textContent = `Added ${added} trade(s)${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
         if(added>0) card.querySelector('#bi_fno_paste').value='';
       };
     }
@@ -3488,7 +3848,7 @@ const ForeignAssetsModule = {
     bankCard.innerHTML = `
       <h3>Foreign bank accounts (Schedule FA Table A1)</h3>
       <p class="helptext" style="margin-bottom:8px;">One per line, calendar-year basis (Jan-Dec, not FY): <code>Bank, Country, PeakBalance, ClosingBalance</code></p>
-      <textarea id="fa_bank_paste" rows="2" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="Chase Bank, USA, 250000, 180000"></textarea>
+      <textarea id="fa_bank_paste" rows="2" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="Chase Bank, USA, 250000, 180000"></textarea>
       <button class="btn small" id="fa_bank_btn" style="margin-top:8px;">Parse &amp; add</button>
       <div id="fa_bank_feedback" class="helptext" style="margin:6px 0;"></div>
       <div id="fa_bank_rows"></div>
@@ -3517,17 +3877,17 @@ const ForeignAssetsModule = {
     renderBankRows();
     bankCard.querySelector('#fa_bank_btn').onclick = ()=>{
       const raw = bankCard.querySelector('#fa_bank_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 4); // Bank, Country, Peak, Closing
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<4){ skipped++; return; }
         const [bank, country, peak, closing] = cols;
-        if(!bank || !country || isNaN(+peak) || isNaN(+closing) || +peak<0 || +closing<0){ skipped++; return; }
-        p.foreignBankAccounts.push({bank, country, peak:+peak, closing:+closing});
+        if(!bank || !country || isNaN(toNum(peak)) || isNaN(toNum(closing)) || toNum(peak)<0 || toNum(closing)<0){ skipped++; return; }
+        p.foreignBankAccounts.push({bank, country, peak:toNum(peak), closing:toNum(closing)});
         added++;
       });
       save(); renderBankRows();
-      bankCard.querySelector('#fa_bank_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      bankCard.querySelector('#fa_bank_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) bankCard.querySelector('#fa_bank_paste').value='';
     };
 
@@ -3790,7 +4150,7 @@ const HousePropertyModule = {
         const rentWrap = document.createElement('div');
         rentWrap.innerHTML = `<h3 style="margin-top:14px;">Rent credits (this builds GAV)</h3>
           <p class="helptext" style="margin-bottom:6px;">Paste from your bank statement, one credit per line: <code>Date, Amount, Label(optional)</code></p>
-          <textarea id="${idFor('rentpaste')}" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="01/04/2025, 22000&#10;01/05/2025, 22000"></textarea>
+          <textarea id="${idFor('rentpaste')}" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="01/04/2025, 22000&#10;01/05/2025, 22000"></textarea>
           <button class="btn small" id="${idFor('rentpastebtn')}" style="margin-top:6px;">Parse &amp; add</button>
           <div id="${idFor('rentpastefeedback')}" class="helptext" style="margin:4px 0 10px;"></div>
           <div id="${idFor('rentrows')}"></div>
@@ -3862,7 +4222,7 @@ const HousePropertyModule = {
 
         rentWrap.querySelector(`#${idFor('rentpastebtn')}`).onclick = ()=>{
           const raw = rentWrap.querySelector(`#${idFor('rentpaste')}`).value;
-          const rows = parsePastedRows(raw);
+          const rows = parsePastedRows(raw, 3, 2); // Date, Amount, Label (Label optional)
           let added = 0, skipped = 0;
           prop.rentRows = prop.rentRows || [];
           rows.forEach(cols=>{
@@ -3870,15 +4230,15 @@ const HousePropertyModule = {
             const date = parseFlexDate(cols[0]);
             const amount = cols[1];
             const label = cols[2] || '';
-            if(!date || amount==='' || isNaN(+amount)){ skipped++; return; }
-            if(+amount < 0 || date.startsWith('INVALID:')){ skipped++; return; }
-            prop.rentRows.push({date, amount:+amount, label});
+            if(!date || amount==='' || isNaN(toNum(amount))){ skipped++; return; }
+            if(toNum(amount) < 0 || date.startsWith('INVALID:')){ skipped++; return; }
+            prop.rentRows.push({date, amount:toNum(amount), label});
             added++;
           });
           save();
           renderRentRows();
           renderComputation();
-          rentWrap.querySelector(`#${idFor('rentpastefeedback')}`).textContent = `Added ${added} credit(s)${skipped>0 ? `, skipped ${skipped}` : ''}.`;
+          rentWrap.querySelector(`#${idFor('rentpastefeedback')}`).textContent = `Added ${added} credit(s)${skipped>0 ? `, skipped ${skipped}${skipNote(rows)}` : ''}.`;
           if(added>0) rentWrap.querySelector(`#${idFor('rentpaste')}`).value = '';
         };
 
@@ -4188,7 +4548,7 @@ const ScheduleEIModule = {
     eiCard.innerHTML = `
       <h3>Exempt income to disclose</h3>
       <p class="helptext" style="margin-bottom:8px;">Common categories: PPF interest, tax-free bond interest, share of profit from a partnership firm (taxed in the firm's hands, exempt in yours), exempt portion of gratuity/leave encashment, agricultural income. Paste one per line: <code>Category, Amount, Note(optional)</code></p>
-      <textarea id="ei_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="PPF interest, 45000&#10;Partnership firm profit share, 320000, XYZ & Co."></textarea>
+      <textarea id="ei_paste" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="PPF interest, 45000&#10;Partnership firm profit share, 320000, XYZ & Co."></textarea>
       <button class="btn small" id="ei_paste_btn" style="margin-top:8px;">Parse &amp; add</button>
       <div id="ei_feedback" class="helptext" style="margin:6px 0;"></div>
       <div id="ei_rows"></div>
@@ -4226,17 +4586,17 @@ const ScheduleEIModule = {
 
     eiCard.querySelector('#ei_paste_btn').onclick = ()=>{
       const raw = eiCard.querySelector('#ei_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 3, 2); // Category, Amount, Note (Note optional)
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<2){ skipped++; return; }
         const [category, amount, note] = cols;
-        if(!category || isNaN(+amount) || +amount<0){ skipped++; return; }
-        ei.rows.push({category: category.trim(), amount:+amount, note: note||''});
+        if(!category || isNaN(toNum(amount)) || toNum(amount)<0){ skipped++; return; }
+        ei.rows.push({category: category.trim(), amount:toNum(amount), note: note||''});
         added++;
       });
       save(); renderEIRows();
-      eiCard.querySelector('#ei_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      eiCard.querySelector('#ei_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) eiCard.querySelector('#ei_paste').value='';
     };
 
@@ -4413,7 +4773,7 @@ const AMTModule = {
     creditCard.innerHTML = `
       <h3>AMT credit tracker</h3>
       <p class="helptext" style="margin-bottom:8px;">Log each year's credit generated (from AMT years) and utilized (from years normal tax exceeded that year's AMT). One per line: <code>FY, Generated, Utilized</code></p>
-      <textarea id="amt_credit_paste" rows="2" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="2023-24, 45000, 0&#10;2024-25, 0, 20000"></textarea>
+      <textarea id="amt_credit_paste" rows="2" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="2023-24, 45000, 0&#10;2024-25, 0, 20000"></textarea>
       <button class="btn small" id="amt_credit_btn" style="margin-top:8px;">Parse &amp; add</button>
       <div id="amt_credit_feedback" class="helptext" style="margin:6px 0;"></div>
       <div id="amt_credit_rows"></div>
@@ -4453,17 +4813,17 @@ const AMTModule = {
 
     creditCard.querySelector('#amt_credit_btn').onclick = ()=>{
       const raw = creditCard.querySelector('#amt_credit_paste').value;
-      const rows = parsePastedRows(raw);
+      const rows = parsePastedRows(raw, 3); // FY, Generated, Utilized
       let added=0, skipped=0;
       rows.forEach(cols=>{
         if(cols.length<3){ skipped++; return; }
         const [fy, generated, utilized] = cols;
-        if(!fy || isNaN(+generated) || isNaN(+utilized) || +generated<0 || +utilized<0){ skipped++; return; }
-        amt.creditRows.push({fy: fy.trim(), generated:+generated, utilized:+utilized});
+        if(!fy || isNaN(toNum(generated)) || isNaN(toNum(utilized)) || toNum(generated)<0 || toNum(utilized)<0){ skipped++; return; }
+        amt.creditRows.push({fy: fy.trim(), generated:toNum(generated), utilized:toNum(utilized)});
         added++;
       });
       save(); renderCreditRows();
-      creditCard.querySelector('#amt_credit_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}`:''}.`;
+      creditCard.querySelector('#amt_credit_feedback').textContent = `Added ${added}${skipped>0?`, skipped ${skipped}${skipNote(rows)}`:''}.`;
       if(added>0) creditCard.querySelector('#amt_credit_paste').value='';
     };
   }
@@ -4662,7 +5022,7 @@ const AssetsLiabilitiesModule = {
       card.innerHTML = `
         <h3>${title}</h3>
         <p class="helptext" style="margin-bottom:8px;">One per line: <code>${cols.join(', ')}</code></p>
-        <textarea id="al_paste_${key}" rows="2" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:12px;" placeholder="${placeholder}"></textarea>
+        <textarea id="al_paste_${key}" rows="2" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px; border-radius:4px; font-family:var(--mono); font-size:13px;" placeholder="${placeholder}"></textarea>
         <button class="btn small" id="al_btn_${key}" style="margin-top:8px;">Parse &amp; add</button>
         <div id="al_feedback_${key}" class="helptext" style="margin:6px 0;"></div>
         <div id="al_rows_${key}"></div>
@@ -4694,18 +5054,18 @@ const AssetsLiabilitiesModule = {
 
       card.querySelector(`#al_btn_${key}`).onclick = ()=>{
         const raw = card.querySelector(`#al_paste_${key}`).value;
-        const rows = parsePastedRows(raw);
+        const rows = parsePastedRows(raw, cols.length); // last col is always the amount, e.g. [Description, Cost]
         al[key] = al[key] || [];
         let added=0, skipped=0;
         rows.forEach(cols_=>{
           if(cols_.length < cols.length){ skipped++; return; }
           const amountCol = cols_[cols.length-1]; // last column is always the amount (cost / outstanding)
-          if(isNaN(+amountCol) || +amountCol < 0){ skipped++; return; }
+          if(isNaN(toNum(amountCol)) || toNum(amountCol) < 0){ skipped++; return; }
           al[key].push(cols_.slice(0,cols.length));
           added++;
         });
         save(); renderRows();
-        card.querySelector(`#al_feedback_${key}`).textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped} (amount must be a non-negative number)`:''}.`;
+        card.querySelector(`#al_feedback_${key}`).textContent = `Added ${added} row(s)${skipped>0?`, skipped ${skipped} (amount must be a non-negative number)${skipNote(rows)}`:''}.`;
         if(added>0) card.querySelector(`#al_paste_${key}`).value='';
       };
     }
@@ -5295,7 +5655,7 @@ const AdvanceTaxModule = {
           <div class="verdict">Total interest: ₹${totalInterest.toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
           <div class="basis">
             <div>234C (installment shortfall): ₹${c234C.toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
-            ${c234CDetail.map(d=>`<div style="padding-left:12px; font-size:11px; color:var(--muted);">• ${d}</div>`).join('')}
+            ${c234CDetail.map(d=>`<div style="padding-left:12px; font-size:13px; color:var(--muted);">• ${d}</div>`).join('')}
             <div style="margin-top:6px;">234B (advance tax <90% of assessed): ₹${c234B.toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
             <div>234A (late filing, on unpaid balance): ₹${c234A.toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
           </div>
@@ -5928,7 +6288,7 @@ const TaxSavingModule = {
       kindTips.forEach(t=>{
         const card = document.createElement('div');
         card.className = 'card';
-        card.innerHTML = `<h3>${t.title}</h3><p style="font-size:12.5px; color:var(--text); line-height:1.6;">${t.body}</p>`;
+        card.innerHTML = `<h3>${t.title}</h3><p style="font-size:13px; color:var(--text); line-height:1.6;">${t.body}</p>`;
         container.appendChild(card);
       });
     });

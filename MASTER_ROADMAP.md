@@ -45,6 +45,80 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
   (ITR-U date, belated/revised split, ITR-3/4 due date), 6 gaps flagged.
 - 2026-08-03: Migrated from Google Drive to GitHub (Sundaram31/Financial-OS)
   + GitHub Pages for a live site — eliminates manual upload/delete cycle.
+- 2026-08-11: App-wide font-size/contrast/consistency pass across every module
+  (itrgenie, networth, goals, loans, insurance, portfolio, synthesis) plus the
+  root landing page, in response to direct, repeated user feedback that had
+  been deferred in earlier sessions. Establishes 13px as the enforced
+  app-wide minimum `font-size` for all reading-flow text (labels, table
+  cells, helptext, buttons, badges) — not just mobile, both viewports —
+  going forward; new modules/screens should not introduce anything smaller.
+  Confirmed all shared `--bg/--panel/--panel-2/--line/--text/--muted/--gold/
+  --gold-dim/--green/--rust` hex values are already consistent across every
+  module (one drift found and fixed: the root landing page's own `--muted`
+  and missing tokens). `--muted` contrast checked and already passes WCAG AA
+  in both themes everywhere. Two things found but deliberately not fixed
+  (flagged, not guessed at): `--rust` used as inline warning/error *text*
+  falls short of AA when read as normal-size text (a design decision about a
+  multi-purpose accent color, not this pass's call to make), and the root
+  landing page has no light theme at all (a feature gap, not a sizing fix).
+  See `INDEX.md`'s "App-wide pass" entry and each module's own `PROGRESS.md`
+  for the full before→after list.
+- 2026-08-11 (same day): `financial-os-reviewer` independently re-verified the
+  pass above and confirmed it safe, but measured the `--rust`-as-text AA
+  failure more precisely than the original pass had -- 3.93:1 flat against
+  `--bg` (dark theme), but 3.43:1 in the real composited case (`.notice.warn`'s
+  actual rendered background), worse than the flat number suggested. Fixed
+  same-day rather than deferred further, since it's a well-defined, computable
+  color-contrast problem, not an ambiguous design call: dark-theme `--rust`
+  changed from `#B5533C` to `#CE6C53` across all 8 files (hue essentially
+  unchanged, 0.032→0.034 on the HSL wheel; just brighter/more saturated) --
+  now 5.43:1 flat and 4.74:1 in the real composited warning-box case, both
+  clearing AA, verified live in a headless-Chromium render (not just computed
+  offline) using the actual rendered `getComputedStyle` colors. Light theme's
+  `--rust` (`#9B3F2A`) was already comfortably AA-compliant (5.8-6.7:1) and
+  left untouched. The other two flagged items (root landing page's missing
+  light theme, `portfolio/index.html`'s off-palette `.match-tag.isin` blue)
+  remain open -- genuine feature/design decisions, not contrast bugs.
+- 2026-08-11 (same day): App-wide pass making paste/upload entry tolerant of
+  real-world formatting variation, in direct response to blunt user feedback
+  that even where paste/upload is already accepted, most parsers still
+  demand data pre-shaped into an exact column order/count first -- "these
+  were the softwares of 1980... programme will handle everything" was the
+  stated bar. `itrgenie/`'s AIS Auto-Import already met that bar (matches
+  columns by keyword against a real header row, not fixed position) --
+  generalized the same "tolerate variation, never silently misread a
+  number" principle to `itrgenie/`'s other ~14 paste boxes (Salary, HRA,
+  Clubbing, Capital Gains Equity/MF, VDA, Other Sources, F&O, Foreign
+  Assets, Rent, Exempt Income, AMT, Schedule AL), `goals/` and `networth/`'s
+  Label/Value paste boxes, `loans/`' statement parser, and `portfolio/`'s
+  bulk-paste box + a new "paste one line to fill in" quick-fill on its
+  guided "Add a holding" form. Two kinds of tolerance, applied only where
+  honestly safe: (1) currency-symbol/thousands-comma stripping everywhere
+  (a shared `toNum()`/`parseNumericCell()` pattern per module, plus a
+  `protectThousandsCommas()` fix so a comma-grouped value like "₹4,50,000"
+  doesn't get sliced into fake extra columns when comma is the row
+  separator); (2) column-ORDER tolerance only in `goals/`/`networth/`'s
+  2-column Label/Value boxes, where which cell "looks like a number"
+  reliably identifies the Value column -- ITRGenie's other, longer paste
+  boxes deliberately keep strict column order since they have no header row
+  to key off the way AIS's real exported file does, so reordering there
+  would be guessing, not detecting. Two real correctness bugs found and
+  fixed during this same audit (not the pass's original goal): ITRGenie's
+  Capital Gains -- Equity paste path could let an unparseable qty/sell-price
+  cell through as `NaN` instead of being honestly skipped; `loans/`'
+  amount-extraction regex could pick up a transaction date's own year
+  digits as a candidate payment amount, which could silently win as the
+  recorded EMI figure (fixed by excluding the matched date substring before
+  scanning for amounts). No OCR or new document-type parsing added anywhere
+  -- this is strictly about tolerating variation within already-supported
+  structured formats (CSV/Excel/pasted text), matching the boundary AIS
+  Auto-Import's own author already drew. Verified with 51 targeted
+  real-headless-Chromium (Playwright) checks across the 5 touched modules
+  plus a full regression smoke pass (all 27 ITRGenie modules + Dashboard/
+  Checklist/Help, all 5 touched modules at 375px/1280px) -- 0 console errors
+  throughout. No cross-module data contract changed. See `INDEX.md`'s
+  matching "App-wide pass" entry and each module's own `PROGRESS.md` for
+  full before/after detail.
 
 ## How to run a session against this roadmap
 1. Say "check the Financial-OS repo" — Claude reads this file directly from
@@ -75,6 +149,8 @@ A full personal financial system covers 8 pillars. Mapping yours against them:
 - 2026-08-09: Closed Portfolio Tracker's live-price gap (item 1 above) per explicit user direction to build two layered tiers rather than pick one. **Tier 1 (no setup)**: `fetchQuoteYahoo(symbol)` calls Yahoo Finance's public chart endpoint (`query1.finance.yahoo.com`, falling back to `query2`) directly from the browser, reading `chart.result[0].meta.regularMarketPrice`. **Tier 2 (optional, bring-your-own-key)**: `fetchQuoteTwelveData(symbol, exchange, apiKey)` reuses the exact safe request/parse pattern from the earlier Portfolio Tracker prototype located in the user's Drive this session; key stored in its own localStorage key (`portfolio_livekey_v1`), never in the exported JSON, never hardcoded. Both are small isolated per-provider functions behind one `fetchLivePrice(h)` orchestrator so a future third provider (explicitly anticipated by the user) is a contained addition. Scoped to Stock/Equity/ETF holdings only -- Mutual Fund and other types stay manual, visibly marked rather than silently skipped, since fund NAVs need AMFI scheme codes this session had no basis to guess at. INR holdings get a `.NS` Yahoo suffix / `exchange=NSE` Twelve Data param; Vested-US holdings use the plain ticker; a failed fetch of any kind (CORS, HTTP error, malformed/negative/missing price) never overwrites the existing manually-entered price, and always shows a clear per-row status rather than failing silently. Refresh-all is staggered ~350ms apart. **What's confirmed vs. not**: Tier 2, the scoping/symbol logic, the fallback order, staggering, the never-overwrite-on-failure guarantee, and the UI were all verified with a real headless-Chromium (Playwright) test suite (34 checks) with `fetch` mocked at the network boundary, plus a visual check in both themes. Tier 1's actual behavior against Yahoo's live endpoint in a real browser is **still unverified by anyone** -- this build environment's own sandbox proxy blocks outbound network to arbitrary hosts (confirmed via a failed `curl` to `query1.finance.yahoo.com` returning a 403 from the sandbox, not from Yahoo), so real-world CORS/rate-limit behavior can only be confirmed once the user tries it on the live deployed site. See `portfolio/PROGRESS.md`'s 2026-08-09 "Live price feed built" entry for full detail.
 - 2026-08-09: Built the Synthesis Layer's **first pass** (`/synthesis/`) -- roadmap item 5 above, moved from "not started" to a real first build. Confirmed the key architecture fact first (same-origin GitHub Pages deploy means every module's localStorage key is already directly readable from any page on the site -- no export/import handshake needed for a read-only view), then read each source module's actual current data shape from its own file rather than trusting a paraphrase (Net Worth's `{categories:{...}, liabilities:{...}, snapshots:[...]}`, Goals' `{goals:[...]}` with a `projectGoal()` function copied verbatim to stay in lockstep, Portfolio's `{accounts, holdings, fx}` with its own `computeHoldingMetrics`/`toINR` logic reused, Loans' `{loans:[...]}` -- confirmed it does NOT store a debt-free date field, only enough to derive one via its own `amortizationSummary()` amortization formula, reused verbatim -- and Insurance's `{policies:[...], annualIncome, dependents, existingLoans}`). Scoped deliberately to what's genuinely computable today rather than the full aspirational wishlist in this file's "Synthesis Layer" section: net worth + trend, per-goal progress/on-track status, portfolio value/gain/allocation, debt outstanding + EMI + projected debt-free date, and insurance cover-vs-income adequacy -- this maps directly onto the Life Confidence pillar's item 8 ("annual financial health report card"). Explicitly left out, and why: what-if fund-switch/capital-gains tax modeling (needs Portfolio's sold-position/realized-gains tracking, which doesn't exist -- Portfolio only tracks open holdings), and the overall tax-reduction synthesis across ITRGenie + Portfolio + What-If Planner (same blocker). The insurance-adequacy income figure was deliberately NOT reverse-engineered from ITRGenie's `itr_advisor_profile_v1` (scattered per-tax-module, not a single clean number) -- Synthesis instead has its own manual income input stored in its own `synthesis_data_v1` key, with a one-time convenience prefill from Insurance Tracker's own already-real `annualIncome` field if set (never re-read after that, `insurance_data_v1` itself never written). Verified strictly read-only against every source module with a real headless-Chromium (Playwright) suite (29 checks): byte-for-byte before/after comparison of every source module's localStorage value confirmed no writes ever happen to `networth_data_v1`/`goals_data_v1`/`portfolio_data_v1`/`loans_data_v1`/`insurance_data_v1`, even immediately after the income-prefill read; partial-data (3 of 5 modules seeded), full-data, and fully-empty scenarios all rendered correctly with clear per-section "no data yet, add it in [Module]" guidance rather than a crash or a misleading zero; mobile (375px) and desktop (1280px), both themes, verified no sub-13px text and no horizontal scroll (two CSS-specificity bugs found and fixed during this pass, where a mobile media-query override was silently losing to a more specific base-CSS selector). See `synthesis/PROGRESS.md` for full detail.
 - 2026-08-10: Fixed Portfolio Tracker's document import per real user feedback naming it the weakest part of the app. (1) Real Excel (.xlsx/.xls) import via self-hosted SheetJS with fuzzy column detection (header aliasing + ISIN-pattern fallback) and a mapping-preview-before-commit UI -- the old file upload silently mis-read binary broker exports as plain text. (2) New capability: password-protected CAS (NSDL/CDSL demat statement) PDF import via self-hosted PDF.js, real inline password-unlock UI (PDF.js's actual `onPassword` callback, not a stub), ISIN-anchored text parsing kept in one isolated/easy-to-revise function since it's UNVERIFIED against a real CAS (no real file/password was available this session -- password mechanics and Excel fuzzy-matching WERE verified for real, against a genuinely encrypted test PDF and a realistic messy-header test spreadsheet). Because a CAS has no cost-basis data, imported holdings get Buy Price left genuinely blank rather than a `marketValue/qty` figure mislabeled as buy price -- surfaced directly in the import UI, not just docs. Found and fixed a related real correctness bug while building this: the gain/loss math previously treated a missing buy price as a cost basis of 0, which would have shown a CAS-imported holding's full current value as fake "gain" -- now `null`-aware throughout (`computeHoldingMetrics`, `computePortfolio`, the top stat tile, the by-account table), with holdings missing a Buy Price explicitly flagged and excluded from Invested/Gain-Loss totals rather than silently miscounted. See `portfolio/PROGRESS.md`'s 2026-08-10 entry for the full verified/unverified breakdown.
+- 2026-08-10: Built Portfolio Tracker's sold/realized capital-gains tracking -- item 4's explicitly stated prerequisite ("Portfolio currently has no sell/capital-gains workflow... that would need to be built as part of this item, not assumed to already exist"). A guided "Record a sale" form (full or partial, against any open holding, qty-validated against what's actually held) creates a sold-lot record and either removes the holding (full sale) or reduces its qty in place (partial sale). ST/LT classification is copied verbatim from `itrgenie/index.html`'s `holdingPeriodDays()`/`computeRowGain()` (not re-derived, not referenced cross-module, per this repo's self-containment convention) -- confirmed by test to preserve the exact real-world Sec 2(42A) boundary correction already baked into ITRGenie: a holding sold on exactly 365 days is Short-Term, not Long-Term (364/365/366-day boundary cases all verified). A sold lot from a CAS-imported holding with no Buy Price on file shows an honest "unknown gain/unclassified" state (`{gain:null, term:null}`, matching ITRGenie's own `computeRowGain()`'s exact null-both-fields behavior) rather than a fabricated cost-basis-of-zero gain, with the Buy Price/Buy Date fixable inline directly in the new Realized Gains table. The Realized Gains view shows raw STCG/LTCG totals only -- explicitly, in the UI copy itself, NOT a tax computation (no Sec 112A exemption, no slab rates, no loss carry-forward -- that authority stays with ITRGenie). The capital-gains feed export (`{symbol, buydate, selldate, buyprice, sellprice, qty, assetType}[]`, the contract already documented below) was built only after actually reading ITRGenie's `CapitalGainsEquityModule`/`CapitalGainsMFModule` paste-parsers, not assumed -- the paste-ready-lines button matches the Equity module's real `Stock, Qty, BuyDate, BuyPrice, SellDate, SellPrice` format field-for-field; Mutual Fund sold lots are explicitly NOT auto-mapped into the MF module's different format (`Scheme, 112A-or-112, RedemptionDate, Cost, Gain, TDS`) since that needs a Sec 112A/112 classification this module has no basis to know. Verified with 40 real headless-Chromium (Playwright) checks: full/partial sale mechanics, the 364/365/366-day ST/LT boundary, the CAS-no-cost-basis honest-unknown path, oversell-quantity validation, the exact feed contract shape/values, mobile (375px) rendering, and a full regression pass confirming nothing about existing holdings/live-price/FX/dedup functionality broke. Deliberately NOT built in this pass, and stated as the real next step for item 4: the what-if fund-switch simulation UI itself (joining this data with ITRGenie's tax-rate/exemption logic) -- see `portfolio/PROGRESS.md`'s 2026-08-10 "Sold/realized capital-gains tracking" entry and this file's updated item 4 above for full detail.
+- 2026-08-10: Built Portfolio Tracker's "Simulate a sale" what-if tax calculator -- item 4's last remaining piece, now DONE. Given a hypothetical qty/sell-price/sell-date on any open domestic (INR) Stock/ETF/Equity/Other holding, applies ITRGenie's actual verified rates (re-read directly from `itrgenie/index.html` ~line 4802-4818, not assumed): STCG (Sec 111A) flat 20%; LTCG (Sec 112A) flat 12.5% on the amount above a ₹1,25,000-per-financial-year POOLED exemption -- computed as a real marginal-tax calculation against "how much Sec 112A LTCG has this person already realized this FY" (summed from Portfolio's own tracked sold lots via a new `getFinancialYearRange()`/`isDateInFY()` Indian-FY helper, shown explicitly and fully editable/overridable since it can only see sales tracked in this module). Two deliberate exclusions, each honestly explained in-UI rather than producing a wrong number: Mutual Fund holdings (a real MF redemption gain needs an actual CAS/CAMS statement a hypothetical sale doesn't have, mirroring `CapitalGainsMFModule`'s own design) and foreign-currency (Vested-US/non-INR) holdings -- the latter found while re-reading ITRGenie's tax code beyond the cited line range, since `ForeignAssetsModule`'s use in the main computation puts foreign LTCG in a separate no-exemption Sec 112 bucket and foreign STCG at the person's income slab rate, not this simulator's domestic Sec 111A/112A rates. Purely computational (never creates a sold lot or mutates a holding, confirmed by test: `data.holdings`/`data.soldLots` byte-identical before/after). Verified with 29 tax-logic checks + 14 regression/mobile checks (real headless Chromium, system clock frozen to 2026-08-10 for deterministic FY math) -- including hand-traced exemption-pooling scenarios (a prior ₹1,00,000 Sec-112A LTCG this FY correctly reduces headroom to ₹25,000, not a fresh ₹1,25,000; prior gains already over ₹1,25,000 correctly leave a new sale fully taxed; a sold lot from a different FY, and the exact March-31-vs-April-1 boundary, are correctly excluded/included). See `portfolio/PROGRESS.md`'s 2026-08-10 "What-if fund-switch tax simulator" entry for full detail, including the foreign-asset holding-period threshold flagged as unverified (ITRGenie's own `ForeignAssetsModule` takes STCG/LTCG as direct manual entry, so there was no computed threshold to read/verify -- this simulator sidesteps the question by excluding foreign holdings from computation entirely rather than guessing).
 
 ## The Synthesis Layer — what Financial OS is actually for
 Every module so far has been built to work standalone. The real value, stated
@@ -131,22 +207,121 @@ data before designing the Portfolio module's data model.
    system instead of guessing at that file.
 4. What-if fund-switch tax modeling -- needs Portfolio's holding-level data
    (cost basis, holding period) joined with ITRGenie's capital gains logic.
-   Portfolio currently has no sell/capital-gains workflow (only open
-   holdings) -- that would need to be built as part of this item, not
-   assumed to already exist.
+   **The stated prerequisite is now built (2026-08-10): Portfolio has a
+   real sell/capital-gains workflow** -- a guided "Record a sale" form
+   against any open holding (full or partial), ST/LT classification ported
+   verbatim from ITRGenie's own `holdingPeriodDays()`/`computeRowGain()`
+   (same Sec 2(42A) boundary: exactly 365 days held is Short-Term, not
+   Long-Term), a "Realized gains" view (STCG/LTCG totals, raw facts only --
+   no Section 112A exemption/slab-rate/loss-carry-forward math, that stays
+   ITRGenie's domain), and a capital-gains feed export matching the
+   `{symbol, buydate, selldate, buyprice, sellprice, qty, assetType}[]`
+   contract below (JSON + paste-ready lines checked against ITRGenie's
+   actual Capital Gains -- Equity module paste parser, not assumed). See
+   `portfolio/PROGRESS.md`'s 2026-08-10 entry for full detail.
+   **This item is now DONE (2026-08-10): the "Simulate a sale" what-if tax
+   calculator is live in `portfolio/index.html`**, right after Realized
+   gains. Given a hypothetical qty/sell-price/sell-date on any open Stock/
+   ETF/Equity/Other holding (default sell price = the holding's live/last-
+   known Current Price, default date = today, both editable), it applies
+   ITRGenie's actual verified rates -- STCG (Sec 111A) flat 20%, LTCG
+   (Sec 112A) flat 12.5% on the amount above a ₹1,25,000-per-financial-year
+   POOLED exemption (not per-transaction) -- computing the marginal tax by
+   summing this FY's already-realized Sec-112A LTCG from Portfolio's own
+   tracked sold lots (shown explicitly, fully editable/overridable, since
+   it can't see sales made elsewhere). Scoped to domestic (INR) Stock/ETF/
+   Equity/Other only: Mutual Fund holdings show an honest exclusion
+   (a hypothetical sale has no real CAS/CAMS redemption statement to derive
+   a gain from, mirroring `CapitalGainsMFModule`'s own design) rather than a
+   computed figure, and -- found while re-verifying ITRGenie's tax code
+   directly rather than assuming the task's stated scope was complete --
+   foreign-currency (Vested-US/non-INR) holdings are excluded too, since
+   ITRGenie's own computation puts foreign LTCG in a *separate* Sec 112
+   bucket (12.5%, no pooled exemption) and foreign STCG at the person's
+   income slab rate, not the domestic Sec 111A/112A rates this simulator
+   models. Purely computational -- never creates a sold lot or mutates a
+   holding, verified by test. Explicitly out of scope, stated in-UI:
+   surcharge/cess/slab interaction (ITRGenie's job), loss set-off ordering
+   (ITRGenie's Loss Set-off module), and evaluating what the sale proceeds
+   would be switched into (an optional free-text note only, nothing
+   computed about a destination). See `portfolio/PROGRESS.md`'s 2026-08-10
+   entry for full detail and hand-traced verification numbers for the
+   exemption-pooling logic specifically -- the part most likely to have a
+   subtle bug if the pooling math weren't exactly right.
 5. **The Synthesis Layer -- first pass built 2026-08-09 (`/synthesis/`).**
    Read-only cross-module view: net worth + trend, per-goal progress,
    portfolio value/gain/allocation, debt outstanding + projected debt-free
    date, insurance cover-vs-income adequacy. Scoped to the "annual
    financial health report card" (Life Confidence pillar item 8 below), the
    part of this wishlist genuinely computable from data that already
-   exists -- not the full list below. **Still not done, deliberately**:
-   what-if fund-switch/capital-gains tax modeling and the overall
-   tax-reduction synthesis (both need Portfolio's sold-position/realized-
-   gains tracking, which doesn't exist -- Portfolio only tracks open
-   holdings, so item 4 above still needs to happen first). See
-   `synthesis/PROGRESS.md` for full scope and the income-figure design
-   decision.
+   exists -- not the full list below. **Still not done, deliberately**: the
+   overall tax-reduction synthesis (joining what-if-sale results, Loss
+   Set-off, and the rest of ITRGenie's return-level computation into one
+   cross-module view). Item 4's own prerequisite (Portfolio sold-position/
+   realized-gains tracking) and the what-if sale tax simulator itself are
+   now both built (2026-08-10, see item 4 above and `portfolio/PROGRESS.md`)
+   -- this Synthesis page just hasn't been extended to surface that
+   simulator's output yet, which is a distinct future piece of work, not a
+   blocked prerequisite anymore. **Extended 2026-08-11** with a Financial
+   independence card (Life Confidence pillar item 2, see that item above)
+   -- the first Life Confidence item built directly into Synthesis rather
+   than another module, since it genuinely needs data from multiple
+   modules (Net Worth/Portfolio for assets, Goals for both contributions
+   and the Emergency-fund expenses figure) joined in one place. See
+   `synthesis/PROGRESS.md` for full scope
+   and the income-figure design decision.
+- 2026-08-10: Built the Life Confidence pillar's item 1, **Emergency fund
+  adequacy check**, in `goals/index.html` -- the first item built from this
+  pillar, now that Portfolio, Synthesis, and item 4 (what-if tax modeling)
+  all exist per this section's own sequencing note. Deliberately scoped as
+  a sub-flow inside the existing "Emergency fund" goal category rather than
+  an auto-computed figure, after confirming Net Worth's data model has no
+  monthly-expenses field and no liquidity classification (its "Investments"
+  category bundles genuinely liquid FDs/liquid funds with retirement-locked
+  EPF/PPF) -- an auto-derived number would have silently misrepresented
+  locked money as available cash, exactly the "fabricated confidence"
+  failure mode this app exists to avoid. Two new manual inputs (monthly
+  essential expenses, months-of-coverage-wanted -- 6-12 range, defaulting
+  to 9 given this app's own seafarer/contract-income context rather than
+  the generic 6-month minimum) produce a recommended target
+  (expenses × months, "Use as target" button fills the goal's real target
+  field only on explicit click) and the actual adequacy number -- months of
+  expenses currently covered, computed from the goal's own existing
+  tagged-investments total (no new liquidity classification invented) --
+  shown prominently with red/amber/green tiering and an explicit warning
+  against tagging retirement-locked money (EPF/PPF) here even if it appears
+  elsewhere in Net Worth/Portfolio. Small additive touch to Synthesis's
+  Goals card surfaces the same months-covered figure for Emergency-fund
+  goals specifically. Verified with 30 real headless-Chromium (Playwright)
+  checks including a hand-traced example (₹50,000/mo expenses, ₹2,10,000
+  tagged → 4.2 of 9 months covered, gold/"Building" tier; recommended
+  target ₹4,50,000) and full regression of the module's existing
+  inflation/risk-profile calculator and Synthesis's Goals card for other
+  goal categories. Found and flagged, not fixed (out of scope for this
+  task): Synthesis's own `projectGoal()` copy still uses the pre-2026-08-10
+  ordinary-annuity SIP formula, not the annuity-due fix Goals switched to
+  earlier the same day -- a real drift between the two modules' projected
+  (not current) values, worth a dedicated future fix. See
+  `goals/PROGRESS.md` and `synthesis/PROGRESS.md`'s 2026-08-10 entries.
+- 2026-08-11: Built the Life Confidence pillar's item 2, **Financial
+  independence date**, in `synthesis/index.html` -- a new card + overview
+  tile computing the date projected investable assets cross an FI target
+  (25x annual expenses / 4% safe-withdrawal-rate default, editable).
+  Designed explicitly around two dependency risks: Net Worth's Investments
+  category and Portfolio Tracker could hold the same holdings twice (no
+  live sync between them, confirmed by reading `networth/index.html`), so
+  the card uses an explicit assets-source picker (Portfolio / Net Worth /
+  manual) rather than summing; and no general "monthly expenses" figure
+  exists anywhere in the app except inside an Emergency-fund goal, so that
+  goal's `efMonthlyExpenses` (built 2026-08-10) is offered as a labeled,
+  overridable suggestion rather than a silently-reused figure. Reuses the
+  annuity-due SIP math `goals/index.html` was fixed to use on 2026-08-10
+  (a fresh function solving for the crossing date, not touching
+  Synthesis's own separate, still-stale `projectGoal()` copy used by the
+  Goals card -- fixing that drift stayed explicitly out of scope). Verified
+  with 43 real headless-Chromium (Playwright) checks including a full
+  hand-traced example. See `synthesis/PROGRESS.md`'s 2026-08-11 entry and
+  this file's updated Life Confidence pillar item 2 above for full detail.
 
 ## Life Confidence — a 9th pillar (added 2026-08-07)
 Everything so far tracks and computes. This pillar exists for a different
@@ -154,11 +329,61 @@ purpose: answering "will I actually be okay," which is what turns a pile of
 correct numbers into peace of mind. Ranked by leverage, same convention as
 the original 8-pillar list.
 
-1. **Emergency fund adequacy check** — 6-12 months of true liquid expenses,
-   not "some savings somewhere." Simple, high-confidence-per-effort.
-2. **Financial independence date** — one combined projection across debts,
-   investments, and goals: the date work becomes optional. The single number
-   most likely to change how someone feels about their plan, not just informs it.
+1. **Emergency fund adequacy check — DONE (2026-08-10, `/goals/`).** Built as
+   a guided sub-flow inside the existing "Emergency fund" goal category
+   (not a new auto-computed figure — Net Worth has no liquidity
+   classification, so deriving one automatically would have silently
+   counted retirement-locked EPF/PPF as available cash). Two new manual
+   inputs (monthly essential expenses, months of coverage wanted — a
+   6-12 slider/presets defaulting to 9, not the generic 6-month minimum,
+   given this app's own seafarer/contract-income context) produce a
+   recommended target (expenses × months, fill-on-click only, never
+   silent) and the real adequacy number — months of expenses currently
+   covered, from the goal's own tagged-investments total — shown with a
+   calm red/amber/green tiering. Explicit in-UI warning against tagging
+   retirement-locked money here. Surfaced additively on Synthesis's Goals
+   card too. See `goals/PROGRESS.md` and `synthesis/PROGRESS.md`'s
+   2026-08-10 entries for full detail and hand-traced verification.
+2. **Financial independence date — DONE (2026-08-11, `/synthesis/`).** A new
+   "Financial independence" card + overview tile, built around the same two
+   dependency risks flagged when this item was scoped: (1) Net Worth's
+   Investments category is manual-entry-only with no live Portfolio sync,
+   so the same holdings could be double-counted if both are kept up to
+   date — the card never sums them, it's an explicit `<select>`
+   ("Portfolio Tracker's tracked value" / "Net Worth's Investments category
+   total" / "Manual entry"), each option showing its live figure, with the
+   chosen source always labeled next to the result; (2) no general
+   "monthly expenses" figure exists anywhere in this app except inside an
+   Emergency-fund goal (built 2026-08-10) — that goal's `efMonthlyExpenses`
+   one-time-prefills this card's own expenses field, explicitly labeled as
+   sourced from that specific goal with a note that it's essential-spend
+   only (a full FI/retirement budget may run higher), and stays fully
+   editable; with no such goal, it's a fresh manual entry with the same
+   "self-reported, no other source" framing the Emergency Fund calculator
+   itself uses. All other inputs (monthly investment — suggested from
+   Goals' summed `monthlyContribution`; expected return — the same
+   Conservative/Balanced/Aggressive presets `goals/index.html` defines;
+   the 25×-annual-expenses/4%-safe-withdrawal-rate FI multiple) are
+   likewise editable defaults, never silently assumed. The projection
+   itself (`monthsToReachTarget()`) uses the SAME annuity-due SIP
+   convention `goals/index.html`'s `projectGoal()` was fixed to on
+   2026-08-10, solved in reverse (given a rate/contribution, find the
+   month FV crosses a target) — a fresh function, deliberately not
+   reusing/fixing Synthesis's own separate (still-stale, pre-annuity-due)
+   `projectGoal()` copy used by the Goals card, since fixing that drift
+   was out of scope for this task's own regression requirement. Verified
+   with 43 real headless-Chromium (Playwright) checks including a full
+   hand-traced example (₹20,00,000 assets, ₹50,000/mo, 8.5% return,
+   ₹60,000/mo expenses, 25× multiple → ₹1,80,00,000 target → ≈143.66
+   months → **11 Aug 2038** from an 11 Aug 2026 run, matched exactly by
+   the app), no-double-counting checks on the source switch, honest
+   "not reachable"/"enter expenses"/"already there" states for missing or
+   extreme inputs, mobile (375px, one pre-existing sub-13px `.field label`
+   gap found and fixed sitewide in this file), both themes, and a full
+   regression pass confirming Net Worth/Portfolio/Goals/Debt/Insurance
+   cards are unchanged. See `synthesis/PROGRESS.md`'s 2026-08-11 entry for
+   full detail, including the still-open `projectGoal()` drift this task
+   deliberately did not touch.
 3. **Income-shock stress test** — for contract-based income (seafarer
    specifically): "next contract delayed 3 months" modeled against fixed
    obligations (EMI, SIPs, premiums). Turns a vague worry into a concrete,

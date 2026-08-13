@@ -8,7 +8,7 @@
   :root{
     --bg:#0B0E11; --panel:#12161B; --panel-2:#171C22; --line:#242A31;
     --text:#E8E6E0; --muted:#9BA0A8; --gold:#C9A227; --gold-dim:#8f7419;
-    --green:#4A9B6E; --rust:#B5533C;
+    --green:#4A9B6E; --rust:#CE6C53;
     --mono: 'IBM Plex Mono', 'Courier New', monospace;
     --serif: 'Source Serif 4', Georgia, serif;
   }
@@ -25,34 +25,38 @@
   .brand{ display:flex; align-items:center; gap:10px; }
   .brand .seal{ width:28px; height:28px; border:1.5px solid var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:13px; color:var(--gold); font-weight:600; }
   .brand h1{ font-family:var(--serif); font-size:17px; font-weight:600; }
-  .brand .sub{ font-size:11px; color:var(--muted); }
+  .brand .sub{ font-size:13px; color:var(--muted); }
   .topbar-actions{ display:flex; gap:8px; flex-wrap:wrap; }
   main.content{ flex:1; overflow-y:auto; padding:26px 32px; max-width:900px; margin:0 auto; width:100%; }
   .panel-header{ margin-bottom:22px; }
-  .panel-header .eyebrow{ font-size:11px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
+  .panel-header .eyebrow{ font-size:13px; color:var(--gold); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;}
   .panel-header h2{ font-family:var(--serif); font-size:24px; font-weight:600; }
   .panel-header p.desc{ color:var(--muted); font-size:14px; margin-top:6px; max-width:640px; }
   .card{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:18px 20px; margin-bottom:16px; }
   .card h3{ font-family:var(--serif); font-size:16px; margin-bottom:12px; }
   .field-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
   .field{ flex:1; min-width:160px; }
-  .field label{ display:block; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
+  .field label{ display:block; font-size:13px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.6px;}
   .field input, .field select, textarea{ width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:4px; font-family:var(--mono); font-size:14px; }
   .field input:focus, textarea:focus{ outline:none; border-color:var(--gold-dim); }
-  .btn{ background:transparent; border:1px solid var(--gold-dim); color:var(--gold); padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:12px; cursor:pointer; }
+  .btn{ background:transparent; border:1px solid var(--gold-dim); color:var(--gold); padding:8px 16px; border-radius:4px; font-family:var(--mono); font-size:13px; cursor:pointer; }
   .btn:hover{ background:rgba(201,162,39,0.08); border-color:var(--gold); }
   .btn.primary{ background:var(--gold); color:#141414; font-weight:600; border-color:var(--gold); }
   .btn.primary:hover{ background:#dab63a; }
   .btn.ghost{ border-color:var(--line); color:var(--muted); }
-  .btn.small{ padding:5px 10px; font-size:11px; }
+  .btn.small{ padding:5px 10px; font-size:13px; }
   table.day-table{ width:100%; border-collapse:collapse; margin-top:8px; font-size:13.5px; }
-  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:11.5px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
+  table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:13px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
   table.day-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
   table.day-table tr:last-child td{ border-bottom:none; }
   .result-box{ border:1px solid var(--gold-dim); border-radius:6px; padding:18px 20px; background:linear-gradient(180deg, rgba(201,162,39,0.05), transparent); margin-top:12px; }
   .result-box .verdict{ font-family:var(--serif); font-size:19px; color:var(--gold); margin-bottom:4px; }
   .result-box .verdict-detail{ font-size:13px; color:var(--muted); }
-  .helptext{ font-size:12.5px; color:var(--muted); margin-top:4px; }
+  .helptext{ font-size:13px; color:var(--muted); margin-top:4px; }
+  .notice{ border:1px solid var(--gold-dim); background:rgba(201,162,39,0.08); border-radius:6px; padding:10px 14px; font-size:13px; color:var(--text); margin-top:8px; line-height:1.55; }
+  .notice strong{ color:var(--gold); }
+  .notice.warn{ border-color:var(--rust); background:rgba(181,83,60,0.09); }
+  .notice.warn strong{ color:var(--rust); }
   .progress-track{ height:14px; background:var(--bg); border:1px solid var(--line); border-radius:7px; overflow:hidden; margin:10px 0; }
   .progress-fill{ height:100%; background:var(--gold); }
   .progress-fill.behind{ background:var(--rust); }
@@ -60,13 +64,18 @@
   .goal-card{ border:1px solid var(--line); }
   .goal-card.expanded{ border-color:var(--gold-dim); }
   .goal-title-row{ display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
-  .tag{ display:inline-block; font-size:10px; padding:2px 8px; border-radius:10px; text-transform:uppercase; font-weight:600; margin-left:8px; }
+  .tag{ display:inline-block; font-size:13px; padding:2px 8px; border-radius:10px; text-transform:uppercase; font-weight:600; margin-left:8px; }
   .tag.green{ background:rgba(74,155,110,0.15); color:var(--green); }
   .tag.rust{ background:rgba(181,83,60,0.15); color:var(--rust); }
   ::-webkit-scrollbar{ width:8px; height:8px; }
   ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
   @media (max-width:760px){ main.content{ padding:18px; } }
 </style>
+<!-- Vendored SheetJS (xlsx.core.min.js), self-hosted, no CDN -- lets Excel (.xlsx/.xls)
+     imports convert to CSV in-browser via the same pattern already used in
+     itrgenie/ and portfolio/. Own copy in this module's own lib/ folder, not a
+     cross-module reference, per the repo's self-contained-module convention. -->
+<script src="./lib/xlsx.core.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -100,30 +109,287 @@ let data = loadData();
 function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 let expandedGoalId = null;
 
-function parsePastedRows(text){
-  return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
-    .map(line=>{ const sep = line.includes('\t') ? '\t' : ','; return line.split(sep).map(c=>c.trim()); });
+// 2026-08-11, THIRD ROUND (safe-by-construction rewrite). Two prior same-day fixes each patched
+// one reported failure shape while leaving the same class of silent corruption possible -- see
+// itrgenie/index.html's shared paste helpers for the full writeup (round 1's unconditional
+// whole-line regex collapse, round 2's "validated fallback" that still had no upper-bound check
+// and could fuse across a real column separator). This module's own 2-column "Label, Value" box
+// only ever hits the merge logic when a pasted amount is thousands-grouped AND the row has more
+// pieces than expected -- e.g. "PPF account,1,50,000" -- and parseLabelValueRow() (below) still
+// tolerates either column order once the row is correctly split.
+//
+// Rewrite: naive comma-split first; if it already matches what the box expects, done, no merge
+// attempted. If it overshoots, resolveThousandsMerge() enumerates every way to merge ADJACENT
+// pieces into a span that is a COMPLETE, correctly-shaped grouped number end-to-end (Indian:
+// 1-2 digits then 2-digit groups then one 3-digit group; Western: 1-3 digits then 3-digit
+// groups) -- never a loose "both sides look short" guess. A merge is only applied if EXACTLY ONE
+// combination lands the column count on expectedCols (or minCols, for boxes with a genuinely
+// optional trailing field) -- zero or multiple valid combinations both mean "don't guess", and
+// the row is returned empty so the caller's own `cols.length < N` check honestly skips it (see
+// itrgenie/index.html for the full design, since this is the same shared helper shape kept
+// identical across modules per this repo's self-contained-module convention).
+// 2026-08-11, ROUND 4: one fix applied, one investigated and REVERTED, on top of the round-3
+// mechanism above -- see itrgenie/index.html's shared paste helpers for the full writeup (this is
+// the same shared helper shape kept identical across modules per this repo's self-contained-module
+// convention). (1) APPLIED: a genuinely negative grouped number was never recognized as a merge
+// candidate at all -- GROUPED_WESTERN/GROUPED_INDIAN/spanValid() now accept an optional leading
+// "-" the same way they already accept ₹/$. (2) INVESTIGATED, NOT applied: a fix that made
+// resolveThousandsMerge() prefer an ordinary "complete" naive reading outright was built and
+// fuzz-tested at 60,000 trials -- it produced real silently-wrong results whenever an optional
+// field is genuinely omitted AND the remaining value is itself thousands-grouped (a naive-preferring
+// shortcut can't structurally tell that apart from a merely-coincidental collision). Reverted rather
+// than shipped partially-safe; resolveThousandsMerge() still ends in the same strict
+// "unique.length !== 1 -> don't guess" rule round 3 shipped with, unchanged -- an ordinary complete
+// row that happens to contain a coincidental mergeable pair (e.g. a share qty next to a sub-1000
+// price) is still honestly skipped as ambiguous, a known open gap, not a new regression.
+const GROUPED_WESTERN = /^-?(₹|\$)?\d{1,3}(,\d{3})+(\.\d+)?$/;        // 1,234,567 or -1,234,567.50
+const GROUPED_INDIAN  = /^-?(₹|\$)?\d{1,2}(,\d{2})*,\d{3}(\.\d+)?$/;  // 12,00,000 or -4,50,000.25
+function resolveThousandsMerge(naive, targets){
+  const n = naive.length;
+  function spanValid(i, j){
+    if(i===j) return true;
+    for(let k=i;k<j;k++){ if(!/^-?(₹|\$)?\d{1,3}$/.test(naive[k])) return false; }
+    if(!/^\d{1,3}(\.\d+)?$/.test(naive[j])) return false;
+    const joined = naive.slice(i, j+1).join(',');
+    return GROUPED_WESTERN.test(joined) || GROUPED_INDIAN.test(joined);
+  }
+  const spanEnds = [];
+  for(let i=0;i<n;i++){
+    spanEnds[i] = [];
+    for(let j=i;j<n;j++){ if(spanValid(i,j)) spanEnds[i].push(j); }
+  }
+  const targetSet = new Set(targets);
+  const maxTarget = Math.max(...targets);
+  const results = [];
+  let explored = 0;
+  const EXPLORE_CAP = 5000;
+  let capped = false;
+  (function dfs(i, acc){
+    if(capped) return;
+    if(++explored > EXPLORE_CAP){ capped = true; return; }
+    if(acc.length > maxTarget) return;
+    if(i===n){ if(targetSet.has(acc.length)) results.push(acc.slice()); return; }
+    for(const j of spanEnds[i]){
+      acc.push(naive.slice(i, j+1).join(','));
+      dfs(j+1, acc);
+      acc.pop();
+    }
+  })(0, []);
+  if(capped) return null;
+  const unique = Array.from(new Set(results.map(r=>JSON.stringify(r)))).map(s=>JSON.parse(s));
+  // ROUND 4, finding 2 -- investigated, NOT applied: see itrgenie/index.html's resolveThousandsMerge()
+  // for the full writeup. A "prefer the untouched reading when it already reaches a valid target"
+  // shortcut was tried (two versions) and re-verified with a 60,000-trial fuzz across every
+  // optional-trailing-field box in this app -- both produced real silently-wrong results (not rare
+  // edge cases) whenever an optional field is genuinely omitted and the remaining value is itself a
+  // thousands-grouped number. No purely structural rule can safely tell "coincidental collision"
+  // apart from "genuine field omission" here, so the shortcut was reverted rather than shipped
+  // partially-safe -- flagged for a properly-scoped future fix needing per-field type awareness.
+  if(unique.length !== 1) return null;
+  return unique[0].map(s=>s.replace(/,/g,''));
 }
+// Every whole count from minCols up to expectedCols is offered as a valid target, not just the
+// two endpoints -- a box with more than one independently-optional trailing field can legitimately
+// land on a count in between.
+//
+// IMPORTANT: this always runs the merge search, even when the naive split's raw piece count
+// already sits inside [minCols, expectedCols] and looks plausible on its own -- a thousands-
+// grouped number can coincidentally split a row down to a count that still lands in range while
+// fusing the wrong two fields together (see itrgenie/index.html's splitPastedLine for the
+// live-reproduced example: a genuinely grouped price landing an 8-col Portfolio row at 7 pieces,
+// "in range" for its 6-8 window, while actually misreading BuyPrice/BuyDate/CurrentPrice).
+// resolveThousandsMerge() always includes the untouched naive split itself as one candidate
+// reading, so a row with nothing to merge still resolves to the same naive result as before.
+function splitPastedLine(line, expectedCols, minCols){
+  const naive = line.split(',').map(c=>c.trim());
+  if(!expectedCols) return naive;
+  const floor = minCols || expectedCols;
+  const targets = [];
+  for(let t=floor; t<=expectedCols; t++) targets.push(t);
+  const resolved = resolveThousandsMerge(naive, targets);
+  return resolved || [];
+}
+function parsePastedRows(text, expectedCols, minCols){
+  const rows = text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
+    .map(line=>{
+      const hasTab = line.includes('\t');
+      return hasTab ? line.split('\t').map(c=>c.trim()) : splitPastedLine(line, expectedCols, minCols);
+    });
+  rows.ambiguousCount = rows.filter(r=>r.length===0).length;
+  return rows;
+}
+function skipNote(rows){
+  const n = rows && rows.ambiguousCount;
+  return n>0 ? ` (${n} of those: couldn't tell where the columns split -- try a tab-separated paste copied straight from a spreadsheet, or add a space after each comma)` : '';
+}
+function toNum(s){
+  if(s===undefined || s===null) return NaN;
+  const cleaned = String(s).replace(/[₹$,\s]/g,'');
+  if(cleaned==='') return NaN;
+  return Number(cleaned);
+}
+// Given one pasted row's cells, finds the Label and the Value regardless of which column they're
+// in. With exactly 2 columns (the documented "Label, Value" shape), whichever cell parses as a
+// non-negative number after stripping currency noise is the value -- the other is the label. If
+// both or neither cell look numeric (an accidental header row, or a row this can't confidently
+// read), returns null so the caller counts it as honestly skipped rather than misassigned. Rows
+// with more than 2 columns keep the original strict "first column is Label, second is Value"
+// assumption (currency-symbol/comma-tolerant) -- picking a different column there would be
+// guessing, not detecting, once more than one column could plausibly be the value.
+function parseLabelValueRow(cols){
+  if(cols.length<2) return null;
+  if(cols.length===2){
+    const aNum = toNum(cols[0]), bNum = toNum(cols[1]);
+    const aOk = !isNaN(aNum) && aNum>=0, bOk = !isNaN(bNum) && bNum>=0;
+    if(bOk && !aOk) return {label: cols[0].trim(), value: bNum};
+    if(aOk && !bOk) return {label: cols[1].trim(), value: aNum};
+    return null;
+  }
+  const value = toNum(cols[1]);
+  if(isNaN(value) || value<0) return null;
+  return {label: cols[0].trim(), value};
+}
+// Handles CSV/TXT (read as text, unchanged) and Excel .xlsx/.xls (converted to the same
+// CSV-shaped text via the vendored SheetJS lib, same pattern as itrgenie/'s py_file/oh_file
+// and portfolio/'s holdings upload) -- either way the textarea ends up with the identical
+// "Label, Value" row shape the existing parser already expects, so parsing logic is untouched.
 function wireFileUpload(fileInputEl, textareaEl, parseBtnEl){
-  fileInputEl.onchange = (e)=>{
+  fileInputEl.onchange = async (e)=>{
     const file = e.target.files[0];
     if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev)=>{ textareaEl.value = ev.target.result; parseBtnEl.click(); fileInputEl.value=''; };
-    reader.readAsText(file);
+    const name = file.name.toLowerCase();
+    try{
+      if(name.endsWith('.xlsx') || name.endsWith('.xls')){
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, {type:'array'});
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        textareaEl.value = XLSX.utils.sheet_to_csv(sheet);
+        parseBtnEl.click();
+      } else {
+        const reader = new FileReader();
+        const txt = await new Promise((res,rej)=>{ reader.onload=(ev)=>res(ev.target.result); reader.onerror=rej; reader.readAsText(file); });
+        textareaEl.value = txt;
+        parseBtnEl.click();
+      }
+    }catch(err){
+      alert('Could not read that file: ' + err.message);
+    }
+    fileInputEl.value = '';
   };
 }
 function newId(){ return 'g_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// In-progress paste text for each goal's "tagged investments" textarea, kept in memory (not
+// persisted to storage) so a full-card re-render triggered by an unrelated field elsewhere never
+// silently wipes out text the user is mid-typing into this textarea. Keyed by goal.id.
+const pasteDrafts = {};
+// One-shot feedback message ("N added, M skipped") for the "Parse & add" action, keyed by
+// goal.id. Set right before a render() call, consumed (read + cleared) the next time that goal's
+// investments card is built, so it shows exactly once rather than persisting on later renders.
+const invFeedback = {};
+function buildInvFeedbackMsg(added, skipped, rows){
+  if(added===0 && skipped===0) return 'Nothing to add — paste one row per line as "Label, Value".';
+  const parts = [];
+  if(added>0) parts.push(`${added} investment${added===1?'':'s'} added`);
+  if(skipped>0) parts.push(`${skipped} row${skipped===1?'':'s'} skipped — expected "Label, Value"${skipNote(rows)}`);
+  return parts.join(', ') + '.';
+}
+
+// One-time note about the annuity-due SIP formula change (2026-08-10) — dismissible, not tied to
+// exported goal data, so it doesn't show up in Export/Import JSON.
+const ANNUITY_NOTE_KEY = 'goals_annuity_note_dismissed_v1';
+
+const GOAL_CATEGORIES = ['Retirement','Child education','House/property','Healthcare/Medical','Emergency fund','Travel','Vehicle','Other'];
+
+// Category-aware inflation presets — these are assumptions, not facts, so every value here
+// is just a starting point the user sees and can override (never applied silently).
+const INFLATION_PRESET_LIST = [
+  {rate:6.5, label:'General/lifestyle', sub:'6-7%', match:['Retirement','House/property','Emergency fund','Travel','Vehicle','Other']},
+  {rate:11,  label:'Education',         sub:'10-12%', match:['Child education']},
+  {rate:9,   label:'Healthcare',        sub:'8-10%', match:['Healthcare/Medical']},
+];
+function inflationPresetForCategory(cat){
+  return INFLATION_PRESET_LIST.find(p=>p.match.includes(cat)) || INFLATION_PRESET_LIST[0];
+}
+
+// Risk-profile presets for the SIP assumed-return field — pressing one fills the (still
+// editable) field rather than locking it, so a user with a different view can type their own.
+const RISK_PROFILES = [
+  {rate:6.5,  label:'Conservative/Debt', sub:'~6-7%'},
+  {rate:8.5,  label:'Balanced',          sub:'~8-9%'},
+  {rate:11.5, label:'Aggressive/Equity', sub:'~11-12%'},
+];
+
+// Emergency fund calculator — only shown for goals in the "Emergency fund" category. Both
+// inputs (monthly expenses, months wanted) are genuinely new data this app has no other source
+// for; nothing here is derived/pulled from Net Worth or Portfolio. Default months-wanted leans
+// to the higher end of the standard 6-12 range (not the bare minimum) because this app's own
+// context is irregular/contract-based income — see MASTER_ROADMAP.md's Life Confidence pillar.
+const EF_DEFAULT_MONTHS = 9;
+const EF_MONTHS_PRESETS = [
+  {months:6,  label:'6 (minimum)'},
+  {months:9,  label:'9 (suggested)'},
+  {months:12, label:'12 (irregular income)'},
+];
+// Three-tier framing for "months currently covered" — calm/factual, not alarmist. Below ~3
+// months is treated as low regardless of the goal's own target, since even a partial buffer is
+// worth flagging; between 3 and the chosen target is "building"; at/above target is "adequate".
+function efTier(monthsCovered, monthsWanted){
+  if(monthsCovered < 3) return {color:'var(--rust)', label:'Low coverage'};
+  if(monthsCovered < monthsWanted) return {color:'var(--gold)', label:'Building coverage'};
+  return {color:'var(--green)', label:'Adequate coverage'};
+}
+
+function monthsUntil(dateStr){
+  if(!dateStr) return null;
+  const d = new Date(dateStr);
+  const today = new Date();
+  return Math.max(0, Math.round((d-today)/(1000*60*60*24*30.44)));
+}
+
+// Effective target for a goal: either the user's directly-entered target amount, or — if the
+// goal is in "calculate from today's cost" mode — the present-day cost inflated forward to the
+// target date at the chosen inflation rate. This is computed on the fly (not stored back into
+// targetAmount) so it always reflects the latest presentCost/inflationRate/targetDate inputs.
+function effectiveTarget(goal){
+  if(goal.costMode === 'inflate'){
+    const months = monthsUntil(goal.targetDate);
+    const years = months!==null ? months/12 : 0;
+    const rate = (+goal.inflationRate||0)/100;
+    const presentCost = +goal.presentCost || 0;
+    return presentCost * Math.pow(1+rate, years);
+  }
+  return +goal.targetAmount || 0;
+}
 
 // Projects a goal's outcome: current tagged corpus grows at the assumed rate, plus monthly
 // contributions compound alongside it (standard PV-growth + FV-of-annuity split, not a single
 // blended formula, so behind/ahead can be diagnosed from each component separately).
+//
+// SIP convention: annuity-due, not ordinary annuity — each month's contribution is treated as
+// invested at the START of that month (matches how Groww/ET Money-style SIP calculators compute
+// it), so the ordinary-annuity factor ((growthFactor-1)/monthlyRate) gets one extra period of
+// compounding via *(1+monthlyRate). This is a deliberate correctness fix — see PROGRESS.md for
+// before/after numbers.
+function requiredMonthlyAt(goal, annualReturnPct){
+  const currentValue = (goal.investments||[]).reduce((s,r)=>s+(+r.value||0),0);
+  const target = effectiveTarget(goal);
+  const monthsLeft = monthsUntil(goal.targetDate);
+  if(monthsLeft===null || monthsLeft<=0 || target<=0) return null;
+  const monthlyRate = annualReturnPct/12/100;
+  const growthFactor = Math.pow(1+monthlyRate, monthsLeft);
+  const fvCurrent = currentValue * growthFactor;
+  const shortfallFV = target - fvCurrent;
+  if(shortfallFV <= 0) return 0;
+  const annuityFactor = monthlyRate>0 ? ((growthFactor-1)/monthlyRate) * (1+monthlyRate) : monthsLeft;
+  return shortfallFV / annuityFactor;
+}
+
 function projectGoal(goal){
   const currentValue = (goal.investments||[]).reduce((s,r)=>s+(+r.value||0),0);
-  const target = +goal.targetAmount || 0;
-  const targetDate = goal.targetDate ? new Date(goal.targetDate) : null;
-  const today = new Date();
-  const monthsLeft = targetDate ? Math.max(0, Math.round((targetDate-today)/(1000*60*60*24*30.44))) : null;
+  const target = effectiveTarget(goal);
+  const monthsLeft = monthsUntil(goal.targetDate);
   const annualReturn = +goal.assumedReturn || 0;
   const monthlyRate = annualReturn/12/100;
   const pmt = +goal.monthlyContribution || 0;
@@ -133,14 +399,11 @@ function projectGoal(goal){
   if(monthsLeft!==null && monthsLeft>0){
     const growthFactor = Math.pow(1+monthlyRate, monthsLeft);
     const fvCurrent = currentValue * growthFactor;
-    const fvContrib = monthlyRate>0 ? pmt * ((growthFactor-1)/monthlyRate) : pmt*monthsLeft;
+    const annuityFactor = monthlyRate>0 ? ((growthFactor-1)/monthlyRate) * (1+monthlyRate) : monthsLeft;
+    const fvContrib = pmt * annuityFactor;
     projectedValue = fvCurrent + fvContrib;
     const shortfallFV = target - fvCurrent;
-    if(shortfallFV > 0){
-      requiredMonthly = monthlyRate>0 ? shortfallFV / ((growthFactor-1)/monthlyRate) : shortfallFV/monthsLeft;
-    } else {
-      requiredMonthly = 0;
-    }
+    requiredMonthly = shortfallFV > 0 ? shortfallFV / annuityFactor : 0;
   }
   const progressPct = target>0 ? Math.min(100, (currentValue/target)*100) : 0;
   const onTrack = target>0 && projectedValue >= target;
@@ -161,12 +424,12 @@ function renderGoalCard(container, goal){
     <div class="goal-title-row" data-toggle>
       <div>
         <h3 style="margin-bottom:2px;">${goal.name || 'Untitled goal'} ${statusTag}</h3>
-        <div class="helptext">${goal.category||'General'} · Target ₹${(+goal.targetAmount||0).toLocaleString('en-IN')} by ${goal.targetDate||'—'}</div>
+        <div class="helptext">${goal.category||'General'} · Target ₹${Math.round(proj.target).toLocaleString('en-IN')} by ${goal.targetDate||'—'}</div>
       </div>
       <button class="btn small ghost" data-del-goal>✕</button>
     </div>
     <div class="progress-track"><div class="progress-fill ${goal.targetDate ? (proj.onTrack?'ontrack':'behind') : ''}" style="width:${proj.progressPct.toFixed(1)}%;"></div></div>
-    <div class="helptext">₹${Math.round(proj.currentValue).toLocaleString('en-IN')} of ₹${(+goal.targetAmount||0).toLocaleString('en-IN')} tagged so far (${proj.progressPct.toFixed(1)}%)</div>
+    <div class="helptext">₹${Math.round(proj.currentValue).toLocaleString('en-IN')} of ₹${Math.round(proj.target).toLocaleString('en-IN')} tagged so far (${proj.progressPct.toFixed(1)}%)</div>
     <div id="goal_body_${goal.id}" style="display:${isExpanded?'block':'none'}; margin-top:14px;"></div>
   `;
   container.appendChild(card);
@@ -179,6 +442,8 @@ function renderGoalCard(container, goal){
     e.stopPropagation();
     if(!confirm(`Delete goal "${goal.name}"? This can't be undone.`)) return;
     data.goals = data.goals.filter(g=>g.id!==goal.id);
+    delete pasteDrafts[goal.id];
+    delete invFeedback[goal.id];
     saveData(); render();
   };
 
@@ -190,52 +455,254 @@ function renderGoalCard(container, goal){
 function renderGoalBody(container, goal){
   // ---- Goal parameters ----
   const paramsCard = document.createElement('div');
+  const costMode = goal.costMode === 'inflate' ? 'inflate' : 'direct';
+  const invPreset = inflationPresetForCategory(goal.category);
+  const monthsForCalc = monthsUntil(goal.targetDate);
+  const yearsForCalc = monthsForCalc!==null ? monthsForCalc/12 : null;
+  const inflatedTarget = costMode==='inflate' ? effectiveTarget(goal) : null;
+  const isEmergencyFund = goal.category === 'Emergency fund';
+
+  // Emergency fund calculator figures — computed fresh every render from goal.efMonthlyExpenses /
+  // goal.efMonthsWanted (both plain manual fields, no fallback to any other module's data).
+  const efExpenses = +goal.efMonthlyExpenses || 0;
+  const efMonthsWanted = +goal.efMonthsWanted || EF_DEFAULT_MONTHS;
+  const efRecommendedTarget = efExpenses * efMonthsWanted;
+  const efCurrentTagged = (goal.investments||[]).reduce((s,r)=>s+(+r.value||0),0);
+  const efMonthsCovered = efExpenses>0 ? efCurrentTagged/efExpenses : null;
+  const efTierInfo = efMonthsCovered!==null ? efTier(efMonthsCovered, efMonthsWanted) : null;
+
+  const inflPresetBtns = INFLATION_PRESET_LIST.map(p=>{
+    const suggested = invPreset.rate === p.rate;
+    return `<button type="button" class="btn small ghost" data-infl-preset="${p.rate}">${p.label} · ${p.sub}${suggested?' (suggested)':''}</button>`;
+  }).join('');
+  const riskPresetBtns = RISK_PROFILES.map(p=>{
+    const active = (+goal.assumedReturn === p.rate);
+    return `<button type="button" class="btn small ${active?'primary':'ghost'}" data-risk-preset="${p.rate}">${p.label} (${p.sub})</button>`;
+  }).join('');
+
   paramsCard.innerHTML = `
     <div class="field-row">
       <div class="field"><label>Goal name</label><input id="g_name" value="${goal.name||''}"></div>
       <div class="field"><label>Category</label>
         <select id="g_cat">
-          ${['Retirement','Child education','House/property','Emergency fund','Travel','Vehicle','Other'].map(c=>`<option value="${c}" ${goal.category===c?'selected':''}>${c}</option>`).join('')}
+          ${GOAL_CATEGORIES.map(c=>`<option value="${c}" ${goal.category===c?'selected':''}>${c}</option>`).join('')}
         </select>
       </div>
     </div>
+
+    ${isEmergencyFund ? `
+    <div class="result-box" style="margin-bottom:14px;">
+      <div class="verdict" style="font-size:16px;">Emergency fund calculator</div>
+      <div class="verdict-detail" style="margin-bottom:10px;">Two numbers only you can supply — neither is pulled from Net Worth or Portfolio, since this app has no dedicated "liquid cash" figure anywhere else.</div>
+
+      <div class="field-row">
+        <div class="field"><label>Monthly essential expenses (₹)</label>
+          <input id="g_efexp" type="number" value="${goal.efMonthlyExpenses||''}" placeholder="e.g. 60000">
+        </div>
+      </div>
+      <div class="helptext" style="margin-bottom:10px;">Your own estimate of essential monthly spend — rent/EMI, food, utilities, insurance premiums. Not discretionary spending (travel, eating out, etc).</div>
+
+      <div class="field-row">
+        <div class="field" style="flex-basis:100%;">
+          <label>Months of coverage wanted: <strong id="ef_months_display">${efMonthsWanted}</strong></label>
+          <input id="g_efmonths" type="range" min="6" max="12" step="1" value="${efMonthsWanted}">
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            ${EF_MONTHS_PRESETS.map(p=>`<button type="button" class="btn small ${efMonthsWanted===p.months?'primary':'ghost'}" data-ef-months="${p.months}">${p.label}</button>`).join('')}
+          </div>
+          <div class="helptext" style="margin-top:6px;">Standard guidance is 6-12 months. With irregular or contract-based income, leaning toward the higher end is usually the safer call, not the generic minimum — but it's your call, adjust freely.</div>
+        </div>
+      </div>
+
+      ${efExpenses>0 ? `
+      <div class="helptext" style="margin-top:10px;">Recommended target: ₹${efExpenses.toLocaleString('en-IN')}/mo × ${efMonthsWanted} months = <strong>₹${Math.round(efRecommendedTarget).toLocaleString('en-IN')}</strong></div>
+      <button type="button" class="btn small" id="ef_use_target" style="margin-top:6px;">Use ₹${Math.round(efRecommendedTarget).toLocaleString('en-IN')} as target amount</button>
+      ${costMode==='inflate' ? `<div class="helptext" style="margin-top:4px;">This switches the target-amount mode above to "Enter amount directly" — it won't touch the inflation mode's own inputs.</div>` : ''}
+      ` : `
+      <div class="helptext" style="margin-top:10px;">Enter monthly expenses above to see a recommended target.</div>
+      `}
+
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line);">
+        <div class="helptext" style="text-transform:uppercase; letter-spacing:0.6px; margin-bottom:4px;">Months of expenses currently covered</div>
+        ${efMonthsCovered!==null ? `
+        <div style="font-family:var(--serif); font-size:26px; color:${efTierInfo.color};">${efMonthsCovered.toFixed(1)} of ${efMonthsWanted} months</div>
+        <div class="helptext">${efTierInfo.label} — based on ₹${efCurrentTagged.toLocaleString('en-IN')} tagged to this goal below, against ₹${efExpenses.toLocaleString('en-IN')}/mo.</div>
+        ` : `
+        <div class="helptext">Enter monthly expenses above to see this figure.</div>
+        `}
+        <div class="notice warn"><strong>Only tag genuinely liquid money.</strong> This figure is only as good as what's actually tagged below. Retirement-locked money (EPF/PPF) or anything not genuinely accessible on short notice shouldn't be tagged here even if it shows up in Net Worth or Portfolio — the point is true liquid coverage, not "some savings somewhere."</div>
+      </div>
+    </div>
+    ` : ''}
+
+    <div class="field-row">
+      <div class="field" style="flex-basis:100%;">
+        <label>Target amount — how do you know it?</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:2px;">
+          <button type="button" class="btn small ${costMode==='direct'?'primary':'ghost'}" data-cost-mode="direct">Enter amount directly</button>
+          <button type="button" class="btn small ${costMode==='inflate'?'primary':'ghost'}" data-cost-mode="inflate">Calculate from today's cost + inflation</button>
+        </div>
+      </div>
+    </div>
+
+    ${costMode==='direct' ? `
     <div class="field-row">
       <div class="field"><label>Target amount (₹)</label><input id="g_target" type="number" value="${goal.targetAmount||''}"></div>
       <div class="field"><label>Target date</label><input id="g_date" type="date" value="${goal.targetDate||''}"></div>
     </div>
+    ` : `
+    <div class="field-row">
+      <div class="field"><label>Present-day cost (₹)</label><input id="g_present" type="number" value="${goal.presentCost||''}" placeholder="e.g. 1500000"></div>
+      <div class="field"><label>Target date</label><input id="g_date" type="date" value="${goal.targetDate||''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="flex-basis:100%;">
+        <label>Inflation rate assumption (%/yr)</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">${inflPresetBtns}</div>
+        <input id="g_infl" type="number" step="0.1" value="${goal.inflationRate||''}" placeholder="e.g. ${invPreset.rate}">
+        <div class="helptext">Suggested for "${goal.category||'Other'}": ${invPreset.label} (${invPreset.sub}) — an assumption, not a fact; adjust if you have a better estimate.</div>
+      </div>
+    </div>
+    <div class="helptext" style="margin-bottom:4px;">
+      ${yearsForCalc===null ? 'Set a target date to calculate the future cost.' :
+        !goal.inflationRate ? `Enter an inflation rate above to include inflation. Until then, the target used everywhere on this card is today's cost as-is — ₹${(+goal.presentCost||0).toLocaleString('en-IN')}, at 0% inflation — which understates what this will actually cost by the target date.` :
+        `Over ${yearsForCalc.toFixed(1)} years: today's cost ₹${(+goal.presentCost||0).toLocaleString('en-IN')} → est. future cost <strong>₹${Math.round(inflatedTarget||0).toLocaleString('en-IN')}</strong> at the target date, at ${goal.inflationRate}%/yr.`}
+    </div>
+    `}
+
     <div class="field-row">
       <div class="field"><label>Planned monthly contribution (₹)</label><input id="g_pmt" type="number" value="${goal.monthlyContribution||''}"></div>
-      <div class="field"><label>Assumed annual return (%)</label><input id="g_ret" type="number" value="${goal.assumedReturn||''}" placeholder="e.g. 10"></div>
+      <div class="field"><label>Assumed annual return (%)</label><input id="g_ret" type="number" step="0.1" value="${goal.assumedReturn||''}" placeholder="e.g. 8.5"></div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="flex-basis:100%;">
+        <label>Or pick a risk-profile preset (fills the field above — still editable)</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:2px;">${riskPresetBtns}</div>
+      </div>
     </div>
   `;
   container.appendChild(paramsCard);
-  ['g_name','g_cat','g_target','g_date','g_pmt','g_ret'].forEach(id=>{
-    paramsCard.querySelector('#'+id).onchange = (e)=>{
-      const map = {g_name:'name', g_cat:'category', g_target:'targetAmount', g_date:'targetDate', g_pmt:'monthlyContribution', g_ret:'assumedReturn'};
-      goal[map[id]] = e.target.value;
-      saveData(); render();
-    };
+
+  const fieldMap = {g_name:'name', g_cat:'category', g_target:'targetAmount', g_date:'targetDate', g_pmt:'monthlyContribution', g_ret:'assumedReturn', g_present:'presentCost', g_infl:'inflationRate', g_efexp:'efMonthlyExpenses', g_efmonths:'efMonthsWanted'};
+  // Commits whatever is currently typed in any params field into `goal` right now, without
+  // waiting for that field's own blur/change event — used by bindSyncedButton() below (see its
+  // comment for why fields near preset buttons need this).
+  function syncParamsFields(){
+    Object.keys(fieldMap).forEach(id=>{
+      const el = paramsCard.querySelector('#'+id);
+      if(el) goal[fieldMap[id]] = el.value;
+    });
+  }
+  // Binds a "preset" button (cost-mode toggle, inflation preset, risk preset, Parse & add, ...)
+  // so it's reliable for BOTH pointer and keyboard activation, with no data loss and no dropped
+  // clicks:
+  //  - mousedown: e.preventDefault() blocks the browser's default focus-shift, which is what
+  //    would otherwise blur whatever field the user just typed into and fire ITS onchange (a
+  //    full saveData()+render() that replaces the whole card DOM, detaching this button before
+  //    its own click event can fire — confirmed via Playwright as a real dropped-click bug).
+  //    We still sync any in-flight field edits here as a safety net.
+  //  - click: does the actual state change + saveData()+render(). 'click' fires reliably for
+  //    pointer activation now that mousedown no longer lets an unrelated re-render detach the
+  //    button, AND fires natively for keyboard activation (Enter/Space on a focused button) —
+  //    unlike 'mousedown', which never fires for keyboard. This is what makes these buttons
+  //    keyboard-operable, not just click-operable.
+  function bindSyncedButton(btn, applyFn){
+    btn.addEventListener('mousedown', (e)=>{ e.preventDefault(); syncParamsFields(); });
+    btn.addEventListener('click', ()=>{ syncParamsFields(); applyFn(); saveData(); render(); });
+  }
+  paramsCard.querySelectorAll('[data-cost-mode]').forEach(btn=>{
+    bindSyncedButton(btn, ()=>{
+      goal.costMode = btn.dataset.costMode;
+      if(goal.costMode==='inflate' && !goal.inflationRate){
+        goal.inflationRate = String(inflationPresetForCategory(goal.category).rate);
+      }
+    });
+  });
+  paramsCard.querySelectorAll('[data-infl-preset]').forEach(btn=>{
+    bindSyncedButton(btn, ()=>{ goal.inflationRate = btn.dataset.inflPreset; });
+  });
+  paramsCard.querySelectorAll('[data-risk-preset]').forEach(btn=>{
+    bindSyncedButton(btn, ()=>{ goal.assumedReturn = btn.dataset.riskPreset; });
+  });
+  paramsCard.querySelectorAll('[data-ef-months]').forEach(btn=>{
+    bindSyncedButton(btn, ()=>{ goal.efMonthsWanted = btn.dataset.efMonths; });
+  });
+  // "Use as target amount" — fills the goal's real targetAmount + switches to direct mode. Only
+  // ever happens on this explicit click; the recommended figure is never written automatically.
+  // Recomputed from `goal` fresh inside applyFn (not the efExpenses/efRecommendedTarget render-
+  // time closure vars above) since syncParamsFields() runs first and may have just updated
+  // goal.efMonthlyExpenses/efMonthsWanted from an in-flight, not-yet-blurred edit.
+  const efUseTargetBtn = paramsCard.querySelector('#ef_use_target');
+  if(efUseTargetBtn){
+    bindSyncedButton(efUseTargetBtn, ()=>{
+      const exp = +goal.efMonthlyExpenses || 0;
+      const months = +goal.efMonthsWanted || EF_DEFAULT_MONTHS;
+      goal.targetAmount = String(Math.round(exp*months));
+      goal.costMode = 'direct';
+    });
+  }
+  // Live slider label while dragging — cosmetic only, doesn't persist until the range input's own
+  // onchange (below, via fieldMap) commits the value and triggers the real render.
+  const efMonthsSlider = paramsCard.querySelector('#g_efmonths');
+  if(efMonthsSlider){
+    efMonthsSlider.addEventListener('input', ()=>{
+      const disp = paramsCard.querySelector('#ef_months_display');
+      if(disp) disp.textContent = efMonthsSlider.value;
+    });
+  }
+  Object.keys(fieldMap).forEach(id=>{
+    const el = paramsCard.querySelector('#'+id);
+    if(!el) return;
+    // Deferred by one tick: calling render() synchronously here tears down the DOM
+    // (content.innerHTML='') while the browser is still mid-focus-shift toward whatever
+    // the user clicked/tabbed into next (e.g. the paste textarea) -- that in-flight focus
+    // transition gets interrupted, leaving nothing focused, so a click or keystroke right
+    // after this field's change can silently land nowhere. Deferring lets the browser finish
+    // moving focus first, then we rebuild -- confirmed via document.activeElement checks,
+    // not just draft-state, that this actually fixes the swallowed-focus-transition bug.
+    el.onchange = (e)=>{ goal[fieldMap[id]] = e.target.value; saveData(); setTimeout(render, 0); };
   });
 
   // ---- Tagged investments ----
   const investCard = document.createElement('div');
   investCard.className = 'card';
   investCard.style.marginTop = '14px';
+  // Read this goal's one-shot "Parse & add" feedback (if any). NOT deleted synchronously here —
+  // removing a currently-focused, edited field elsewhere on the page (e.g. via this very render's
+  // own innerHTML replacement) can fire that field's blur/change *reentrantly*, triggering a
+  // *nested* render() before this outer one finishes. If we deleted the feedback the moment it's
+  // read, the nested pass would consume it and the real, final render (the one actually left on
+  // screen once everything settles) would find it already gone — message flashes then vanishes.
+  // Deferring the delete to a fresh task (setTimeout 0) lets every render pass within the same
+  // synchronous burst see it, and only clears it once the dust has settled — still exactly once
+  // from the user's point of view, never lost, never stuck forever.
+  const invFb = invFeedback[goal.id];
+  if(invFb !== undefined) setTimeout(()=>{ delete invFeedback[goal.id]; }, 0);
   investCard.innerHTML = `
     <h3>Existing investments tagged to this goal</h3>
-    <p class="helptext" style="margin-bottom:8px;">Only count holdings you've actually earmarked for this goal — the same fund can only be tagged to one goal at a time if you want the numbers to stay honest. One per line: <code>Label, Current Value</code></p>
-    <textarea id="inv_paste" rows="2" placeholder="PPF account, 450000"></textarea>
+    <p class="helptext" style="margin-bottom:8px;">Only count holdings you've actually earmarked for this goal — the same fund can only be tagged to one goal at a time if you want the numbers to stay honest. One per line: <code>Label, Current Value</code> (either order works, and ₹/commas in the amount are fine)</p>
+    <textarea id="inv_paste" rows="2" placeholder="PPF account, 450000">${escapeHtml(pasteDrafts[goal.id]||'')}</textarea>
     <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
       <button class="btn small" id="inv_btn">Parse &amp; add</button>
       <span class="helptext" style="margin:0;">or</span>
-      <button class="btn small ghost" id="inv_file_btn">Choose CSV/TXT file</button>
-      <input type="file" id="inv_file" accept=".csv,.txt" style="display:none">
+      <button class="btn small ghost" id="inv_file_btn">Choose file (CSV/TXT/Excel)</button>
+      <input type="file" id="inv_file" accept=".csv,.txt,.xlsx,.xls" style="display:none">
     </div>
-    <div id="inv_fb" class="helptext" style="margin:6px 0;"></div>
+    <div id="inv_fb" class="helptext" style="margin:6px 0;">${invFb ? escapeHtml(invFb) : ''}</div>
     <div id="inv_rows"></div>
   `;
   container.appendChild(investCard);
-  investCard.querySelector('#inv_file_btn').onclick = ()=> investCard.querySelector('#inv_file').click();
+
+  const pasteEl = investCard.querySelector('#inv_paste');
+  // Track the textarea's live content as the user types (not just at blur), stashed outside the
+  // persisted goal object, so a full-card re-render triggered by ANY other field elsewhere on
+  // this card (an onchange field, a preset button) rebuilds this textarea pre-filled with
+  // whatever was last typed instead of silently dropping it — confirmed via Playwright as a real
+  // data-loss bug (type into an onchange field, then move straight into this textarea).
+  pasteEl.oninput = ()=>{ pasteDrafts[goal.id] = pasteEl.value; };
+
+  const fileBtn = investCard.querySelector('#inv_file_btn');
+  fileBtn.addEventListener('mousedown', (e)=>{ e.preventDefault(); syncParamsFields(); });
+  fileBtn.addEventListener('click', ()=> investCard.querySelector('#inv_file').click());
   wireFileUpload(investCard.querySelector('#inv_file'), investCard.querySelector('#inv_paste'), investCard.querySelector('#inv_btn'));
 
   goal.investments = goal.investments || [];
@@ -260,40 +727,88 @@ function renderGoalBody(container, goal){
     });
   }
   renderInvRows();
-  investCard.querySelector('#inv_btn').onclick = ()=>{
+  bindSyncedButton(investCard.querySelector('#inv_btn'), ()=>{
     const raw = investCard.querySelector('#inv_paste').value;
-    const rows = parsePastedRows(raw);
+    const rows = parsePastedRows(raw, 2); // Label, Value
     let added=0, skipped=0;
     rows.forEach(cols=>{
-      if(cols.length<2){ skipped++; return; }
-      const [label, value] = cols;
-      if(!label || isNaN(+value) || +value<0){ skipped++; return; }
-      goal.investments.push({label: label.trim(), value:+value});
+      const parsed = parseLabelValueRow(cols);
+      if(!parsed || !parsed.label){ skipped++; return; }
+      goal.investments.push(parsed);
       added++;
     });
-    saveData(); render();
-  };
+    invFeedback[goal.id] = buildInvFeedbackMsg(added, skipped, rows);
+    delete pasteDrafts[goal.id];
+  });
 
   // ---- Projection ----
   const proj = projectGoal(goal);
   const projCard = document.createElement('div');
   projCard.className = 'result-box';
-  if(!goal.targetDate || !goal.targetAmount){
-    projCard.innerHTML = `<div class="verdict">Set a target amount and date above</div><div class="verdict-detail">Needed to project whether you're on track.</div>`;
+  if(!goal.targetDate || !proj.target){
+    const hint = goal.costMode==='inflate' ? 'enter a present-day cost, inflation rate and target date above' : 'enter a target amount and date above';
+    projCard.innerHTML = `<div class="verdict">Set a target</div><div class="verdict-detail">${hint} — needed to project whether you're on track.</div>`;
   } else {
+    const targetLine = goal.costMode==='inflate'
+      ? (goal.inflationRate
+          ? `Target (inflation-adjusted): ₹${Math.round(proj.target).toLocaleString('en-IN')} — today's cost ₹${(+goal.presentCost||0).toLocaleString('en-IN')} inflated at ${goal.inflationRate}%/yr over ${(proj.monthsLeft/12).toFixed(1)} years`
+          : `Target: ₹${Math.round(proj.target).toLocaleString('en-IN')} — today's cost, no inflation rate entered yet (add one above so this reflects future prices, not today's)`)
+      : `Target: ₹${Math.round(proj.target).toLocaleString('en-IN')}`;
     projCard.innerHTML = `
       <div class="verdict">${proj.onTrack ? 'On track' : 'Behind — needs attention'}</div>
-      <div class="verdict-detail">
-        Projected value at target date: ₹${Math.round(proj.projectedValue).toLocaleString('en-IN')} vs target ₹${(+goal.targetAmount).toLocaleString('en-IN')}
+      <div class="verdict-detail">${targetLine}</div>
+      <div class="verdict-detail" style="margin-top:4px;">
+        Projected value at target date: ₹${Math.round(proj.projectedValue).toLocaleString('en-IN')} vs target ₹${Math.round(proj.target).toLocaleString('en-IN')}
         (${proj.monthsLeft} months left, assuming ${goal.assumedReturn||0}% annual return and ₹${(+goal.monthlyContribution||0).toLocaleString('en-IN')}/month contribution)
       </div>
-      ${!proj.onTrack ? `<div class="verdict-detail" style="color:var(--rust); margin-top:8px;">To hit this target on time, you'd need roughly ₹${Math.round(proj.requiredMonthly).toLocaleString('en-IN')}/month instead — ₹${Math.round(proj.requiredMonthly-(+goal.monthlyContribution||0)).toLocaleString('en-IN')} more than currently planned.</div>` : ''}
+      ${!proj.onTrack ? `<div class="verdict-detail" style="color:var(--rust); margin-top:8px;">To hit this target on time at ${goal.assumedReturn||0}% return, you'd need roughly ₹${Math.round(proj.requiredMonthly).toLocaleString('en-IN')}/month instead — ₹${Math.round(proj.requiredMonthly-(+goal.monthlyContribution||0)).toLocaleString('en-IN')} more than currently planned.</div>` : ''}
+      ${!localStorage.getItem(ANNUITY_NOTE_KEY) ? `
+      <div class="helptext" id="annuity_note" style="margin-top:10px; padding:8px 10px; border:1px solid var(--line); border-radius:4px; display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+        <span>We updated how monthly SIP figures are calculated to match industry-standard calculators (Groww/ET Money-style annuity-due) — projected numbers may look slightly different than before.</span>
+        <button type="button" class="btn small ghost" id="dismiss_annuity_note" style="flex-shrink:0;">Got it</button>
+      </div>
+      ` : ''}
+      <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line);">
+        <div class="helptext" style="text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;">Required monthly contribution by risk profile</div>
+        <table class="day-table">
+          <tr><th>Profile</th><th>Assumed return</th><th>Required monthly</th></tr>
+          ${RISK_PROFILES.map(p=>{
+            const req = requiredMonthlyAt(goal, p.rate);
+            return `<tr><td>${p.label}</td><td>${p.rate}%</td><td>${req===null?'—':'₹'+Math.round(req).toLocaleString('en-IN')+'/mo'}</td></tr>`;
+          }).join('')}
+        </table>
+        <div class="helptext" style="margin-top:6px;">Higher assumed return lowers the required monthly contribution — but comes with more risk. This isn't a recommendation to pick one profile over another.</div>
+      </div>
     `;
   }
   container.appendChild(projCard);
+  const dismissNoteBtn = projCard.querySelector('#dismiss_annuity_note');
+  if(dismissNoteBtn){
+    dismissNoteBtn.onclick = ()=>{ localStorage.setItem(ANNUITY_NOTE_KEY, '1'); render(); };
+  }
+
+  const disclaimer = document.createElement('div');
+  disclaimer.className = 'helptext';
+  disclaimer.style.marginTop = '10px';
+  disclaimer.innerHTML = `This is an illustrative projection based on your own assumed rate of return — not a guarantee, actual returns vary. Mutual fund investments are subject to market risks; read all scheme-related documents carefully.`;
+  container.appendChild(disclaimer);
 }
 
 function render(){
+  // Capture focus before the DOM gets torn down below -- content.innerHTML='' always blurs
+  // whatever's focused (removing a focused element from the document does that unconditionally,
+  // regardless of *when* the removal happens), so a re-render triggered by one field's onchange
+  // silently steals focus from wherever the user has since clicked/tabbed to (e.g. straight into
+  // the paste textarea). Restored by id at the end of this function, once the equivalent new
+  // element exists again. Confirmed necessary even with the onchange handlers' one-tick defer
+  // (see the fieldMap loop below) -- deferring lets the browser finish its own focus-shift before
+  // this runs, but doesn't stop this rebuild from then blurring it again; only explicit
+  // save-and-restore actually keeps focus where the user put it.
+  const prevActive = document.activeElement;
+  const prevActiveId = (prevActive && prevActive.id) ? prevActive.id : null;
+  const prevSelStart = (prevActive && typeof prevActive.selectionStart === 'number') ? prevActive.selectionStart : null;
+  const prevSelEnd = (prevActive && typeof prevActive.selectionEnd === 'number') ? prevActive.selectionEnd : null;
+
   const content = document.getElementById('content');
   content.innerHTML = '';
 
@@ -311,7 +826,7 @@ function render(){
   addCard.innerHTML = `<button class="btn primary" id="add_goal_btn">+ Add a goal</button>`;
   content.appendChild(addCard);
   addCard.querySelector('#add_goal_btn').onclick = ()=>{
-    const g = {id:newId(), name:'New goal', category:'Other', targetAmount:'', targetDate:'', monthlyContribution:'', assumedReturn:'10', investments:[]};
+    const g = {id:newId(), name:'New goal', category:'Other', costMode:'direct', targetAmount:'', presentCost:'', inflationRate:'', targetDate:'', monthlyContribution:'', assumedReturn:'8.5', investments:[]};
     data.goals.push(g);
     expandedGoalId = g.id;
     saveData(); render();
@@ -324,6 +839,16 @@ function render(){
     content.appendChild(empty);
   } else {
     data.goals.forEach(g=>renderGoalCard(content, g));
+  }
+
+  if(prevActiveId){
+    const restored = document.getElementById(prevActiveId);
+    if(restored){
+      restored.focus();
+      if(prevSelStart !== null && typeof restored.setSelectionRange === 'function'){
+        try{ restored.setSelectionRange(prevSelStart, prevSelEnd); }catch(e){}
+      }
+    }
   }
 }
 

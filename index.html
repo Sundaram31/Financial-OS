@@ -6,8 +6,8 @@
 <title>Financial OS</title>
 <style>
   :root{
-    --bg:#0B0E11; --panel:#12161B; --line:#242A31; --text:#E8E6E0;
-    --muted:#8A8F98; --gold:#C9A227; --gold-dim:#8f7419; --green:#4A9B6E;
+    --bg:#0B0E11; --panel:#12161B; --panel-2:#171C22; --line:#242A31; --text:#E8E6E0;
+    --muted:#9BA0A8; --gold:#C9A227; --gold-dim:#8f7419; --green:#4A9B6E; --rust:#CE6C53;
     --mono: 'IBM Plex Mono', 'Courier New', monospace;
     --serif: 'Source Serif 4', Georgia, serif;
   }
@@ -22,11 +22,11 @@
   }
   .card.active{border-color:var(--gold-dim);}
   .card h2{font-family:var(--serif); font-size:18px; color:var(--gold); margin-bottom:6px;}
-  .card p{font-size:12.5px; color:var(--muted); line-height:1.5;}
-  .status{display:inline-block; font-size:10px; padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; margin-top:8px;}
+  .card p{font-size:13px; color:var(--muted); line-height:1.5;}
+  .status{display:inline-block; font-size:13px; padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; margin-top:8px;}
   .status.live{background:rgba(74,155,110,0.15); color:var(--green);}
-  .status.planned{background:rgba(138,143,152,0.15); color:var(--muted);}
-  footer{margin-top:32px; font-size:11px; color:var(--muted); text-align:center;}
+  .status.planned{background:rgba(155,160,168,0.15); color:var(--muted);}
+  footer{margin-top:32px; font-size:13px; color:var(--muted); text-align:center;}
 </style>
 </head>
 <body>
@@ -36,13 +36,13 @@
 
   <a class="card active" href="./itrgenie/">
     <h2>ITRGenie</h2>
-    <p>Indian income tax filing advisor — form determination, all income heads, deductions, regime comparison, compliance calendar, tax-saving advice. 23 modules.</p>
+    <p>Indian income tax filing advisor — form determination, all income heads, deductions, regime comparison, compliance calendar, tax-saving advice, AIS auto-import. 27 modules.</p>
     <span class="status live">Live</span>
   </a>
 
   <a class="card active" href="./portfolio/">
     <h2>Portfolio Tracker</h2>
-    <p>Holdings across all 4 broker/demat accounts (Axis Direct, Tradejini, Angel One, Vested-US), asset allocation, and gain/loss vs cost basis. Manual entry and re-import — no live price feed yet.</p>
+    <p>Holdings across all 4 broker/demat accounts (Axis Direct, Tradejini, Angel One, Vested-US), asset allocation, gain/loss vs cost basis, live price refresh, realized-gains tracking, and a what-if tax simulator. Guided entry, CSV/Excel upload, or a real CAS (NSDL/CDSL) statement import.</p>
     <span class="status live">Live</span>
   </a>
 
@@ -66,13 +66,13 @@
 
   <a class="card active" href="./networth/">
     <h2>Net Worth Dashboard</h2>
-    <p>Aggregates assets and liabilities into one net worth view, with a category breakdown and a snapshot trend over time. Manual entry today — Portfolio Tracker can now export an Investments feed for it, not yet auto-imported.</p>
+    <p>Aggregates assets and liabilities into one net worth view, with a category breakdown and a snapshot trend over time. Import auto-consumes Portfolio Tracker's Investments feed today.</p>
     <span class="status live">Live</span>
   </a>
 
   <a class="card active" href="./synthesis/">
     <h2>Synthesis</h2>
-    <p>One read-only page joining every module you've filled in: net worth + trend, goal progress, portfolio performance, debt picture, and insurance adequacy. Changes nothing in any other module.</p>
+    <p>One read-only page joining every module you've filled in: net worth + trend, goal progress, portfolio performance, debt picture, insurance adequacy, a financial-independence date projection, and a concentration/liquidity check. Changes nothing in any other module.</p>
     <span class="status live">Live</span>
   </a>
 

@@ -30,3 +30,26 @@ this module exists so a payment like that gets evaluated, not just logged.
   has a real adequacy heuristic so far).
 - No claim-ratio / insurer-reputation data source (would need external
   IRDAI data, out of scope for offline tool).
+
+## Updated 2026-08-11 — App-wide font-size/contrast/consistency pass
+Part of an exhaustive, whole-app pass (every module touched the same day) responding to direct
+user feedback that font sizing is hard to see and the color scheme needs improvement everywhere.
+This module's own income-adequacy `.tag` was one of two specific instances `synthesis/PROGRESS.md`
+had already flagged as a known, unfixed sub-13px gap (the other being the Debt & Loan card's tag)
+— both close out with this pass.
+
+**8 sub-13px `font-size` declarations raised to 13px**: `.brand .sub` 11px->13px,
+`.panel-header .eyebrow` 11px->13px, `.field label` 11px->13px, `.btn` 12px->13px,
+`.btn.small` 11px->13px, `table.day-table th` 11.5px->13px, `.helptext` 12.5px->13px,
+`.tag` (the income-adequacy pill on term-life policies, and the mis-selling flag tags) 10px->13px.
+
+**Cross-module consistency**: `--bg/--panel/--panel-2/--line/--text/--muted/--gold/--gold-dim/
+--green/--rust` hex values (both themes) diffed byte-for-byte against every other module —
+already identical, no drift found.
+
+**Contrast**: `--muted` against `--bg`/`--panel`/`--panel-2` computed at 6.5–7.4:1 dark, 4.9–5.7:1
+light — already passes WCAG AA (4.5:1) in both themes.
+
+**Tested with real headless-Chromium (Playwright)**: full DOM text-node sweep at 375px and 1280px,
+both themes — 0 nodes under 13px, 0 console errors. Functional regression: "+ Add a policy" flow
+re-verified (new policy card renders with editable fields) — no JS logic touched, CSS values only.
