@@ -176,6 +176,37 @@ Files touched: `/home/user/Financial-OS/loans/index.html` (`stripLikelyBalance` 
 `l_import_btn`'s onclick handler, `loanImportFeedbackMsg` module-level variable, the
 `#l_import_feedback` markup and `renderLoanBody`'s importCard template).
 
+### Fix (2026-08-13, same day) — reviewer-found gap in the surviving DR/CR signal
+`financial-os-reviewer` gave this fix its first real independent review (the earlier pass used
+`code-review` as a substitute, since `financial-os-reviewer` wasn't invocable in that session) and
+found a live, reproducible instance of the exact bug class this fix exists to close — just moved
+onto the signal that survived, not the one that was removed. The `code-review` pass's own
+reference/cheque-number counter-example was only tested against a line with **no** DR/CR marker
+present; a reference or cheque number sitting directly *before* a DR/CR marker (a completely
+realistic shape in Indian bank narration -- e.g. `...REF 123456789 DR 15,000.00` or `...CHQ NO
+998877 DR 42,000.00`) was still being trusted as "the amount" purely on its position before the
+marker, with no check that it plausibly WAS an amount -- silently stripping the real figure after
+the marker as if it were the balance.
+
+Fixed by requiring the pre-marker number to actually look like a real amount (paise-formatted,
+`.dd`) before trusting that signal — every genuine transaction/balance figure in this module's own
+verified test cases above is `.00`-formatted; a reference/cheque number never is. If the pre-marker
+number doesn't have that shape, the line falls through instead of guessing (honestly ambiguous,
+same as any other unresolved case).
+
+Verified directly, live through the real `#l_import_paste`/`#l_import_btn` UI, not just in
+isolation: `...REF 123456789 DR 15,000.00` and `...CHQ NO 998877 DR 42,000.00` both now correctly
+honest-skip (`Detected and added 0 payment(s)... couldn't confidently tell the transaction amount
+apart from a balance/running-total figure`) instead of recording ₹12,34,56,789 / ₹9,98,877; every
+row in the table above was re-run and still resolves identically.
+
+Also checked, not changed: the reviewer separately flagged the CR-marker-variant test row above as
+possibly not reproducible as written (no PREPAY/EMI/FORECLOS keyword). Verified this directly —
+`classifyLoanTxn()` has a SECOND, separate pattern (`BRN-CLG-CHQ PAID TO.*(BANK|ICICI|HDFC|AXIS|
+SBI)`) that this exact line matches on its own, independent of the PREPAY/PART-PAY/FORECLOS keyword
+check the reviewer compared it against — confirmed via direct execution, not assumption. The row was
+already accurate as written; no correction needed there.
+
 ## Reviewer pass: an unsafe position-only signal removed, per-loan feedback isolation fixed (2026-08-13, same day)
 `financial-os-reviewer` wasn't available as an invocable skill in this session's environment;
 `code-review` was used as the closest available substitute for the required independent

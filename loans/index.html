@@ -166,6 +166,16 @@ function stripLikelyBalance(line, amtRe){
   for(let i=0; i<matches.length-1; i++){
     const between = line.slice(matches[i].index + matches[i][0].length, matches[i+1].index);
     if(/^\s*(dr|cr)\.?\s*$/i.test(between)){
+      // Reviewer-found gap (2026-08-13): a reference/cheque number sitting directly before a
+      // DR/CR marker (e.g. "REF 123456789 DR 15,000.00", "CHQ NO 998877 DR 42,000.00" -- both
+      // realistic Indian bank narration) was being trusted as "the amount" on no other basis than
+      // its position before the marker, silently stripping the REAL amount after the marker as if
+      // it were the balance. Every real transaction/balance figure in this module's own verified
+      // test cases is paise-formatted (.00); a reference/cheque number never is -- so require that
+      // shape before trusting this signal. If it doesn't look like a real amount, fall through
+      // instead of guessing (matches[i+1] stays a live candidate, may still resolve via the label
+      // signal above on a later match, or the line honestly stays ambiguous).
+      if(!/\.\d{2}$/.test(matches[i][0])) continue;
       const bal = matches[i+1];
       return { line: line.slice(0,bal.index) + ' ' + line.slice(bal.index + bal[0].length), ambiguous:false };
     }
