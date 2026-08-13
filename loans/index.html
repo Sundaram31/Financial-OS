@@ -100,7 +100,10 @@ let expandedId = null;
 // (see render() below), so the importCard element captured by this handler's closure is already
 // detached by the time it runs; setting .textContent on it silently sets text nobody ever sees.
 // Same root cause and same fix pattern as portfolio/index.html's bulkAddFeedbackMsg (2026-08-09).
-let loanImportFeedbackMsg = '';
+// Keyed by loan id (not a single flat string) -- an independent review found a flat variable lets
+// one loan's scan result bleed into a DIFFERENT loan's import panel just from switching which loan
+// card is expanded, with no new scan ever run for the one now showing the message.
+let loanImportFeedbackMsg = {};
 
 // Bank-statement classifier -- validated 98.7% accurate against ground truth on a real
 // 394-transaction account (see project notes). Deliberately uses ONLY the transaction
@@ -123,23 +126,33 @@ function classifyLoanTxn(desc){
 // wrong-amount record (reproduced: "...PREPAY 1,00,000.00 DR 3,25,000.00" was previously recorded
 // as a ₹3,25,000 prepayment, the balance, not the real ₹1,00,000 transaction).
 //
-// Investigated three candidate signals against several realistic statement-line shapes before
-// settling on this layered order (strongest/most explicit signal first, most general last):
+// Investigated three candidate signals against several realistic statement-line shapes.
+// Two survived as genuinely reliable (label/marker text, not position); a third
+// (position-only "the last of exactly 2 candidates is the balance") was built, then live
+// fuzz-reproduced as unsafe by an independent review and REMOVED before shipping -- same
+// standard this file's own paste-parsing safety work elsewhere in this app already holds
+// itself to (see itrgenie/PROGRESS.md's "fourth round" entry for the precedent: a shortcut
+// that fixed real cases but reopened silent corruption on others was reverted rather than
+// shipped partially-safe).
 //   1. An explicit "Bal"/"Balance"/"Avl Bal"/"Closing Balance" label immediately before the figure
 //      -- the statement is naming the figure itself, the least ambiguous signal available.
 //   2. "<amount> DR/CR <balance>" -- a very common shape in real Indian statement text/exports
 //      where a Dr/Cr marker sits directly between the transaction amount and the running balance
 //      that follows it. The number immediately BEFORE the marker is the transaction (the marker is
 //      describing that figure); the number immediately AFTER it is the balance.
-//   3. If neither label is present but the line has EXACTLY 2 numeric candidates, the LAST one is
-//      treated as the balance -- the general shape of a plain "amount, balance" row with no marker
-//      word at all (also correctly catches the case where the balance happens to be numerically
-//      SMALLER than the transaction, e.g. a loan near payoff, which the old magnitude-based
-//      min/max heuristic alone could not).
-// 3+ unlabelled numeric candidates with neither signal 1 nor 2 present is deliberately left
-// ambiguous rather than guessed at -- position alone can't say which extra number is the balance --
-// and is reported back to the caller so the line can be honestly skipped (folded into the existing
-// "review the list below" feedback, with its own count) instead of silently misreading one of them.
+//   3. REMOVED: "no label/marker present, but exactly 2 numeric candidates -> treat the LAST as
+//      the balance." Reproduced live as unsafe: a line with a reference/cheque/account number
+//      positioned BEFORE the real transaction amount (e.g. "...LOAN EMI PAYMENT REF 123456789
+//      15,000.00") has exactly 2 candidates too, and this rule would strip the REAL amount
+//      (15,000, sitting last) and keep the reference number (123456789) as the "amount" --
+//      the exact silent-wrong-number failure class this whole fix exists to close, just moved
+//      to a different input shape rather than eliminated. Position alone can't tell a genuine
+//      "amount, balance" pair apart from "reference number, amount" or any other 2-number
+//      narration -- there is no way to prefer one reading without a real signal.
+// Any residual case with 2+ numeric candidates and neither signal 1 nor 2 present is left
+// ambiguous rather than guessed at, and reported back to the caller so the line can be honestly
+// skipped (folded into the existing "review the list below" feedback, with its own count)
+// instead of silently misreading one of them.
 function stripLikelyBalance(line, amtRe){
   const matches = [...line.matchAll(amtRe)];
   if(matches.length < 2) return { line, ambiguous:false };
@@ -156,10 +169,6 @@ function stripLikelyBalance(line, amtRe){
       const bal = matches[i+1];
       return { line: line.slice(0,bal.index) + ' ' + line.slice(bal.index + bal[0].length), ambiguous:false };
     }
-  }
-  if(matches.length === 2){
-    const bal = matches[1];
-    return { line: line.slice(0,bal.index) + ' ' + line.slice(bal.index + bal[0].length), ambiguous:false };
   }
   return { line, ambiguous:true };
 }
@@ -278,7 +287,7 @@ function renderLoanBody(container, loan){
       <button class="btn small ghost" id="l_file_btn">Choose file (CSV/TXT/Excel)</button>
       <input type="file" id="l_file" accept=".csv,.txt,.xlsx,.xls" style="display:none">
     </div>
-    <div id="l_import_feedback" class="helptext" style="margin:6px 0;">${loanImportFeedbackMsg}</div>
+    <div id="l_import_feedback" class="helptext" style="margin:6px 0;">${loanImportFeedbackMsg[loan.id] || ''}</div>
     <div id="l_payment_rows"></div>
   `;
   container.appendChild(importCard);
@@ -342,7 +351,7 @@ function renderLoanBody(container, loan){
       loan.payments.push({date: dateMatch[1], type: kind, amount});
       added++;
     });
-    loanImportFeedbackMsg = `Detected and added ${added} payment(s).`
+    loanImportFeedbackMsg[loan.id] = `Detected and added ${added} payment(s).`
       + (ambiguousSkipped>0 ? ` ${ambiguousSkipped} line(s) skipped: couldn't confidently tell the transaction amount apart from a balance/running-total figure — add those manually.` : '')
       + ` Review the list below — this is pattern-based, not perfect; remove anything wrong.`;
     saveData(); render();

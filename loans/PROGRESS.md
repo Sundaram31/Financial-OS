@@ -128,23 +128,20 @@ the EMI, silently winning `Math.min()` instead.
 **Fix, same "exclude the known-non-amount substring, then rescan" pattern as the existing
 date-digit-exclusion fix in this same file** (see the entry above). New `stripLikelyBalance(line,
 amtRe)` runs on the amount-candidate line (after the date substring is already removed) before the
-Math.min/Math.max pick, using three signals investigated and layered by strength -- not one
-unverified heuristic:
+Math.min/Math.max pick, using two genuinely reliable label/marker signals (a third,
+position-only signal was built, then removed after an independent review — see "Reviewer pass"
+below):
 1. An explicit `Bal`/`Balance`/`Avl Bal`/`Closing Balance` label immediately before a figure --
    the least ambiguous signal, since the statement is naming the figure itself.
 2. `<amount> DR/CR <balance>` -- a very common real Indian statement shape (confirmed by the
    tester's own reproduction line) where a Dr/Cr marker sits directly between the transaction
    amount and the balance that follows it; the number *before* the marker is the transaction, the
    number *after* it is the balance.
-3. If neither label is present but the line has *exactly* 2 numeric candidates, the last one is
-   treated as the balance -- the general shape of a plain "amount, balance" row with no marker word
-   at all. This also correctly handles the balance-smaller-than-EMI case the magnitude-based
-   min/max heuristic alone could not.
-3+ unlabelled numeric candidates with neither signal 1 nor 2 present is deliberately left
-ambiguous rather than guessed at (position alone can't say which extra number is the balance) --
-that line is now honestly skipped, folded into the scan feedback with its own count ("N line(s)
-skipped: couldn't confidently tell the transaction amount apart from a balance/running-total figure
--- add those manually") instead of silently recording a guess.
+Any residual case with 2+ numeric candidates and neither signal present is left ambiguous rather
+than guessed at (position alone can't say which extra number is the balance) -- that line is
+honestly skipped, folded into the scan feedback with its own count ("N line(s) skipped: couldn't
+confidently tell the transaction amount apart from a balance/running-total figure -- add those
+manually") instead of silently recording a guess.
 
 **A second real bug found and fixed while testing this fix**: the "Detected and added N
 payment(s)" feedback message (`#l_import_feedback`) never actually rendered -- it was being set
@@ -163,7 +160,7 @@ several other realistic statement-line shapes:**
 |---|---|---|
 | `15-Mar-2026 NEFT PART PAYMENT TOWARDS HOME LOAN PREPAY 1,00,000.00 DR 3,25,000.00` (tester's exact case) | ₹3,25,000 (the balance, wrong) | **₹1,00,000** (correct) |
 | `01-Apr-2026 ACH-DR-TP ACH EMI PAYMENT 25,000.00 DR 4,50,000.00` (EMI, DR marker, large balance) | risk of ₹4,50,000 if it ever won min() | **₹25,000** (correct) |
-| `05/06/2026 NACH LOAN EMI 15,000.00 8,000.00` (EMI near payoff, balance smaller than EMI, no marker) | ₹8,000 (the balance, wrong -- `Math.min` picked it) | **₹15,000** (correct) |
+| `05/06/2026 NACH LOAN EMI 15,000.00 8,000.00` (EMI near payoff, balance smaller than EMI, no marker) | ₹8,000 (the balance, wrong -- `Math.min` picked it) | **honestly skipped** (see "Reviewer pass" below -- an earlier version of this fix resolved this case via a position-only signal that was found unsafe and removed) |
 | `12-Jun-2026 BRN-CLG-CHQ PAID TO SBI BANK 2,00,000.00 CR 5,00,000.00` (CR marker variant) | risk of ₹5,00,000 | **₹2,00,000** (correct) |
 | `20-Jul-2026 NEFT PREPAY LOAN 75,000.00 Bal: 6,10,000.00` (explicit Bal: label) | risk of ₹6,10,000 | **₹75,000** (correct) |
 | `22-Aug-2026 NEFT LOAN PREPAY CHQ NO 123456 1,00,000.00 3,25,000.00` (genuinely 3 candidates, no signal -- a cheque/reference number that IS picked up as a digit-run) | would have guessed one of the 3 | **honestly skipped**, feedback names the reason |
@@ -178,3 +175,47 @@ payment(s)" plus the new skip count when applicable. 0 console/page errors acros
 Files touched: `/home/user/Financial-OS/loans/index.html` (`stripLikelyBalance` added,
 `l_import_btn`'s onclick handler, `loanImportFeedbackMsg` module-level variable, the
 `#l_import_feedback` markup and `renderLoanBody`'s importCard template).
+
+## Reviewer pass: an unsafe position-only signal removed, per-loan feedback isolation fixed (2026-08-13, same day)
+`financial-os-reviewer` wasn't available as an invocable skill in this session's environment;
+`code-review` was used as the closest available substitute for the required independent
+verification pass before committing. It found two real issues in the fix directly above, both
+fixed before this reached its final form.
+
+**1. The removed "exactly-2-candidates, no label/marker -> last one is the balance" signal was
+unsafe -- live-reproduced.** The original version of this fix included a third signal alongside the
+Bal-label and DR/CR-marker checks: when a line had exactly 2 numeric candidates and neither
+explicit signal matched, the LAST one was assumed to be the balance. The review found this was a
+blind positional guess that can't tell a genuine "amount, balance" pair apart from any other
+2-number narration -- e.g. a reference/cheque/account number sitting elsewhere on the line. Live-
+reproduced: `05/04/2026 NACH LOAN EMI PAYMENT REF 123456789 15,000.00` (a reference number BEFORE
+the real amount, itself a plausible narration shape) has exactly 2 candidates
+(`123456789`, `15000`) and no label/marker -- the removed signal treated the LAST one (`15,000`, the
+REAL amount) as the balance and stripped it, leaving only the reference number, which then won
+`Math.min()` and got recorded as a **₹12,34,56,789 EMI** -- the exact silent-wrong-number failure
+class this whole fix exists to close, reintroduced via the new heuristic on a different input
+shape. **Fixed by removing the signal entirely** rather than trying to patch around it -- same
+standard this app's own paste-parsing safety work already holds itself to (see
+`itrgenie/PROGRESS.md`'s "fourth round" entry: a shortcut that fixed real cases but reopened silent
+corruption on others was reverted rather than shipped partially-safe). The practical cost: a plain
+"amount, balance" line with no Bal label and no DR/CR marker (e.g. the near-payoff EMI case in the
+table above) is now an honest skip rather than a resolved parse -- correctly conservative, since
+real Indian statement exports overwhelmingly DO carry one of the two remaining signals (a Dr/Cr
+marker or an explicit balance label) per the tester's own description of the shape, and guessing
+blind at position risked exactly the class of bug the fix was written to eliminate.
+
+**2. `loanImportFeedbackMsg` was a single flat variable, so one loan's scan feedback bled into a
+different loan's import panel.** Live-reproduced: scan Loan A, see its "Detected and added N
+payment(s)" message, then expand Loan B (no scan ever run for it) -- Loan B's import panel showed
+Loan A's message, falsely implying a scan had just run for Loan B. Fixed by keying the variable by
+loan id (`loanImportFeedbackMsg[loan.id]`, defaulting to `''` when unset) instead of one shared
+string, read back per-loan at render time.
+
+**Re-verified with real headless Chromium (Playwright) after both fixes**: the reviewer's exact
+reference-number counter-example (both orderings -- reference number before AND after the real
+amount) now honestly skips instead of misreading either number; the tester's original DR-marker
+scenario, the EMI+DR-marker+large-balance case, the explicit `Bal:` label case, the CR-marker
+variant, and all pre-existing date-format/keyword/date-digit-exclusion regressions still pass
+exactly as before; a fresh second loan's import panel now correctly shows no feedback (not the
+first loan's message) when expanded without a scan of its own. 0 console/page errors. `node
+--check` clean.
