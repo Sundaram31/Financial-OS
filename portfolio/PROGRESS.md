@@ -1719,3 +1719,68 @@ fuzz evidence — this module shares the exact same `resolveThousandsMerge`/`spa
   omitted still comes back as the same honest skip round 3 confirmed (not reopened by either
   fix); the Broker-dropdown mismatch flag on quick-fill still shows (rust outline, 2px) for an
   unrecognized broker name.
+
+## Fix: CAS import silently mis-assigned holdings to the wrong broker account (2026-08-13)
+`financial-os-ux-tester`'s first end-to-end usability pass found a real, reproduced
+silent-data-corruption bug: `guessBrokerForGroup()` fell back to `data.accounts[0]` — literally
+"whichever account is listed first" — whenever a CAS statement group's DP/label text didn't match
+one of this app's 4 known accounts. A CAS group labeled "Zerodha Broking Ltd" (not one of the app's
+pre-seeded accounts: Axis Direct, Tradejini, Angel One, Vested-US) got silently imported as "Axis
+Direct" — the import preview showed zero visual difference between a group that matched correctly
+and one that was silently defaulted, both rendering identically as "Import into account: [name]".
+Real-world risk: Zerodha, Groww, Upstox, ICICI Direct, HDFC Securities are all extremely common
+Indian brokers outside this app's fixed 4-account list, so this was a realistic, likely-to-recur
+failure, not an edge case.
+
+**Fix.** `guessBrokerForGroup()` no longer falls back to `data.accounts[0]` — it returns `null` when
+a group's label doesn't confidently match a real account, and the caller (`startCasUnlock`) stores
+`broker: ''` (not a guessed id) for that group. The CAS import preview (`renderCasBody`, `'parsed'`
+stage) now:
+- Outlines an unmatched group's "Import into account" `<select>` in rust (`outline:2px solid
+  var(--rust)`) and prepends a real "— choose account —" placeholder option, selected — reusing the
+  exact same visual pattern already used for the guided-form quick-fill's unmatched-broker flag
+  (`#af_broker`, see the 2026-08-11 entries above), not a new visual language.
+- Shows a per-group rust helptext line naming the unmatched label and pointing at Accounts &
+  Settings.
+- Shows a page-level warning banner counting how many groups need a choice.
+- **Disables the Import button entirely** until every group has an explicit account selected —
+  chosen over silently defaulting to account #1 (the original bug) or to a neutral no-op, since a
+  wrong account assignment corrupts real portfolio data (wrong account's totals, wrong-currency
+  aggregation for Vested-US) with no easy way to notice after the fact, unlike a merely-annoying
+  blocked button.
+- Added a `.notice` box to the CAS panel itself, shown before the user even picks a file, stating
+  plainly that a CAS aggregates every broker/demat account a user actually has (often more than the
+  4 pre-seeded here) and that additional accounts can be added under Accounts & Settings — so the
+  mis-tag risk is visible *before* import, not just caught after the fact in the preview.
+
+**Selecting a real account for a flagged group clears the outline immediately** (the existing
+`onchange` handler already re-renders with the group's `broker` updated, and the outline condition
+is driven directly off `!g.broker`) — same self-clearing behavior as the guided-form pattern this
+reuses.
+
+**Tested with real headless Chromium (Playwright)**, driving the actual page and real
+`localStorage`, not mocked:
+- `guessBrokerForGroup({label:'Zerodha Broking Ltd DP ID 12345'})` → `null` (previously would have
+  silently returned `data.accounts[0].id`, i.e. `'axis_direct'`).
+- `guessBrokerForGroup({label:'Axis Direct demat account'})` → `'axis_direct'` (still matches
+  correctly — regression).
+- A simulated parsed CAS with one unmatched group (Zerodha) and one matched group (Axis Direct):
+  the unmatched group's select has the rust outline + "— choose account —" option selected, the
+  matched group's select has no outline and the correct value pre-selected, a warning banner reads
+  "1 group below couldn't be matched to one of your accounts", and `#cas_confirm` is `disabled`.
+  Clicking the (disabled) confirm button does nothing — `data.holdings.length` stays 0.
+- Explicitly selecting an account (`tradejini`) for the unmatched group via its `<select>` clears
+  its outline and re-enables the confirm button; clicking confirm then correctly imports both
+  holdings with the right brokers — `[{symbol:'INFOSYS LTD', broker:'tradejini'}, {symbol:'HDFC
+  BANK LTD', broker:'axis_direct'}]` — proving the fix never silently substitutes a default even
+  after the user resolves it themselves.
+- **Regression — a CAS group that DOES match a known account, alone, with no other unmatched
+  groups**: no rust outline, no "couldn't be matched" warning, confirm button enabled by default,
+  and importing succeeds cleanly with the correctly pre-selected broker — confirming the fix adds
+  friction only where genuinely needed, not on every import.
+- 0 console/page errors across all scenarios; both themes and 375px/1280px viewports load with no
+  new horizontal overflow.
+
+Files touched: `/home/user/Financial-OS/portfolio/index.html` (`guessBrokerForGroup`,
+`startCasUnlock`'s group construction, `renderCasImportCard`'s notice, `renderCasBody`'s `'parsed'`
+stage rendering and confirm-button gating).

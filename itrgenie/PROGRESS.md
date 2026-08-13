@@ -744,3 +744,63 @@ Files touched: `/home/user/Financial-OS/itrgenie/index.html` (HRA parser + helpt
 `/home/user/Financial-OS/goals/index.html`, `/home/user/Financial-OS/networth/index.html`,
 `/home/user/Financial-OS/portfolio/index.html` (comment corrections only, no runtime change in
 those three).
+
+## Fix: AIS Auto-Import silently dropped the employer/deductor name on an unrecognized header (2026-08-13)
+`financial-os-ux-tester`'s first end-to-end usability pass found a real, reproduced
+silent-data-corruption bug in AIS Auto-Import (module 00.3). `classifyAISRows()`'s `nameCol`
+matcher only recognized headers containing `name`, `deductor`, or `reporting entity`. The tester's
+realistic test file used the header "Information Source" (a plausible real AIS export header,
+though not independently confirmed against a live current sample) -- it didn't match, so `nameCol`
+stayed `-1`, every row's `name` came back blank, the review screen's Deductor column showed "—"
+throughout with no explanation of *why*, and -- the actually dangerous part -- the salary-import
+commit handler silently substituted the row's Description text as the employer name instead
+(`name: r.name || r.description`). A confidently-wrong name persisted in the profile with nothing
+to flag it as wrong.
+
+**Fix -- the safer of the two options considered, per this project's own "don't guess without
+verification" principle.** Widening the keyword list itself was considered and deliberately not
+done: there's no solid evidence for which additional header words the actual current AIS portal
+export uses (the module's own header comment already states this exact uncertainty), so guessing at
+plausible-sounding keywords would just move the unverified-guess risk rather than remove it.
+Instead:
+- `classifyAISRows()` now returns `nameColFound` (`nameCol>=0`) alongside its buckets, so the
+  review screen knows *why* a name is missing -- column not found in this file's headers at all, vs.
+  a specific row's cell genuinely being blank.
+- The review screen's Salary card shows a rust-colored warning line when any row has no recognized
+  name, naming the count and (when applicable) that a Name/Deductor/Reporting Entity column wasn't
+  found in the file's headers at all.
+- A row with no name gets a real, rust-outlined `<input type="text">` in the Deductor column
+  instead of a plain "—" -- editable directly in the review screen, so the user can fix it right
+  there before importing, rather than only finding out after the fact in the Salary module.
+- **The commit handler (`#ais_import_${key}`'s onclick, salary branch) never falls back to
+  `r.description` anymore.** A row's name is `r.name` if recognized, otherwise whatever the user
+  typed into that row's rust-outlined input (blank if they left it) -- blank is honest and visibly
+  incomplete in the Salary module afterward, never a plausible-looking-but-wrong string silently
+  persisting.
+
+**Tested with real headless Chromium (Playwright), reproducing the tester's exact scenario:**
+- A CSV with header `Category,Description,Information Source,Value` and row `TDS on
+  Salary,Salary Income,Acme Corp Pvt Ltd,1200000` -- the review screen shows the rust warning
+  ("1 of these row(s) have no employer/deductor name recognized in this file — a
+  Name/Deductor/Reporting Entity column wasn't found in its headers") and a rust-outlined input
+  with placeholder "name not found — enter manually", instead of a silent "—".
+- Importing with the input left blank: `profile.salaryIncome.employers` gets `{name: "", gross:
+  1200000, ...}` — confirmed **not** `{name: "Salary Income", ...}` (the old silent-wrong-name
+  bug, which would have been the Description text standing in as a plausible-looking fake employer
+  name).
+- Filling in the input (`"Acme Corp Pvt Ltd"`) before clicking import: employer correctly recorded
+  as `{name: "Acme Corp Pvt Ltd", gross: 1200000, ...}`.
+- **Regression -- a file with a recognized header (`Deductor`)**: no warning, no editable input, the
+  name populates directly and correctly (`{name: "Beta LLP", gross: 900000, ...}`), same as before
+  this fix.
+- **Further regression, existing AIS behavior untouched**: a stray title row above the real header
+  (`AIS Statement generated on 01-04-2026...` followed by the real `Category,Description,Name,Value`
+  header row) still gets skipped correctly and the real header row still found; the `reporting
+  entity` keyword variant still matches directly; Interest/Dividend classification and totals
+  (which don't use `nameCol`) are unaffected; a file with genuinely unrecognized `Category`/
+  `Description` headers still shows the existing "Couldn't find the expected columns" error message,
+  unchanged.
+- 0 console/page errors across every scenario. `node --check` clean after the edit.
+
+Files touched: `/home/user/Financial-OS/itrgenie/index.html` (`classifyAISRows` now returns
+`nameColFound`; `renderReview`'s Salary card markup and its `#ais_import_salary` commit handler).

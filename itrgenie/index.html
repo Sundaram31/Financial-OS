@@ -1058,6 +1058,16 @@ const AISImportModule = {
       }
       if(headerIdx===-1) return {error:true, buckets:{}};
 
+      // nameCol's keyword list ("name"/"deductor"/"reporting entity") is narrow because the
+      // portal's exact AIS header wording has never been verified against a live sample (see this
+      // module's header comment). 2026-08-13: found a real, reproduced silent-corruption bug this
+      // narrowness caused -- a plausible real header ("Information Source") didn't match, so
+      // nameCol stayed -1, every row's `name` came back blank, and the salary-import commit handler
+      // further down silently substituted the row's Description text as the employer name instead
+      // (`name: r.name || r.description`). That's now fixed at the commit step (never falls back to
+      // Description -- see the salary import handler below); `nameColFound` is surfaced here so the
+      // review screen can show an explicit "name not found in this file" prompt rather than the
+      // blank-Deductor-cell-with-no-explanation the old behavior otherwise left behind.
       const buckets = {salary:[], interest:[], dividend:[], capgains:[], other:[]};
       for(let i=headerIdx+1;i<rows.length;i++){
         const r = rows[i];
@@ -1075,7 +1085,7 @@ const AISImportModule = {
         else if(d.includes('securit')||d.includes('mutual fund')||d.includes('sale of')||d.includes('purchase of')||d.includes('property')) buckets.capgains.push(row);
         else buckets.other.push(row);
       }
-      return {error:false, buckets};
+      return {error:false, buckets, nameColFound: nameCol>=0};
     }
 
     function renderReview(wrap, parsed){
@@ -1084,7 +1094,7 @@ const AISImportModule = {
         wrap.innerHTML = `<div class="card"><h3 style="color:var(--rust);">Couldn't find the expected columns</h3><p class="helptext">Looking for columns with "Category" and "Description" in the header — this file's headers don't match. Fall back to manually filling Salary/Other Sources, or check that this is the unmodified AIS CSV/Excel export.</p></div>`;
         return;
       }
-      const { buckets } = parsed;
+      const { buckets, nameColFound } = parsed;
       const sections = [
         ['salary', 'Salary (TDS Section 192)', 'Add to Salary module'],
         ['interest', 'Interest income', 'Add to Other Sources — Interest'],
@@ -1097,8 +1107,16 @@ const AISImportModule = {
         const card = document.createElement('div');
         card.className = 'card';
         const total = rows.reduce((s,r)=>s+r.amount,0);
+        // A missing employer/deductor name (either the whole column wasn't recognized in this
+        // file's headers, or a specific row's cell was genuinely blank) used to get silently
+        // replaced with the row's Description text at import time -- a confidently-wrong name, not
+        // an honest gap. Fixed: never substitute Description; instead surface it here so the user
+        // notices and fixes it before saving, same "flag it, don't fabricate it" pattern used
+        // throughout this app.
+        const missingNameRows = key==='salary' ? rows.filter(r=>!r.name).length : 0;
         card.innerHTML = `
           <h3>${label} <span class="helptext" style="font-weight:normal;">— ${rows.length} row(s), ₹${total.toLocaleString('en-IN')} total</span></h3>
+          ${missingNameRows>0 ? `<p class="helptext" style="color:var(--rust); margin-bottom:10px;">⚠ ${missingNameRows} of these row(s) have no employer/deductor name recognized in this file${nameColFound===false ? ' — a Name/Deductor/Reporting Entity column wasn\'t found in its headers' : ''}. Enter the name directly in the Deductor column below (outlined in rust) before importing — it will not be guessed from the Description text.</p>` : ''}
           <div id="ais_rows_${key}"></div>
           <button class="btn small primary" id="ais_import_${key}" style="margin-top:10px;">${btnLabel}</button>
         `;
@@ -1109,7 +1127,10 @@ const AISImportModule = {
         table.innerHTML = `<tr><th></th><th>Description</th>${key==='salary'?'<th>Deductor</th>':''}<th>Amount</th></tr>`;
         rows.forEach((r,idx)=>{
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td><input type="checkbox" data-check-${key}="${idx}" checked></td><td>${r.description}</td>${key==='salary'?`<td>${r.name||'—'}</td>`:''}<td>₹${r.amount.toLocaleString('en-IN')}</td>`;
+          const deductorCell = r.name
+            ? `<td>${r.name}</td>`
+            : `<td><input type="text" data-name-${key}="${idx}" placeholder="name not found — enter manually" style="outline:2px solid var(--rust);"></td>`;
+          tr.innerHTML = `<td><input type="checkbox" data-check-${key}="${idx}" checked></td><td>${r.description}</td>${key==='salary'?deductorCell:''}<td>₹${r.amount.toLocaleString('en-IN')}</td>`;
           table.appendChild(tr);
         });
         rowsEl.appendChild(table);
@@ -1120,7 +1141,14 @@ const AISImportModule = {
           if(key==='salary'){
             p.salaryIncome = p.salaryIncome || {employers:[], foreignExempt:false, exemptAmount:''};
             checked.forEach(r=>{
-              p.salaryIncome.employers.push({name: r.name || r.description, gross: r.amount, exempt:0, profTax:0});
+              // Never falls back to r.description as a stand-in name (that was the bug -- a
+              // plausible-looking but wrong name silently persisting). A row whose name wasn't
+              // recognized gets whatever the user typed into its rust-outlined input (blank if
+              // they left it, which is honest and visibly incomplete rather than confidently wrong).
+              const origIdx = rows.indexOf(r);
+              const nameInput = card.querySelector(`[data-name-${key}="${origIdx}"]`);
+              const name = r.name || (nameInput ? nameInput.value.trim() : '');
+              p.salaryIncome.employers.push({name, gross: r.amount, exempt:0, profTax:0});
             });
           } else if(key==='interest'){
             p.otherSources = p.otherSources || {aisInterestTotal:'', interestRows:[], aisDividendTotal:'', dividendRows:[]};

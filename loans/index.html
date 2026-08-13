@@ -95,6 +95,12 @@ let data = loadData();
 function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
 function newId(){ return 'loan_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
 let expandedId = null;
+// 2026-08-13: read back into the next render() rather than written directly onto the DOM node
+// right after saveData()/render() -- render() replaces the WHOLE #content subtree on every call
+// (see render() below), so the importCard element captured by this handler's closure is already
+// detached by the time it runs; setting .textContent on it silently sets text nobody ever sees.
+// Same root cause and same fix pattern as portfolio/index.html's bulkAddFeedbackMsg (2026-08-09).
+let loanImportFeedbackMsg = '';
 
 // Bank-statement classifier -- validated 98.7% accurate against ground truth on a real
 // 394-transaction account (see project notes). Deliberately uses ONLY the transaction
@@ -106,6 +112,56 @@ function classifyLoanTxn(desc){
   if(/BRN-CLG-CHQ PAID TO.*(BANK|ICICI|HDFC|AXIS|SBI)/i.test(desc)) return 'prepayment';
   if(/PREPAY|PART.?PAY|FORECLOS/i.test(desc)) return 'prepayment';
   return null;
+}
+// Detects and strips a likely running-balance numeric token from a statement line BEFORE the
+// EMI/prepayment amount-candidate scan runs (see l_import_btn's onclick below) -- same "exclude
+// the known-non-amount substring first, then rescan" approach as the date-digit-exclusion fix
+// applied to this same file on 2026-08-11 (see the comment above dateRe's use further down). A
+// balance/closing-balance column is present on nearly every real Indian net-banking statement
+// export and is almost always numerically LARGER than the actual transaction -- colliding directly
+// with the existing Math.min()/Math.max() amount-picking heuristic below and risking a silent
+// wrong-amount record (reproduced: "...PREPAY 1,00,000.00 DR 3,25,000.00" was previously recorded
+// as a ₹3,25,000 prepayment, the balance, not the real ₹1,00,000 transaction).
+//
+// Investigated three candidate signals against several realistic statement-line shapes before
+// settling on this layered order (strongest/most explicit signal first, most general last):
+//   1. An explicit "Bal"/"Balance"/"Avl Bal"/"Closing Balance" label immediately before the figure
+//      -- the statement is naming the figure itself, the least ambiguous signal available.
+//   2. "<amount> DR/CR <balance>" -- a very common shape in real Indian statement text/exports
+//      where a Dr/Cr marker sits directly between the transaction amount and the running balance
+//      that follows it. The number immediately BEFORE the marker is the transaction (the marker is
+//      describing that figure); the number immediately AFTER it is the balance.
+//   3. If neither label is present but the line has EXACTLY 2 numeric candidates, the LAST one is
+//      treated as the balance -- the general shape of a plain "amount, balance" row with no marker
+//      word at all (also correctly catches the case where the balance happens to be numerically
+//      SMALLER than the transaction, e.g. a loan near payoff, which the old magnitude-based
+//      min/max heuristic alone could not).
+// 3+ unlabelled numeric candidates with neither signal 1 nor 2 present is deliberately left
+// ambiguous rather than guessed at -- position alone can't say which extra number is the balance --
+// and is reported back to the caller so the line can be honestly skipped (folded into the existing
+// "review the list below" feedback, with its own count) instead of silently misreading one of them.
+function stripLikelyBalance(line, amtRe){
+  const matches = [...line.matchAll(amtRe)];
+  if(matches.length < 2) return { line, ambiguous:false };
+  const balLabelRe = /\b(?:clos(?:ing)?\s+|avl\.?\s*|available\s+)?bal(?:ance)?\b[:\-\s]{0,8}$/i;
+  for(const m of matches){
+    const before = line.slice(Math.max(0, m.index-28), m.index);
+    if(balLabelRe.test(before)){
+      return { line: line.slice(0,m.index) + ' ' + line.slice(m.index + m[0].length), ambiguous:false };
+    }
+  }
+  for(let i=0; i<matches.length-1; i++){
+    const between = line.slice(matches[i].index + matches[i][0].length, matches[i+1].index);
+    if(/^\s*(dr|cr)\.?\s*$/i.test(between)){
+      const bal = matches[i+1];
+      return { line: line.slice(0,bal.index) + ' ' + line.slice(bal.index + bal[0].length), ambiguous:false };
+    }
+  }
+  if(matches.length === 2){
+    const bal = matches[1];
+    return { line: line.slice(0,bal.index) + ' ' + line.slice(bal.index + bal[0].length), ambiguous:false };
+  }
+  return { line, ambiguous:true };
 }
 function parsePastedRows(text){
   return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0)
@@ -222,7 +278,7 @@ function renderLoanBody(container, loan){
       <button class="btn small ghost" id="l_file_btn">Choose file (CSV/TXT/Excel)</button>
       <input type="file" id="l_file" accept=".csv,.txt,.xlsx,.xls" style="display:none">
     </div>
-    <div id="l_import_feedback" class="helptext" style="margin:6px 0;"></div>
+    <div id="l_import_feedback" class="helptext" style="margin:6px 0;">${loanImportFeedbackMsg}</div>
     <div id="l_payment_rows"></div>
   `;
   container.appendChild(importCard);
@@ -260,7 +316,7 @@ function renderLoanBody(container, loan){
     // fine.
     const dateRe = /(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}|\d{4}[-\/.]\d{1,2}[-\/.]\d{1,2}|\d{1,2}[-\/ ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-\/ ]\d{2,4})/i;
     const amtRe = /([\d,]+\.\d{2}|\b[\d,]{4,}\b)/g;
-    let added = 0;
+    let added = 0, ambiguousSkipped = 0;
     raw.split('\n').forEach(line=>{
       const kind = classifyLoanTxn(line);
       if(!kind) return;
@@ -273,14 +329,23 @@ function renderLoanBody(container, loan){
       // figure. Fixed at the root by scanning for amounts only in the line with the matched date
       // substring removed, so a date can never be mistaken for an amount.
       const lineWithoutDate = line.replace(dateMatch[0], ' ');
-      const amounts = [...lineWithoutDate.matchAll(amtRe)].map(m=>parseFloat(m[1].replace(/,/g,''))).filter(n=>n>100);
+      // 2026-08-13: a running/closing-balance figure -- present on nearly every real Indian
+      // net-banking statement export -- collides with the min/max amount-picking heuristic just
+      // below in exactly the same way the date's own digits used to (see stripLikelyBalance()'s
+      // own comment above for the full investigation and reasoning). Stripped out first, same
+      // "exclude the known-non-amount substring, then rescan" pattern as the date fix above.
+      const balanceCheck = stripLikelyBalance(lineWithoutDate, amtRe);
+      if(balanceCheck.ambiguous){ ambiguousSkipped++; return; }
+      const amounts = [...balanceCheck.line.matchAll(amtRe)].map(m=>parseFloat(m[1].replace(/,/g,''))).filter(n=>n>100);
       if(amounts.length===0) return;
       const amount = kind==='emi' ? Math.min(...amounts) : Math.max(...amounts); // EMI is usually the smaller recurring figure; prepayment the larger lump sum
       loan.payments.push({date: dateMatch[1], type: kind, amount});
       added++;
     });
+    loanImportFeedbackMsg = `Detected and added ${added} payment(s).`
+      + (ambiguousSkipped>0 ? ` ${ambiguousSkipped} line(s) skipped: couldn't confidently tell the transaction amount apart from a balance/running-total figure — add those manually.` : '')
+      + ` Review the list below — this is pattern-based, not perfect; remove anything wrong.`;
     saveData(); render();
-    importCard.querySelector('#l_import_feedback').textContent = `Detected and added ${added} payment(s). Review the list below — this is pattern-based, not perfect; remove anything wrong.`;
   };
 }
 

@@ -2335,11 +2335,18 @@ async function startCasUnlock(buf){
       casImport.parseFailReason = result.reason;
       render(); return;
     }
-    casImport.groups = result.groups.map(g => ({
-      label: g.label, holdings: g.holdings,
-      broker: guessBrokerForGroup(g),
-      assetType: 'Stock',
-    }));
+    casImport.groups = result.groups.map(g => {
+      const guessedBroker = guessBrokerForGroup(g);
+      return {
+        label: g.label, holdings: g.holdings,
+        // '' (not a silent account-#1 default) when the CAS group's own label didn't confidently
+        // match one of this app's accounts -- see guessBrokerForGroup() below for why. An empty
+        // broker forces an explicit account choice in the preview UI rather than letting an
+        // unmatched group look identical to a matched one.
+        broker: guessedBroker || '',
+        assetType: 'Stock',
+      };
+    });
     casImport.stage = 'parsed';
     render();
   }catch(err){
@@ -2448,10 +2455,19 @@ function parseCasPdfText(fullText, lines){
   }
   return { ok:true, groups: nonEmpty };
 }
+// Returns a matched account id, or null if the CAS group's own label (usually the DP/depository
+// line, e.g. "Zerodha Broking Ltd") doesn't confidently match one of this app's own accounts.
+// Deliberately does NOT fall back to data.accounts[0] -- a CAS aggregates every broker/demat
+// account a user actually has, which is very often more than this app's fixed account list (real
+// brokers like Zerodha, Groww, Upstox, ICICI Direct, HDFC Securities are all extremely common and
+// not pre-seeded here) -- silently defaulting to "whichever account is listed first" would tag a
+// holding onto the wrong account with zero visual difference from a real match. The caller (see
+// startCasUnlock above) surfaces a null/empty result as an explicit "-- choose account --" the
+// user must resolve before import, never a guess.
 function guessBrokerForGroup(g){
   const t = (g.label||'').toLowerCase();
   const hit = data.accounts.find(a => t.includes(a.name.toLowerCase()));
-  return (hit || data.accounts[0] || {}).id || null;
+  return hit ? hit.id : null;
 }
 
 function renderCasImportCard(container){
@@ -2484,6 +2500,14 @@ function renderCasImportCard(container){
       quantity and current market value, not your original purchase price/date — those aren't in
       this document at all. Imported holdings will have <strong>Buy Price left blank</strong> for
       you to fill in yourself (editable directly in the Holdings table above, per row).
+    </div>
+    <div class="notice">
+      <strong>A CAS aggregates every broker/demat account you actually have</strong> — that's very
+      often more than the accounts already set up here (real brokers like Zerodha, Groww, Upstox,
+      ICICI Direct, or HDFC Securities aren't pre-seeded in this app). If a group below can't be
+      matched to one of your existing accounts, you'll be asked to choose one explicitly rather
+      than have it silently assigned — add a new account first under
+      <strong>Accounts &amp; Settings</strong> if the broker you need isn't listed yet.
     </div>
     <div id="cas_body"></div>
   `;
@@ -2557,6 +2581,10 @@ function renderCasBody(container){
         if(idx >= 0) willUpdate++; else willAdd++;
       });
     });
+    // A group with an empty broker means guessBrokerForGroup() couldn't confidently match this
+    // group's label to any of the app's own accounts -- never silently resolved to "account #1",
+    // so it must be visibly distinct from a real match and block import until resolved.
+    const unmatchedGroups = casImport.groups.filter(g => !g.broker).length;
     const groupsHtml = casImport.groups.map((g, gi)=>{
       const rows = g.holdings.map(h=>{
         const perShare = (h.marketValue!==null && h.qty>0) ? (h.marketValue/h.qty) : null;
@@ -2568,12 +2596,14 @@ function renderCasBody(container){
           <td data-label="Current Price (from CAS)">${perShare!==null ? formatMoney(perShare,'INR') : '—'}</td>
         </tr>`;
       }).join('');
+      const brokerUnmatched = !g.broker;
       return `
         <div class="import-group">
           <h4>${g.label} <span class="cell-muted" style="font-weight:400;">(${g.holdings.length} holding${g.holdings.length===1?'':'s'})</span></h4>
           <div class="field-row">
             <div class="field"><label>Import into account</label>
-              <select data-cas-broker="${gi}">${data.accounts.map(a=>`<option value="${a.id}" ${a.id===g.broker?'selected':''}>${a.name}</option>`).join('')}</select>
+              <select data-cas-broker="${gi}" ${brokerUnmatched ? 'style="outline:2px solid var(--rust);"' : ''}>${brokerUnmatched ? `<option value="" selected>— choose account —</option>` : ''}${data.accounts.map(a=>`<option value="${a.id}" ${a.id===g.broker?'selected':''}>${a.name}</option>`).join('')}</select>
+              ${brokerUnmatched ? `<p class="helptext" style="color:var(--rust); margin:4px 0 0;">Couldn't match "${g.label}" to any of your accounts — choose one before importing, or add it under Accounts &amp; Settings first.</p>` : ''}
             </div>
             <div class="field"><label>Asset type (applies to this group)</label>
               <select data-cas-type="${gi}">${['Stock','ETF','Mutual Fund','Other'].map(t=>`<option value="${t}" ${t===g.assetType?'selected':''}>${t}</option>`).join('')}</select>
@@ -2585,6 +2615,12 @@ function renderCasBody(container){
     }).join('');
     container.innerHTML = `
       <p class="helptext" style="margin-bottom:4px;"><strong style="color:var(--text);">${totalHoldings} holding(s) found in ${casImport.fileName}</strong>, grouped as detected below. Review the account assignment for each group, then import.</p>
+      ${unmatchedGroups>0 ? `
+      <div class="notice warn">
+        <strong>${unmatchedGroups} group${unmatchedGroups===1?'':'s'} below couldn't be matched to one of your accounts</strong> —
+        outlined in rust. Choose an account for ${unmatchedGroups===1?'it':'each'} before importing; nothing defaults to
+        an existing account automatically.
+      </div>` : ''}
       ${willUpdate>0 ? `
       <div class="notice">
         <strong>${willUpdate} of these already exist in your holdings</strong> (matched by ISIN/symbol) —
@@ -2594,9 +2630,10 @@ function renderCasBody(container){
       </div>` : ''}
       ${groupsHtml}
       <div style="display:flex; gap:8px; margin-top:14px;">
-        <button class="btn primary small" id="cas_confirm">${willUpdate>0 ? `Import ${willAdd} new / refresh ${willUpdate} existing` : `Import ${totalHoldings} holding${totalHoldings===1?'':'s'}`}</button>
+        <button class="btn primary small" id="cas_confirm" ${unmatchedGroups>0 ? 'disabled' : ''}>${willUpdate>0 ? `Import ${willAdd} new / refresh ${willUpdate} existing` : `Import ${totalHoldings} holding${totalHoldings===1?'':'s'}`}</button>
         <button class="btn small ghost" id="cas_cancel">Cancel</button>
       </div>
+      ${unmatchedGroups>0 ? `<p class="helptext" style="margin-top:4px;">Import is disabled until every group has an account chosen.</p>` : ''}
     `;
     container.querySelectorAll('[data-cas-broker]').forEach(sel=>{
       sel.onchange = (e)=>{ casImport.groups[+e.target.dataset.casBroker].broker = e.target.value; render(); };
