@@ -83,7 +83,17 @@ guessing which one it is.
 
 ## Design invariants (same as ITRGenie)
 - Zero external dependencies, works offline once loaded.
-- Paste-and-parse inputs, not form-field-only.
+- **Guided single-item form (Label + Value + Add) alongside paste-and-parse and
+  file upload — not paste-only.** This line used to read "Paste-and-parse
+  inputs, not form-field-only," a decision made 2026-08-03 before Goals'/
+  Portfolio's later mobile-UX passes established the "guided form as the
+  default-visible primary path, bulk paste/CSV as a collapsed advanced
+  option" pattern (see `portfolio/PROGRESS.md`'s 2026-08-09 UX pass). This
+  module never got that same treatment until 2026-08-13 — see the dated
+  entry below — and the invariant is corrected here so it stops
+  contradicting the actual code, per this repo's own rule against stale
+  design-invariant text (see `itrgenie/PROGRESS.md` for a prior instance of
+  the same stale-comment issue being caught and fixed).
 - Shared theme key with ITRGenie: `itrgenie_theme`.
 - Own data storage key: `networth_data_v1` (separate from ITRGenie's profile,
   since net worth spans across all financial pillars, not just tax).
@@ -221,3 +231,80 @@ evidence — this module shares the exact same `resolveThousandsMerge`/`spanVali
   round-3's own confirmed-ambiguous case) still comes back as the same honest skip, not reopened by
   either fix; `Home loan (SBI),3,20,000,15/06/2026` (date present) still parses correctly and
   unambiguously.
+
+## Updated 2026-08-13 — Guided "add one item" form on every category card; inline row editing
+A real end-to-end usability pass (`financial-os-ux-tester`) found this was the one place in the
+app where the *original* driving complaint of this session — "enter data in different fields only
+by one [paste box, remembering exact field order]" — was still literally true. Goals and Portfolio
+had both already gotten a guided-form treatment during earlier mobile-UX passes; Net Worth's six
+category cards (five asset categories + Liabilities) never had. Fixed.
+
+**What changed**: every category card now shows a small guided form — a **Label** text input, a
+**Value (₹)** number input (`min="0"`), and an **Add** button in a `<form>` (Enter submits it) —
+as the default-visible, primary way to add one item, directly under the card heading. The existing
+bulk paste-and-parse textarea + "Choose file (CSV/TXT/Excel)" upload is **kept, not replaced**, but
+now sits behind a collapsed `<details class="bulk-entry">Or paste/upload several at once</details>`
+— the same "guided form primary, bulk paste tucked behind an advanced disclosure" pattern
+Portfolio Tracker's 2026-08-09 UX pass established for its own "Add a holding" form. Per-category
+placeholder examples (`CATEGORY_EXAMPLES`) replaced a single generic "Axis Direct equity+MF"
+example that had previously been shown on every asset card regardless of category (Foreign Assets,
+Property, Business, Other all showed an equity/MF example that didn't fit).
+
+**One source of truth for validation, not two divergent paths**: a new shared
+`addLabelValueRow(cat, rawLabel, rawValue)` is the only place a row is actually pushed onto
+`cat.rows` — trims the label, runs the value through the existing `toNum()`, and requires a
+non-empty label and a value that's a non-negative number. The guided form calls it directly with
+its two typed fields. The bulk-paste handler still uses `parseLabelValueRow(cols)` first (that part
+is genuinely paste-specific — it's what decides *which* pasted column is Label vs Value when
+column order is ambiguous) but then hands the result to the same `addLabelValueRow()` to actually
+add it, instead of pushing to `cat.rows` directly as it did before. A row added via either path is
+identically shaped: `{label, value}`.
+
+**Inline row editing added too** (the tester's secondary finding — fixing a mistake used to mean
+delete-the-row-then-re-paste-the-whole-line, with no way to correct just one field). Each rendered
+row's Label and Value cells are now live `<input>` fields (`table.day-table input[type="text"|
+"number"]`, styled to match the rest of the app rather than left as unstyled default form
+controls), the same click-into-cell pattern Portfolio's Holdings table already uses for Avg
+Price/Current Price/As Of. An invalid edit (blank label, or a Value that doesn't parse to a number
+≥ 0) reverts the input to the last good value instead of silently saving something wrong — confirmed
+this actually addresses the tester's stated concern, not just assumed: editing a single row's
+Value or Label is now a one-field change, not a delete-and-retype.
+
+**Design invariant corrected**: this module's "Paste-and-parse inputs, not form-field-only" line
+(2026-08-03) predated Goals'/Portfolio's later guided-form work and was never revisited — updated
+above to state the actual current behavior (guided form + paste/upload, not paste-only) instead of
+continuing to contradict the code.
+
+**Tested with real headless-Chromium** (`@sparticuz/chromium` + `playwright-core`, same route used
+by this session's earlier paste-parsing safety work — no direct route to Playwright's own browser
+CDN from this build environment), 26 checks, all passing:
+- Guided form adds a correctly-shaped `{label, value}` row to all 6 category cards (verified in
+  both `localStorage` and the rendered list), and rejects an empty label / a negative value with an
+  inline error instead of silently doing nothing.
+- Bulk paste/CSV regression: plain rows, currency-symbol rows, reversed-column-order rows, and
+  Liabilities' optional trailing `OutstandingAsOf` column all still parse exactly as before.
+- **Shape parity, directly asserted**: a guided-form-added row and a paste-added row have
+  byte-identical key shapes (`{label, value}`) — no divergence between the two entry paths.
+- Inline edit: changing an existing row's Value or Label saves correctly and the summary net worth
+  figure updates; a blank-label edit reverts instead of saving.
+- Mobile (375×812), both themes: guided form works, and a full DOM text-node sweep (not a sample)
+  found 0 text nodes under 13px, including the new form/table inputs.
+- Import/Export JSON (full-backup shape) round-trips a guided-form-added row correctly.
+- `mergeNetWorthFeed` (the cross-module feed-merge function this module actually has — see the
+  2026-08-09 entry above; the task brief referred to a `mergeCrossModuleFeed`, which doesn't exist
+  in this codebase under that name, so `mergeNetWorthFeed` was tested instead): correctly updates a
+  guided-form-added row in place by label, adds a new row from an array-shaped feed import, and
+  still skips a non-INR `_currency` row.
+- Synthesis (`synthesis/index.html`) loads a guided-form-populated `networth_data_v1` and renders
+  the correct net worth figure with 0 console errors — its read-only Net Worth card and
+  Concentration check are unaffected by this change (this module's on-disk data shape,
+  `{categories: {key: {label, rows: [{label, value}]}}, liabilities, snapshots}`, is unchanged;
+  only *how* a row gets added changed, not what a row looks like once added).
+
+**Known gap, flagged, not fixed here (pre-existing, found while reading this code)**: Liabilities'
+bulk-paste box has always accepted an optional third `OutstandingAsOf` column (used to disambiguate
+column-splitting) but `parseLabelValueRow()` has only ever returned `{label, value}` — the date is
+parsed then silently discarded, never actually stored on the row. This predates this session's
+change and is unrelated to it (the guided form for Liabilities deliberately mirrors this — Label +
+Value only, no date field — rather than adding a field whose value the existing storage layer would
+just throw away). Worth a real fix in a future session if `OutstandingAsOf` is meant to be kept.

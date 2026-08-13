@@ -49,6 +49,14 @@
   table.day-table th{ text-align:left; color:var(--muted); font-weight:500; font-size:13px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
   table.day-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
   table.day-table tr:last-child td{ border-bottom:none; }
+  table.day-table input[type="text"], table.day-table input[type="number"]{ width:100%; min-width:70px; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:5px 7px; border-radius:4px; font-family:var(--mono); font-size:13.5px; }
+  table.day-table input[type="text"]:focus, table.day-table input[type="number"]:focus{ outline:none; border-color:var(--gold-dim); }
+  details.bulk-entry{ margin-top:2px; border-top:1px solid var(--line); padding-top:10px; }
+  details.bulk-entry summary{ cursor:pointer; font-size:13px; color:var(--gold); list-style:none; }
+  details.bulk-entry summary::-webkit-details-marker{ display:none; }
+  details.bulk-entry summary::before{ content:'▸ '; }
+  details.bulk-entry[open] summary::before{ content:'▾ '; }
+  details.bulk-entry .bulk-body{ margin-top:10px; }
   .result-box{ border:1px solid var(--gold-dim); border-radius:6px; padding:18px 20px; background:linear-gradient(180deg, rgba(201,162,39,0.05), transparent); margin-top:16px; }
   .result-box .verdict{ font-family:var(--serif); font-size:22px; color:var(--gold); margin-bottom:4px; }
   .result-box .verdict-detail{ font-size:13.5px; color:var(--muted); }
@@ -60,7 +68,11 @@
   .legend .dot{ width:9px; height:9px; border-radius:2px; }
   ::-webkit-scrollbar{ width:8px; height:8px; }
   ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
-  @media (max-width:760px){ main.content{ padding:18px; } }
+  @media (max-width:760px){
+    main.content{ padding:18px; }
+    .field input, .field select{ font-size:16px; padding:9px 10px; } /* 16px avoids iOS auto-zoom-on-focus */
+    table.day-table input[type="text"], table.day-table input[type="number"]{ font-size:14px; }
+  }
 </style>
 <!-- Vendored SheetJS (xlsx.core.min.js), self-hosted, no CDN -- lets Excel (.xlsx/.xls)
      imports convert to CSV in-browser via the same pattern already used in
@@ -231,6 +243,9 @@ function toNum(s){
   if(cleaned==='') return NaN;
   return Number(cleaned);
 }
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 // Given one pasted row's cells, finds the Label and the Value regardless of which column they're
 // in. With exactly 2 columns (the documented "Label, Value" shape), whichever cell parses as a
 // non-negative number after stripping currency noise is the value -- the other is the label. If
@@ -251,6 +266,19 @@ function parseLabelValueRow(cols){
   const value = toNum(cols[1]);
   if(isNaN(value) || value<0) return null;
   return {label: cols[0].trim(), value};
+}
+// Single source of truth for actually pushing a row onto a category, used by BOTH the guided
+// "add one item" form and the bulk paste/upload parser below -- so a row added via one path is
+// validated and shaped identically to a row added via the other, not two divergent code paths.
+// Column disambiguation (which pasted cell is Label vs Value) still only makes sense for the
+// paste path, via parseLabelValueRow() above; this function is what happens once label/value are
+// already known, whichever path produced them.
+function addLabelValueRow(cat, rawLabel, rawValue){
+  const label = String(rawLabel==null?'':rawLabel).trim();
+  const value = toNum(rawValue);
+  if(!label || isNaN(value) || value<0) return false;
+  cat.rows.push({label, value});
+  return true;
 }
 // Handles CSV/TXT (read as text, unchanged) and Excel .xlsx/.xls (converted to the same
 // CSV-shaped text via the vendored SheetJS lib, same pattern as itrgenie/'s py_file/oh_file
@@ -293,21 +321,51 @@ function computeTotals(){
   return { totalAssets, totalLiabilities, netWorth: totalAssets - totalLiabilities, byCategory };
 }
 
+// Guided one-item form + bulk paste/upload, side by side, for every asset category and
+// Liabilities alike -- both entry paths end up calling addLabelValueRow() (above) to actually
+// push a row, so there's one source of truth for validation, not two divergent code paths.
+// Bulk paste/CSV/Excel is kept, not replaced, but tucked behind a collapsed <details> ("advanced")
+// the same way Portfolio Tracker's guided "Add a holding" form treats its own bulk-paste box --
+// the guided form is the default-visible, low-friction path for adding one thing on a phone.
+// One realistic example per category, used in both the guided form's placeholder and the bulk
+// paste helptext -- previously every non-liability card showed the same "Axis Direct equity+MF"
+// example regardless of category, which read oddly on e.g. Foreign assets or Business cards.
+const CATEGORY_EXAMPLES = {
+  investments: 'Axis Direct equity+MF',
+  foreignAssets: 'US brokerage (Schwab)',
+  property: 'Flat in Bangalore',
+  business: 'Share in family business',
+  other: 'Gold jewellery',
+};
 function renderCategoryCard(container, key, cat, isLiability){
   const card = document.createElement('div');
   card.className = 'card';
+  const example = isLiability ? 'Home loan (SBI)' : (CATEGORY_EXAMPLES[key] || 'Label');
   card.innerHTML = `
     <h3>${cat.label}</h3>
-    <p class="helptext" style="margin-bottom:8px;">One per line: <code>Label, Value${isLiability?', OutstandingAsOf(optional)':''}</code> — e.g. "${isLiability ? 'Home loan (SBI), 3200000' : 'Axis Direct equity+MF, 850000'}"${isLiability?'':' (either column order works, and ₹/commas in the amount are fine)'}</p>
-    <textarea id="ta_${key}" rows="2" placeholder="${isLiability ? 'Home loan, 3200000' : 'Label, 100000'}"></textarea>
-    <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
-      <button class="btn small" id="btn_${key}">Parse &amp; add</button>
-      <span class="helptext" style="margin:0;">or</span>
-      <button class="btn small ghost" id="filebtn_${key}">Choose file (CSV/TXT/Excel)</button>
-      <input type="file" id="file_${key}" accept=".csv,.txt,.xlsx,.xls" style="display:none">
-    </div>
-    <div id="fb_${key}" class="helptext" style="margin:6px 0;"></div>
+    <form id="addform_${key}">
+      <div class="field-row" style="margin-bottom:2px;">
+        <div class="field" style="flex:2;"><label>Label</label><input id="add_label_${key}" placeholder="${example}"></div>
+        <div class="field"><label>Value (₹)</label><input id="add_value_${key}" type="number" step="any" min="0" placeholder="e.g. 850000"></div>
+        <div class="field" style="max-width:110px; display:flex; align-items:flex-end;"><button type="submit" class="btn small primary" style="width:100%;">Add</button></div>
+      </div>
+      <div id="addfb_${key}" class="helptext" style="margin:0 0 10px; min-height:1em;"></div>
+    </form>
     <div id="rows_${key}"></div>
+    <details class="bulk-entry">
+      <summary>Or paste/upload several at once</summary>
+      <div class="bulk-body">
+        <p class="helptext" style="margin-bottom:8px;">One per line: <code>Label, Value${isLiability?', OutstandingAsOf(optional)':''}</code> — e.g. "${example}, ${isLiability?'3200000':'850000'}"${isLiability?'':' (either column order works, and ₹/commas in the amount are fine)'}</p>
+        <textarea id="ta_${key}" rows="2" placeholder="${example}, ${isLiability?'3200000':'100000'}"></textarea>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap;">
+          <button class="btn small" id="btn_${key}" type="button">Parse &amp; add</button>
+          <span class="helptext" style="margin:0;">or</span>
+          <button class="btn small ghost" id="filebtn_${key}" type="button">Choose file (CSV/TXT/Excel)</button>
+          <input type="file" id="file_${key}" accept=".csv,.txt,.xlsx,.xls" style="display:none">
+        </div>
+        <div id="fb_${key}" class="helptext" style="margin:6px 0;"></div>
+      </div>
+    </details>
   `;
   container.appendChild(card);
   card.querySelector(`#filebtn_${key}`).onclick = ()=> card.querySelector(`#file_${key}`).click();
@@ -324,25 +382,69 @@ function renderCategoryCard(container, key, cat, isLiability){
     table.innerHTML = `<tr><th>Label</th><th>Value</th><th></th></tr>`;
     cat.rows.forEach((r,idx)=>{
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${r.label}</td><td>₹${(+r.value||0).toLocaleString('en-IN')}</td><td><button class="btn small ghost" data-rm="${idx}">✕</button></td>`;
+      tr.innerHTML = `<td><input type="text" data-editlabel="${idx}" value="${escapeHtml(r.label)}"></td><td><input type="number" step="any" min="0" data-editvalue="${idx}" value="${+r.value||0}"></td><td><button class="btn small ghost" data-rm="${idx}" title="Remove this row">✕</button></td>`;
       table.appendChild(tr);
     });
     el.innerHTML = '';
     el.appendChild(table);
+    // Inline edit -- click into a cell and change it directly, rather than deleting the row and
+    // re-pasting/re-typing the whole line. Label edits that would leave it blank, and Value edits
+    // that don't parse to a number >= 0, are reverted (input reset to the last good value) instead
+    // of silently saving something invalid.
+    el.querySelectorAll('[data-editlabel]').forEach(inp=>{
+      inp.onchange = (e)=>{
+        const idx = +e.target.dataset.editlabel;
+        const r = cat.rows[idx];
+        const label = e.target.value.trim();
+        if(!label){ e.target.value = r.label; return; }
+        r.label = label;
+        saveData();
+      };
+    });
+    el.querySelectorAll('[data-editvalue]').forEach(inp=>{
+      inp.onchange = (e)=>{
+        const idx = +e.target.dataset.editvalue;
+        const r = cat.rows[idx];
+        const value = toNum(e.target.value);
+        if(isNaN(value) || value<0){ e.target.value = +r.value||0; return; }
+        r.value = value;
+        saveData(); renderSummary();
+        e.target.value = value;
+      };
+    });
     el.querySelectorAll('[data-rm]').forEach(btn=>{
       btn.onclick = (e)=>{ cat.rows.splice(+e.target.dataset.rm,1); saveData(); renderRows(); renderSummary(); };
     });
   }
   renderRows();
 
+  // ---- Guided one-item form -- feeds the same addLabelValueRow() the bulk-paste path below uses ----
+  card.querySelector(`#addform_${key}`).onsubmit = (e)=>{
+    e.preventDefault();
+    const labelInput = card.querySelector(`#add_label_${key}`);
+    const valueInput = card.querySelector(`#add_value_${key}`);
+    const fb = card.querySelector(`#addfb_${key}`);
+    const ok = addLabelValueRow(cat, labelInput.value, valueInput.value);
+    if(ok){
+      saveData(); renderRows(); renderSummary();
+      fb.textContent = `Added "${labelInput.value.trim()}".`;
+      fb.style.color = '';
+      labelInput.value=''; valueInput.value='';
+      labelInput.focus();
+    } else {
+      fb.textContent = 'Enter a label and a value of ₹0 or more.';
+      fb.style.color = 'var(--rust)';
+    }
+  };
+
+  // ---- Bulk paste/CSV/Excel -- same addLabelValueRow() actually pushes each parsed row ----
   card.querySelector(`#btn_${key}`).onclick = ()=>{
     const raw = card.querySelector(`#ta_${key}`).value;
     const rows = parsePastedRows(raw, isLiability ? 3 : 2, 2); // Label, Value[, OutstandingAsOf] (Label+Value always the floor)
     let added=0, skipped=0;
     rows.forEach(cols=>{
       const parsed = parseLabelValueRow(cols);
-      if(!parsed || !parsed.label){ skipped++; return; }
-      cat.rows.push(parsed);
+      if(!parsed || !addLabelValueRow(cat, parsed.label, parsed.value)){ skipped++; return; }
       added++;
     });
     saveData(); renderRows(); renderSummary();
