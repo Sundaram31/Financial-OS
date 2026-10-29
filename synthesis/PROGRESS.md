@@ -544,3 +544,19 @@ dark, 4.9–5.7:1 light (this file's `--panel-2` case is the tightest margin of 
 reads every other module's `localStorage`) — 0 nodes under 13px, 0 console errors. No JS logic
 touched, CSS values only, so the read-only cross-module rendering this page depends on is
 unaffected.
+
+
+### Fix (2026-10-29) — unguarded localStorage calls could blank the whole page in restrictive contexts
+`applyTheme()`'s init call (`applyTheme(localStorage.getItem(THEME_KEY) || 'dark')`) ran at
+top-level script load, before the initial render, with no try/catch. In any context where
+`localStorage` throws instead of just being empty (sandboxed iframes, some embedded previews,
+Safari private browsing in certain configurations) this was an uncaught exception that halted the
+whole script before the first render ever ran — the page loaded, but the dashboard/rail never
+painted. The existing read-path (`loadData`/`loadProfile`) was already safely wrapped; the
+theme-init call and `saveData`/`saveProfile` were not. Reproduced live: with `localStorage` made to
+throw on access, the unfixed file rendered 0 content; fixed, it renders fully (confirmed via
+Playwright, rail/content populated, 0 page errors). Fix: wrapped every remaining unguarded
+`localStorage.getItem`/`setItem` call in try/catch, defaulting to 'dark' theme / silent no-op save
+on failure — no behavior change for a normal browser, where this never throws.
+
+Files touched: `/home/user/Financial-OS/synthesis/index.html`.

@@ -106,7 +106,7 @@ function loadData(){
   catch(e){ return {goals:[]}; }
 }
 let data = loadData();
-function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function saveData(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch(e){} }
 let expandedGoalId = null;
 
 // 2026-08-11, THIRD ROUND (safe-by-construction rewrite). Two prior same-day fixes each patched
@@ -762,7 +762,7 @@ function renderGoalBody(container, goal){
         (${proj.monthsLeft} months left, assuming ${goal.assumedReturn||0}% annual return and ₹${(+goal.monthlyContribution||0).toLocaleString('en-IN')}/month contribution)
       </div>
       ${!proj.onTrack ? `<div class="verdict-detail" style="color:var(--rust); margin-top:8px;">To hit this target on time at ${goal.assumedReturn||0}% return, you'd need roughly ₹${Math.round(proj.requiredMonthly).toLocaleString('en-IN')}/month instead — ₹${Math.round(proj.requiredMonthly-(+goal.monthlyContribution||0)).toLocaleString('en-IN')} more than currently planned.</div>` : ''}
-      ${!localStorage.getItem(ANNUITY_NOTE_KEY) ? `
+      ${!(()=>{ try{ return localStorage.getItem(ANNUITY_NOTE_KEY); }catch(e){ return null; } })() ? `
       <div class="helptext" id="annuity_note" style="margin-top:10px; padding:8px 10px; border:1px solid var(--line); border-radius:4px; display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
         <span>We updated how monthly SIP figures are calculated to match industry-standard calculators (Groww/ET Money-style annuity-due) — projected numbers may look slightly different than before.</span>
         <button type="button" class="btn small ghost" id="dismiss_annuity_note" style="flex-shrink:0;">Got it</button>
@@ -784,7 +784,7 @@ function renderGoalBody(container, goal){
   container.appendChild(projCard);
   const dismissNoteBtn = projCard.querySelector('#dismiss_annuity_note');
   if(dismissNoteBtn){
-    dismissNoteBtn.onclick = ()=>{ localStorage.setItem(ANNUITY_NOTE_KEY, '1'); render(); };
+    dismissNoteBtn.onclick = ()=>{ try{ localStorage.setItem(ANNUITY_NOTE_KEY, '1'); }catch(e){} render(); };
   }
 
   const disclaimer = document.createElement('div');
@@ -856,13 +856,13 @@ const THEME_KEY = 'itrgenie_theme';
 function applyTheme(theme){
   document.body.dataset.theme = theme;
   document.getElementById('themeToggleBtn').textContent = theme==='light' ? '● Dark mode' : '☀ Light mode';
-  localStorage.setItem(THEME_KEY, theme);
+  try{ localStorage.setItem(THEME_KEY, theme); }catch(e){}
 }
 document.getElementById('themeToggleBtn').onclick = ()=>{
   const current = document.body.dataset.theme === 'light' ? 'light' : 'dark';
   applyTheme(current==='light' ? 'dark' : 'light');
 };
-applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+applyTheme((()=>{ try{ return localStorage.getItem(THEME_KEY); }catch(e){ return null; } })() || 'dark');
 
 document.getElementById('exportBtn').onclick = ()=>{
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});

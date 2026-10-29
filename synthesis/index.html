@@ -170,7 +170,7 @@ function loadData(){
   catch(e){ return defaultData(); }
 }
 let data = loadData();
-function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function saveData(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch(e){} }
 
 // ---------- read-only access to every other module's data ----------
 // Same-origin localStorage means every module's key is already readable from here (all modules
@@ -1092,13 +1092,13 @@ const THEME_KEY = 'itrgenie_theme'; // shared across every Financial OS module
 function applyTheme(theme){
   document.body.dataset.theme = theme;
   document.getElementById('themeToggleBtn').textContent = theme==='light' ? '● Dark mode' : '☀ Light mode';
-  localStorage.setItem(THEME_KEY, theme);
+  try{ localStorage.setItem(THEME_KEY, theme); }catch(e){}
 }
 document.getElementById('themeToggleBtn').onclick = ()=>{
   const current = document.body.dataset.theme === 'light' ? 'light' : 'dark';
   applyTheme(current==='light' ? 'dark' : 'light');
 };
-applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+applyTheme((()=>{ try{ return localStorage.getItem(THEME_KEY); }catch(e){ return null; } })() || 'dark');
 
 document.getElementById('refreshBtn').onclick = ()=> location.reload();
 </script>

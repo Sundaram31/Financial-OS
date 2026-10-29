@@ -223,7 +223,7 @@ if(!Array.isArray(data.accounts) || data.accounts.length===0) data.accounts = de
 if(!Array.isArray(data.holdings)) data.holdings = [];
 if(!data.fx) data.fx = { usdInr:'', asOf:'' };
 if(!Array.isArray(data.soldLots)) data.soldLots = [];
-function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function saveData(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch(e){} }
 function newId(prefix){ return prefix + '_' + Date.now() + '_' + Math.floor(Math.random()*1000); }
 
 // ---------- Tab sub-navigation (added 2026-08-11) ----------
@@ -3214,13 +3214,13 @@ const THEME_KEY = 'itrgenie_theme'; // deliberately shared with every other modu
 function applyTheme(theme){
   document.body.dataset.theme = theme;
   document.getElementById('themeToggleBtn').textContent = theme==='light' ? '● Dark mode' : '☀ Light mode';
-  localStorage.setItem(THEME_KEY, theme);
+  try{ localStorage.setItem(THEME_KEY, theme); }catch(e){}
 }
 document.getElementById('themeToggleBtn').onclick = ()=>{
   const current = document.body.dataset.theme === 'light' ? 'light' : 'dark';
   applyTheme(current==='light' ? 'dark' : 'light');
 };
-applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+applyTheme((()=>{ try{ return localStorage.getItem(THEME_KEY); }catch(e){ return null; } })() || 'dark');
 
 document.getElementById('exportBtn').onclick = ()=>{
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
